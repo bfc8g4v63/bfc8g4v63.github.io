@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#fffaf0">
+  <meta name="description" content="建立活動、分享給家人，長輩一鍵就能回覆參加。">
+  <meta property="og:title" content="好日子｜家庭活動">
+  <meta property="og:description" content="建立・分享・參加，一看就會。">
+  <meta property="og:image" content="https://bfc8g4v63.github.io/og.png">
+  <meta property="og:url" content="https://bfc8g4v63.github.io">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/icon-192.png">
+  <link rel="apple-touch-icon" href="/icon-192.png">
+  <link rel="stylesheet" href="/styles.css">
+  <title>好日子｜家庭活動</title>
+</head>
+<body>
+  <main>
+    <header class="site-header">
+      <a class="brand" href="#top" aria-label="好日子家庭活動首頁">
+        <span class="brand-mark" aria-hidden="true">好</span>
+        <span><strong>好日子</strong><small>家庭活動</small></span>
+      </a>
+      <button class="primary small" data-create>＋ 建立活動</button>
+    </header>
+
+    <section class="hero" id="top">
+      <div class="hero-copy">
+        <p class="eyebrow">全家人都會用的活動簿</p>
+        <h1>相聚的日子，<br><em>簡單記、放心約。</em></h1>
+        <p class="hero-lead">不用下載、不用註冊。建立活動後，把網址分享到 LINE，家人點一下就能參加。</p>
+        <div class="hero-actions">
+          <button class="primary" data-create>建立第一個活動</button>
+          <a class="text-link" href="#activities">看看近期活動 ↓</a>
+        </div>
+      </div>
+      <div class="hero-note" aria-label="三個簡單步驟">
+        <span class="tape" aria-hidden="true"></span>
+        <p class="note-title">就這麼簡單</p>
+        <ol>
+          <li><b>1</b><span><strong>建立</strong>填寫時間和地點</span></li>
+          <li><b>2</b><span><strong>分享</strong>貼到家族群組</span></li>
+          <li><b>3</b><span><strong>參加</strong>家人一鍵回覆</span></li>
+        </ol>
+      </div>
+    </section>
+
+    <section class="activities" id="activities">
+      <div class="section-heading">
+        <div><p class="eyebrow">近期安排</p><h2>家族活動</h2></div>
+        <button class="secondary" data-create>＋ 新活動</button>
+      </div>
+      <div id="notice" class="notice" role="status" hidden></div>
+      <div id="error" class="error" role="alert" hidden></div>
+      <div id="loading" class="loading" aria-live="polite">正在整理活動…</div>
+      <div id="events" class="event-grid"></div>
+    </section>
+
+    <section class="reassurance">
+      <p class="eyebrow">為長輩多想一步</p>
+      <div class="reassurance-grid">
+        <div><span aria-hidden="true">字</span><h3>大字清楚</h3><p>不用放大畫面，也能看得舒服。</p></div>
+        <div><span aria-hidden="true">一</span><h3>一鍵回覆</h3><p>不設帳號、不必下載新程式。</p></div>
+        <div><span aria-hidden="true">家</span><h3>家人代填</h3><p>一支手機可幫多位家人報名。</p></div>
+      </div>
+    </section>
+    <footer><strong>好日子</strong><span>讓每一次相聚，都更容易。</span></footer>
+  </main>
+  <div id="modal-root"></div>
+  <script src="/app.js" defer></script>
+</body>
+</html>
