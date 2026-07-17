@@ -1,0 +1,18 @@
+import type { MetadataRoute } from "next";
+
+export default function manifest(): MetadataRoute.Manifest {
+  return {
+    name: "好日子家庭活動",
+    short_name: "好日子",
+    description: "全家人都會用的活動簿",
+    start_url: "/",
+    display: "standalone",
+    background_color: "#fffaf0",
+    theme_color: "#fffaf0",
+    lang: "zh-Hant",
+    icons: [
+      { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+  };
+}
