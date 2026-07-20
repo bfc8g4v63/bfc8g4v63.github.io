@@ -81,6 +81,7 @@ tbody tr:last-child td { border-bottom:0; }
 .guide-page .primary { display:inline-flex; align-items:center; text-decoration:none; }
 .access-options { display:grid; gap:10px; padding:0; border:0; margin:0; }
 .access-options legend { font-weight:800; margin-bottom:8px; }
+.access-privacy-note { margin:0 0 4px; padding:12px 14px; border-left:4px solid var(--sage); background:var(--cream); color:var(--ink-soft); font-size:14px; line-height:1.55; }
 .access-options .choice small { display:block; margin-top:4px; color:var(--ink-soft); font-weight:500; font-size:14px; line-height:1.4; }
 .access-options .choice strong { display:block; }
 .share-modal label { display:grid; gap:7px; font-weight:800; }
