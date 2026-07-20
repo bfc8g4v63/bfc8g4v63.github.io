@@ -28,3 +28,35 @@ export const rsvps = sqliteTable("rsvps", {
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [uniqueIndex("rsvps_event_name_unique").on(table.eventId, table.name)]);
+
+export const lineBindings = sqliteTable("line_bindings", {
+  eventId: text("event_id").primaryKey().references(() => events.id, { onDelete: "cascade" }),
+  groupId: text("group_id").notNull(),
+  groupName: text("group_name").notNull().default("LINE 群組"),
+  boundAt: text("bound_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [uniqueIndex("line_bindings_group_unique").on(table.groupId)]);
+
+export const lineBindCodes = sqliteTable("line_bind_codes", {
+  code: text("code").primaryKey(),
+  eventId: text("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  expiresAt: text("expires_at").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const lineReminderSettings = sqliteTable("line_reminder_settings", {
+  eventId: text("event_id").primaryKey().references(() => events.id, { onDelete: "cascade" }),
+  sevenDays: integer("seven_days", { mode: "boolean" }).notNull().default(true),
+  oneDay: integer("one_day", { mode: "boolean" }).notNull().default(true),
+  twoHours: integer("two_hours", { mode: "boolean" }).notNull().default(false),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const lineReminderDeliveries = sqliteTable("line_reminder_deliveries", {
+  id: text("id").primaryKey(),
+  eventId: text("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  reminderKey: text("reminder_key").notNull(),
+  eventFingerprint: text("event_fingerprint").notNull(),
+  sentAt: text("sent_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [uniqueIndex("line_reminder_delivery_unique").on(
+  table.eventId, table.reminderKey, table.eventFingerprint,
+)]);

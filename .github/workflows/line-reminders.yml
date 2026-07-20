@@ -1,0 +1,22 @@
+name: LINE activity reminders
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  send-reminders:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ask the reminder service to send due messages
+        env:
+          REMINDER_SECRET: ${{ secrets.REMINDER_SECRET }}
+        run: |
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --header "Authorization: Bearer ${REMINDER_SECRET}" \
+            https://good-days-family-events.x0925234139.chatgpt.site/api/line/run-reminders

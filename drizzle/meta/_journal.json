@@ -8,6 +8,13 @@
       "when": 1784255892597,
       "tag": "0000_strange_the_hunter",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1784516526765,
+      "tag": "0001_narrow_plazm",
+      "breakpoints": true
     }
   ]
 }

@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#fffaf0">
+  <title>LINE 群組提醒設定｜好日子</title>
+  <link rel="icon" href="/icon-192.png">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="回到好日子首頁"><span class="brand-mark">好</span><span><strong>好日子</strong><small>LINE 設定教學</small></span></a>
+    <a href="/" class="secondary">回活動頁</a>
+  </header>
+  <main class="guide-page">
+    <p class="eyebrow">一次設定，之後自動提醒</p>
+    <h1>LINE 群組機器人<br>設定教學</h1>
+    <p class="hero-lead">程式端已準備好。只需建立一個 LINE 官方帳號、取得兩個私密憑證，再把機器人邀進家族群組。</p>
+
+    <h2>一、建立 LINE 官方帳號</h2>
+    <div class="guide-step">
+      <ol>
+        <li>登入 <a href="https://manager.line.biz/" target="_blank" rel="noopener">LINE Official Account Manager</a>，建立官方帳號，例如「好日子家庭提醒」。</li>
+        <li>在官方帳號後台啟用 Messaging API，並選擇或建立 Provider。</li>
+        <li>進入 <a href="https://developers.line.biz/console/" target="_blank" rel="noopener">LINE Developers Console</a> 的 Messaging API channel。</li>
+      </ol>
+    </div>
+
+    <h2>二、取得兩個私密憑證</h2>
+    <div class="guide-step">
+      <ol>
+        <li>在 <strong>Basic settings</strong> 複製 <strong>Channel secret</strong>。</li>
+        <li>在 <strong>Messaging API</strong> 頁籤簽發並複製 <strong>Channel access token</strong>。</li>
+        <li>把兩者設到後端環境變數 <code>LINE_CHANNEL_SECRET</code> 與 <code>LINE_CHANNEL_ACCESS_TOKEN</code>。不要放進 GitHub 程式碼或群組訊息。</li>
+      </ol>
+      <p class="guide-callout">這兩個值等同機器人的密碼；網站訪客與 GitHub 公開 repo 都不會看到它們。</p>
+    </div>
+
+    <h2>三、設定 Webhook</h2>
+    <div class="guide-step">
+      <p>在 Messaging API 頁籤把 Webhook URL 設為：</p>
+      <p><code>https://good-days-family-events.x0925234139.chatgpt.site/api/line/webhook</code></p>
+      <ol>
+        <li>開啟 <strong>Use webhook</strong>。</li>
+        <li>按 <strong>Verify</strong>，應顯示成功。</li>
+        <li>開啟 <strong>Allow bot to join group chats</strong>。</li>
+      </ol>
+    </div>
+
+    <h2>四、把活動綁定到家族群組</h2>
+    <div class="guide-step">
+      <ol>
+        <li>把剛建立的 LINE 官方帳號加為好友，再邀請進家族群組。</li>
+        <li>回到好日子網站，點活動的「管理」，輸入活動管理碼。</li>
+        <li>在 LINE 區塊點「產生群組綁定碼」。</li>
+        <li>在家族群組輸入 <strong>綁定 123456</strong>（換成畫面上的六碼）。</li>
+        <li>看到「綁定成功」後，可回管理後台傳送測試提醒。</li>
+      </ol>
+    </div>
+
+    <h2>提醒規則</h2>
+    <div class="guide-step">
+      <p>預設在活動前 7 天與 1 天提醒，也可加開活動前 2 小時。排程每 15 分鐘檢查一次，因此實際傳送時間可能前後差約 15 分鐘。</p>
+      <p>LINE 群組同時間只能加入一個官方帳號；提醒訊息會計入該官方帳號的 Messaging API 訊息用量。</p>
+    </div>
+    <a class="primary" href="/">回好日子管理活動</a>
+  </main>
+</body>
+</html>

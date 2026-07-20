@@ -36,6 +36,38 @@ export function ensureSchema() {
         FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
       )`),
       database.prepare("CREATE UNIQUE INDEX IF NOT EXISTS rsvps_event_name_unique ON rsvps (event_id, name)"),
+      database.prepare(`CREATE TABLE IF NOT EXISTS line_bindings (
+        event_id TEXT PRIMARY KEY NOT NULL,
+        group_id TEXT NOT NULL,
+        group_name TEXT NOT NULL DEFAULT 'LINE 群組',
+        bound_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+      )`),
+      database.prepare("CREATE UNIQUE INDEX IF NOT EXISTS line_bindings_group_unique ON line_bindings (group_id)"),
+      database.prepare(`CREATE TABLE IF NOT EXISTS line_bind_codes (
+        code TEXT PRIMARY KEY NOT NULL,
+        event_id TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+      )`),
+      database.prepare(`CREATE TABLE IF NOT EXISTS line_reminder_settings (
+        event_id TEXT PRIMARY KEY NOT NULL,
+        seven_days INTEGER NOT NULL DEFAULT 1,
+        one_day INTEGER NOT NULL DEFAULT 1,
+        two_hours INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+      )`),
+      database.prepare(`CREATE TABLE IF NOT EXISTS line_reminder_deliveries (
+        id TEXT PRIMARY KEY NOT NULL,
+        event_id TEXT NOT NULL,
+        reminder_key TEXT NOT NULL,
+        event_fingerprint TEXT NOT NULL,
+        sent_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+      )`),
+      database.prepare("CREATE UNIQUE INDEX IF NOT EXISTS line_reminder_delivery_unique ON line_reminder_deliveries (event_id, reminder_key, event_fingerprint)"),
     ]);
   })().catch((error) => {
     ready = null;

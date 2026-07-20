@@ -3,16 +3,7 @@ import { getDb } from "../../../db";
 import { ensureSchema } from "../../../db/init";
 import { events, rsvps } from "../../../db/schema";
 import { json, preflight } from "../cors";
-
-async function hashCode(value: string) {
-  const bytes = new TextEncoder().encode(value);
-  const digest = await crypto.subtle.digest("SHA-256", bytes);
-  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-function clean(value: unknown, max = 500) {
-  return typeof value === "string" ? value.trim().slice(0, max) : "";
-}
+import { clean, hashCode } from "../admin/auth";
 
 export function OPTIONS(request: Request) {
   return preflight(request);
@@ -30,16 +21,22 @@ export async function GET(request: Request) {
         contactPhone: events.contactPhone, capacity: events.capacity, status: events.status,
       }).from(events).orderBy(asc(events.eventDate), asc(events.startTime)),
       db.select({
-        id: rsvps.id, eventId: rsvps.eventId, name: rsvps.name,
-        partySize: rsvps.partySize, diet: rsvps.diet, note: rsvps.note,
-        response: rsvps.response,
+        eventId: rsvps.eventId, partySize: rsvps.partySize, response: rsvps.response,
       }).from(rsvps),
     ]);
     return json(request, {
-      events: eventRows.map((event) => ({
-        ...event,
-        rsvps: rsvpRows.filter((rsvp) => rsvp.eventId === event.id),
-      })),
+      events: eventRows.map((event) => {
+        const replies = rsvpRows.filter((rsvp) => rsvp.eventId === event.id);
+        const attending = replies.filter((rsvp) => rsvp.response === "attending");
+        return {
+          ...event,
+          summary: {
+            attendingPeople: attending.reduce((sum, rsvp) => sum + rsvp.partySize, 0),
+            attendingReplies: attending.length,
+            notAttendingReplies: replies.filter((rsvp) => rsvp.response === "not_attending").length,
+          },
+        };
+      }),
     });
   } catch (error) {
     return json(request, { error: error instanceof Error ? error.message : "讀取活動失敗" }, 500);
