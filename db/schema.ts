@@ -12,10 +12,13 @@ export const events = sqliteTable("events", {
   contactPhone: text("contact_phone").notNull().default(""),
   capacity: integer("capacity"),
   status: text("status").notNull().default("active"),
+  accessMode: text("access_mode").notNull().default("unlisted"),
+  shareToken: text("share_token").notNull().default(""),
+  participantCodeHash: text("participant_code_hash").notNull().default(""),
   editCodeHash: text("edit_code_hash").notNull(),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
-});
+}, (table) => [uniqueIndex("events_share_token_unique").on(table.shareToken)]);
 
 export const rsvps = sqliteTable("rsvps", {
   id: text("id").primaryKey(),

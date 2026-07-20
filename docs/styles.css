@@ -79,4 +79,25 @@ tbody tr:last-child td { border-bottom:0; }
 .guide-step code { overflow-wrap:anywhere; }
 .guide-callout { padding:17px 19px; background:#fff3b8; border-radius:13px; }
 .guide-page .primary { display:inline-flex; align-items:center; text-decoration:none; }
+.access-options { display:grid; gap:10px; padding:0; border:0; margin:0; }
+.access-options legend { font-weight:800; margin-bottom:8px; }
+.access-options .choice small { display:block; margin-top:4px; color:var(--ink-soft); font-weight:500; font-size:14px; line-height:1.4; }
+.access-options .choice strong { display:block; }
+.share-modal label { display:grid; gap:7px; font-weight:800; }
+.share-modal input { width:100%; min-height:50px; padding:10px 12px; border:2px solid #bcb39d; border-radius:12px; background:white; color:var(--ink); }
+.qr-card { display:grid; justify-items:center; gap:13px; margin:26px 0 0; padding:24px; border:1px solid var(--line); border-radius:16px; background:white; text-align:center; }
+.qr-card img { width:min(260px,100%); image-rendering:pixelated; }
+.qr-card figcaption { color:var(--ink-soft); }
+.download-qr { display:inline-flex; align-items:center; justify-content:center; min-height:44px; padding:8px 15px; border:1px solid var(--ink); border-radius:10px; font-weight:800; text-decoration:none; }
+.event-page { min-height:100vh; background:var(--cream); }
+.event-page-content { max-width:800px; margin:0 auto; padding:clamp(44px,8vw,90px) 22px; }
+.event-invitation,.event-gate { padding:clamp(30px,6vw,60px); background:var(--paper); border:1px solid var(--line); border-radius:24px; box-shadow:0 10px 0 rgba(23,63,58,.08); }
+.event-invitation h1,.event-gate h1 { font-family:Georgia,"Noto Serif TC",serif; font-size:clamp(42px,7vw,70px); line-height:1.1; margin-bottom:22px; }
+.invitation-meta { padding:17px; border-left:5px solid var(--coral); background:var(--cream); font-size:19px; line-height:1.6; }
+.event-invitation .primary { margin-top:22px; min-width:180px; }
+.event-gate { max-width:580px; margin:0 auto; }
+.event-gate form { display:grid; gap:17px; margin-top:24px; }
+.event-gate label { display:grid; gap:7px; font-weight:800; }
+.event-gate input { min-height:54px; padding:11px 14px; border:2px solid #bcb39d; border-radius:12px; font-size:19px; }
+.manage-link { display:block; margin-top:28px; padding:8px 0; border:0; background:transparent; color:var(--ink-soft); font-weight:800; text-decoration:underline; text-underline-offset:4px; }
 @media (max-width:780px) { .admin-modal { padding:36px 16px 55px; }.stats-grid { grid-template-columns:1fr 1fr; }.admin-toolbar>* { width:100%; }.admin-section-title { align-items:flex-start; flex-direction:column; }.line-section { margin-left:0; margin-right:0; }.reminder-options { align-items:stretch; flex-direction:column; }.reminder-options .secondary { width:100%; }.guide-page { padding-top:28px; } }

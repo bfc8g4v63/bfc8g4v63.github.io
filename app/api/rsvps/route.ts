@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { ensureSchema } from "../../../db/init";
 import { events, rsvps } from "../../../db/schema";
+import { hashCode } from "../admin/auth";
 import { json, preflight } from "../cors";
 
 function clean(value: unknown, max = 300) {
@@ -17,6 +18,8 @@ export async function POST(request: Request) {
     await ensureSchema();
     const body = await request.json() as Record<string, unknown>;
     const eventId = clean(body.eventId, 80);
+    const shareToken = clean(body.shareToken, 80);
+    const participantCode = clean(body.participantCode, 80);
     const name = clean(body.name, 60);
     const response = body.response === "not_attending" ? "not_attending" : "attending";
     const partySize = Math.max(1, Math.min(
@@ -26,10 +29,17 @@ export async function POST(request: Request) {
     if (!eventId || !name) return json(request, { error: "請填寫姓名" }, 400);
     const db = getDb();
     const [event] = await db.select({
-      id: events.id, status: events.status, capacity: events.capacity,
+      id: events.id, status: events.status, accessMode: events.accessMode,
+      shareToken: events.shareToken, participantCodeHash: events.participantCodeHash,
     }).from(events).where(eq(events.id, eventId)).limit(1);
-    if (!event) return json(request, { error: "找不到這個活動" }, 404);
+    if (!event) return json(request, { error: "找不到活動" }, 404);
     if (event.status === "cancelled") return json(request, { error: "這個活動已取消" }, 400);
+    if (event.accessMode !== "public" && shareToken !== event.shareToken) {
+      return json(request, { error: "請從活動專屬連結參加" }, 403);
+    }
+    if (event.accessMode === "private" && await hashCode(participantCode) !== event.participantCodeHash) {
+      return json(request, { error: "參加碼不正確" }, 403);
+    }
     const [existing] = await db.select({ id: rsvps.id }).from(rsvps)
       .where(and(eq(rsvps.eventId, eventId), eq(rsvps.name, name))).limit(1);
     const values = {

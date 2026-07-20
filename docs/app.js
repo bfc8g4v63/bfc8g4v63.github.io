@@ -114,6 +114,12 @@ function openEventForm(event, knownEditCode = "") {
           </div>
           ${field('地點 <span>必填</span>', "location", event?.location, 'required placeholder="餐廳名稱或地址"')}
           <label>活動說明<textarea name="description" rows="3" placeholder="要帶什麼？在哪裡集合？">${esc(event?.description)}</textarea></label>
+          <fieldset class="access-options"><legend>活動公開方式</legend>
+            <label class="choice"><input type="radio" name="accessMode" value="unlisted" ${(!event || event.accessMode === "unlisted") ? "checked" : ""}><span><strong>不公開，免密碼（推薦）</strong><small>不會出現在首頁；拿到專屬連結的人可查看與參加。</small></span></label>
+            <label class="choice"><input type="radio" name="accessMode" value="private" ${event?.accessMode === "private" ? "checked" : ""}><span><strong>不公開＋參加碼</strong><small>拿到連結後仍需輸入參加碼，適合私人或敏感活動。</small></span></label>
+            <label class="choice"><input type="radio" name="accessMode" value="public" ${event?.accessMode === "public" ? "checked" : ""}><span><strong>完全公開</strong><small>會出現在首頁，任何訪客都能查看與參加。</small></span></label>
+          </fieldset>
+          <label id="participant-code-field" ${event?.accessMode === "private" ? "" : "hidden"}>參加碼 <span>私人活動必填</span><input name="participantCode" minlength="4" autocomplete="new-password" placeholder="自訂至少 4 碼；留白代表不變"></label>
           <div class="form-row">
             ${field("聯絡人", "contactName", event?.contactName, 'placeholder="王小明"')}
             ${field("聯絡電話（僅管理者可見）", "contactPhone", event?.contactPhone, 'inputmode="tel" placeholder="0912 345 678"')}
@@ -134,6 +140,15 @@ function openEventForm(event, knownEditCode = "") {
     </div>`;
 
   const form = document.querySelector("#event-form");
+  const participantCodeField = form.querySelector("#participant-code-field");
+  const syncParticipantCode = () => {
+    const privateMode = form.elements.accessMode.value === "private";
+    participantCodeField.hidden = !privateMode;
+    const input = form.elements.participantCode;
+    input.required = privateMode && !event?.accessMode?.includes("private");
+  };
+  form.addEventListener("change", syncParticipantCode);
+  syncParticipantCode();
   form.addEventListener("submit", async (submitEvent) => {
     submitEvent.preventDefault();
     const button = form.querySelector('[type="submit"]');
@@ -280,6 +295,7 @@ function openAdminDashboard(data, editCode) {
         </div>
         <div class="admin-toolbar">
           <button class="primary" id="edit-from-admin">修改活動</button>
+          <button class="secondary" id="show-share">分享連結與 QR Code</button>
           <button class="secondary" id="export-rsvps">下載 CSV 名單</button>
         </div>
         <section class="admin-section">
@@ -295,6 +311,7 @@ function openAdminDashboard(data, editCode) {
     </div>`;
 
   document.querySelector("#edit-from-admin").addEventListener("click", () => openEventForm(event, editCode));
+  document.querySelector("#show-share").addEventListener("click", () => openSharePanel(event));
   document.querySelector("#export-rsvps").addEventListener("click", () => exportRsvps(event, data.rsvps));
   document.querySelector("#line-code")?.addEventListener("click", async (clickEvent) => {
     const button = clickEvent.currentTarget;
@@ -383,6 +400,7 @@ async function save(url, method, body, successMessage, form) {
     closeModal();
     showNotice(successMessage);
     await loadEvents();
+    if (data.shareUrl && method === "POST") openSharePanel({ title: body.title, shareUrl: data.shareUrl });
     return true;
   } catch (error) {
     showFormError(form, error.message || "操作失敗");
@@ -393,7 +411,7 @@ async function save(url, method, body, successMessage, form) {
 function closeModal() { modalRoot.innerHTML = ""; }
 
 async function shareEvent(event) {
-  const url = `${location.origin}/?event=${encodeURIComponent(event.id)}`;
+  const url = event.shareUrl || `${location.origin}/?event=${encodeURIComponent(event.id)}`;
   try {
     if (navigator.share) await navigator.share({ title: event.title, text: `${formatDate(event.eventDate)} ${event.startTime}｜${event.location}`, url });
     else {
@@ -401,6 +419,38 @@ async function shareEvent(event) {
       showNotice("活動網址已複製，可以貼到 LINE 分享");
     }
   } catch {}
+}
+
+function qrDataUrl(url) {
+  if (typeof qrcode !== "function") return "";
+  const qr = qrcode(0, "M");
+  qr.addData(url);
+  qr.make();
+  return qr.createDataURL(8, 4);
+}
+
+function openSharePanel(event) {
+  const url = event.shareUrl;
+  const qr = qrDataUrl(url);
+  modalRoot.innerHTML = `
+    <div class="modal-backdrop">
+      <section class="modal compact-modal share-modal" role="dialog" aria-modal="true" aria-labelledby="share-title">
+        <button class="modal-close" data-close aria-label="關閉">×</button>
+        <p class="eyebrow">專屬活動連結</p><h2 id="share-title">${esc(event.title || "分享活動")}</h2>
+        <p>此活動有自己的頁面。${event.accessMode === "private" ? "開啟後還需要輸入參加碼。" : "把連結或 QR Code 分享給家人即可。"}</p>
+        <label>分享連結<input id="share-url" value="${esc(url)}" readonly></label>
+        <div class="inline-actions"><button class="primary" id="copy-share">複製連結</button><button class="secondary" id="native-share">分享…</button></div>
+        ${qr ? `<figure class="qr-card"><img src="${qr}" alt="活動 QR Code"><figcaption>讓家人用手機相機掃描開啟活動</figcaption><a class="secondary download-qr" href="${qr}" download="${esc(event.title || "活動")}-QR-Code.png">下載 QR Code</a></figure>` : ""}
+      </section>
+    </div>`;
+  document.querySelector("#copy-share").addEventListener("click", async () => {
+    await navigator.clipboard.writeText(url);
+    showNotice("活動專屬連結已複製");
+  });
+  document.querySelector("#native-share").addEventListener("click", async () => {
+    if (navigator.share) await navigator.share({ title: event.title || "活動邀請", url });
+    else await navigator.clipboard.writeText(url);
+  });
 }
 
 document.addEventListener("click", (clickEvent) => {

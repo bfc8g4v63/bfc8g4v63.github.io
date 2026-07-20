@@ -19,6 +19,9 @@ export function ensureSchema() {
         contact_phone TEXT NOT NULL DEFAULT '',
         capacity INTEGER,
         status TEXT NOT NULL DEFAULT 'active',
+        access_mode TEXT NOT NULL DEFAULT 'unlisted',
+        share_token TEXT NOT NULL DEFAULT '',
+        participant_code_hash TEXT NOT NULL DEFAULT '',
         edit_code_hash TEXT NOT NULL,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -69,6 +72,20 @@ export function ensureSchema() {
       )`),
       database.prepare("CREATE UNIQUE INDEX IF NOT EXISTS line_reminder_delivery_unique ON line_reminder_deliveries (event_id, reminder_key, event_fingerprint)"),
     ]);
+    const columns = await database.prepare("PRAGMA table_info(events)").all<{ name: string }>();
+    const names = new Set((columns.results || []).map((column) => column.name));
+    if (!names.has("access_mode")) {
+      // Preserve the visibility of activities created before privacy modes existed.
+      await database.prepare("ALTER TABLE events ADD COLUMN access_mode TEXT NOT NULL DEFAULT 'public'").run();
+    }
+    if (!names.has("share_token")) {
+      await database.prepare("ALTER TABLE events ADD COLUMN share_token TEXT NOT NULL DEFAULT ''").run();
+    }
+    if (!names.has("participant_code_hash")) {
+      await database.prepare("ALTER TABLE events ADD COLUMN participant_code_hash TEXT NOT NULL DEFAULT ''").run();
+    }
+    await database.prepare("UPDATE events SET share_token = lower(hex(randomblob(16))) WHERE share_token = '' OR share_token IS NULL").run();
+    await database.prepare("CREATE UNIQUE INDEX IF NOT EXISTS events_share_token_unique ON events (share_token)").run();
   })().catch((error) => {
     ready = null;
     throw error;

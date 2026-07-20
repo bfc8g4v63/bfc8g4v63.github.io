@@ -29,7 +29,12 @@ export async function POST(request: Request) {
     const attending = responses.filter((item) => item.response === "attending");
     const settings = settingRows[0] || { sevenDays: true, oneDay: true, twoHours: false };
     return json(request, {
-      event: { ...access.event, editCodeHash: undefined },
+      event: {
+        ...access.event,
+        editCodeHash: undefined,
+        participantCodeHash: undefined,
+        shareUrl: `https://bfc8g4v63.github.io/e/?s=${encodeURIComponent(access.event.shareToken)}`,
+      },
       rsvps: responses,
       summary: {
         attendingPeople: attending.reduce((sum, item) => sum + item.partySize, 0),
