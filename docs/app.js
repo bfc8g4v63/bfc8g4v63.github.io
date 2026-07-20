@@ -192,7 +192,7 @@ function openRsvpForm(event) {
             ${field("飲食需求", "diet", "", 'placeholder="例如：吃素、不吃牛（可留白）"')}
             <label>想告訴主辦人<textarea name="note" rows="2" placeholder="可留白"></textarea></label>
           </div>
-          <p class="form-hint">同一姓名再次回覆，會更新原本的答案。資料僅活動管理者可查看。</p>
+          <p class="form-hint">同一姓名再次回覆，會更新原本的內容。資料僅活動管理者可查看。</p>
           <p class="form-error" id="form-error" role="alert" hidden></p>
           <div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button type="submit" class="primary">確認送出</button></div>
         </form>

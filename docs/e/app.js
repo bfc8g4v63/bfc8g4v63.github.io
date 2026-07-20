@@ -83,7 +83,7 @@ function openRsvp() {
       <form id="rsvp-form"><label>您的姓名 <span>必填</span><input name="name" required autofocus placeholder="例如：王奶奶"></label>
         <fieldset><legend>是否參加？</legend><label class="choice"><input type="radio" name="response" value="attending" checked><span>✓ 我要參加</span></label><label class="choice"><input type="radio" name="response" value="not_attending"><span>這次無法參加</span></label></fieldset>
         <div id="attending-fields"><label>總共幾人參加？<input name="partySize" type="number" min="1" step="1" inputmode="numeric" value="1" required></label><label>飲食需求<input name="diet" placeholder="例如：吃素、不吃牛（可留白）"></label><label>想告訴主辦人<textarea name="note" rows="2" placeholder="可留白"></textarea></label></div>
-        <p class="form-hint">同一姓名再次回覆，會更新原本的答案。</p><p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button class="primary">確認送出</button></div>
+        <p class="form-hint">同一姓名再次回覆，會更新原本的內容。</p><p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button class="primary">確認送出</button></div>
       </form>
     </section></div>`;
   const form = document.querySelector("#rsvp-form");
