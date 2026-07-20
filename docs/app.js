@@ -400,7 +400,9 @@ async function save(url, method, body, successMessage, form) {
     closeModal();
     showNotice(successMessage);
     await loadEvents();
-    if (data.shareUrl && method === "POST") openSharePanel({ title: body.title, shareUrl: data.shareUrl });
+    if (data.shareUrl && (method === "POST" || body.accessMode === "unlisted" || body.accessMode === "private")) {
+      openSharePanel({ title: body.title, accessMode: body.accessMode, shareUrl: data.shareUrl });
+    }
     return true;
   } catch (error) {
     showFormError(form, error.message || "操作失敗");
