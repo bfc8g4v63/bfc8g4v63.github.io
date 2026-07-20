@@ -15,9 +15,11 @@ function formatDate(value) {
 }
 
 function formatDateTime(value) {
-  const date = new Date(value);
+  if (!value) return "—";
+  const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(value);
+  const date = new Date(hasTimezone ? value : `${value.replace(" ", "T")}Z`);
   return Number.isNaN(date.getTime()) ? "—" : new Intl.DateTimeFormat("zh-TW", {
-    dateStyle: "short", timeStyle: "short", hour12: false,
+    dateStyle: "short", timeStyle: "short", hour12: false, timeZone: "Asia/Taipei",
   }).format(date);
 }
 

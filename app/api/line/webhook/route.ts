@@ -32,7 +32,7 @@ export async function POST(request: Request) {
 
       if (event.type !== "message" || event.message?.type !== "text") continue;
       const text = event.message.text?.trim() || "";
-      if (text === "報名人數") {
+      if (text === "原神啟動") {
         const db = getDb();
         const [binding] = await db.select().from(lineBindings)
           .where(eq(lineBindings.groupId, groupId)).limit(1);
