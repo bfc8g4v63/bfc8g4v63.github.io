@@ -47,6 +47,30 @@ export async function replyText(replyToken: string, text: string) {
   });
 }
 
+type RsvpSummaryItem = {
+  name: string;
+  partySize: number;
+  diet: string;
+  note: string;
+};
+
+export function rsvpSummaryMessage(eventTitle: string, rsvps: RsvpSummaryItem[]) {
+  const people = rsvps.reduce((sum, rsvp) => sum + rsvp.partySize, 0);
+  const header = `${eventTitle}｜報名人數\n共 ${people} 人・${rsvps.length} 筆報名`;
+  if (!rsvps.length) return `${header}\n\n目前尚無參加者。`;
+
+  const lines = [header];
+  for (let index = 0; index < rsvps.length; index += 1) {
+    const rsvp = rsvps[index];
+    const entry = `${index + 1}. 姓名：${rsvp.name}\n人數：${rsvp.partySize}\n飲食：${rsvp.diet || "—"}\n備註：${rsvp.note || "—"}`;
+    if (`${lines.join("\n\n")}\n\n${entry}`.length > 4800) {
+      return `${lines.join("\n\n")}\n\n其餘 ${rsvps.length - index} 筆請至活動管理後台查看。`;
+    }
+    lines.push(entry);
+  }
+  return lines.join("\n\n");
+}
+
 export async function getGroupName(groupId: string) {
   try {
     const response = await lineRequest(`/v2/bot/group/${encodeURIComponent(groupId)}/summary`, { method: "GET" });

@@ -1,8 +1,8 @@
-import { eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { ensureSchema } from "../../../../db/init";
 import { getDb } from "../../../../db";
-import { events, lineBindCodes, lineBindings, lineReminderSettings } from "../../../../db/schema";
-import { getGroupName, replyText, verifyLineSignature } from "../lib";
+import { events, lineBindCodes, lineBindings, lineReminderSettings, rsvps } from "../../../../db/schema";
+import { getGroupName, replyText, rsvpSummaryMessage, verifyLineSignature } from "../lib";
 
 type LineEvent = {
   type?: string;
@@ -31,7 +31,33 @@ export async function POST(request: Request) {
       }
 
       if (event.type !== "message" || event.message?.type !== "text") continue;
-      const match = event.message.text?.trim().match(/^綁定\s*(\d{6})$/);
+      const text = event.message.text?.trim() || "";
+      if (text === "報名人數") {
+        const db = getDb();
+        const [binding] = await db.select().from(lineBindings)
+          .where(eq(lineBindings.groupId, groupId)).limit(1);
+        if (!binding) {
+          await replyText(event.replyToken, "這個群組尚未綁定活動，請先在活動管理後台產生綁定碼，再輸入「綁定 123456」。");
+          continue;
+        }
+
+        const [targetEvent, registrations] = await Promise.all([
+          db.select({ title: events.title }).from(events)
+            .where(eq(events.id, binding.eventId)).limit(1),
+          db.select({ name: rsvps.name, partySize: rsvps.partySize, diet: rsvps.diet, note: rsvps.note })
+            .from(rsvps)
+            .where(and(eq(rsvps.eventId, binding.eventId), eq(rsvps.response, "attending")))
+            .orderBy(asc(rsvps.createdAt)),
+        ]);
+        if (!targetEvent) {
+          await replyText(event.replyToken, "找不到這個群組綁定的活動，請重新建立綁定。 ");
+          continue;
+        }
+        await replyText(event.replyToken, rsvpSummaryMessage(targetEvent.title, registrations));
+        continue;
+      }
+
+      const match = text.match(/^綁定\s*(\d{6})$/);
       if (!match) continue;
 
       const db = getDb();

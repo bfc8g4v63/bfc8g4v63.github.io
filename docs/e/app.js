@@ -14,6 +14,13 @@ function formatDate(value) {
     .format(new Date(`${value}T12:00:00`));
 }
 
+function formatDateTime(value) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "—" : new Intl.DateTimeFormat("zh-TW", {
+    dateStyle: "short", timeStyle: "short", hour12: false,
+  }).format(date);
+}
+
 async function post(path, body, method = "POST") {
   const response = await fetch(`${API}${path}`, {
     method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
@@ -108,8 +115,8 @@ function openManagerLogin() {
 }
 
 function renderManager(data, editCode) {
-  const rows = data.rsvps.length ? data.rsvps.map((item) => `<tr><td>${esc(item.name)}</td><td>${item.response === "attending" ? "參加" : "不參加"}</td><td>${item.response === "attending" ? item.partySize : "—"}</td><td>${esc(item.diet || "—")}</td><td>${esc(item.note || "—")}</td></tr>`).join("") : '<tr><td colspan="5">尚未收到回覆</td></tr>';
-  modalRoot.innerHTML = `<div class="modal-backdrop admin-backdrop"><section class="modal admin-modal" role="dialog" aria-modal="true"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">活動管理後台</p><h2>${esc(data.event.title)}</h2><div class="stats-grid"><div><strong>${data.summary.attendingPeople}</strong><span>參加人數</span></div><div><strong>${data.summary.attendingReplies}</strong><span>參加回覆</span></div><div><strong>${data.summary.notAttendingReplies}</strong><span>不參加</span></div></div><div class="admin-toolbar"><button class="primary" id="manager-edit">修改活動</button></div><section class="admin-section"><div class="table-scroll"><table><thead><tr><th>姓名</th><th>回覆</th><th>人數</th><th>飲食</th><th>備註</th></tr></thead><tbody>${rows}</tbody></table></div></section></section></div>`;
+  const rows = data.rsvps.length ? data.rsvps.map((item) => `<tr><td>${esc(item.name)}</td><td>${item.response === "attending" ? "參加" : "不參加"}</td><td>${item.response === "attending" ? item.partySize : "—"}</td><td>${esc(item.diet || "—")}</td><td>${esc(item.note || "—")}</td><td>${esc(formatDateTime(item.createdAt))}</td></tr>`).join("") : '<tr><td colspan="6">尚未收到回覆</td></tr>';
+  modalRoot.innerHTML = `<div class="modal-backdrop admin-backdrop"><section class="modal admin-modal" role="dialog" aria-modal="true"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">活動管理後台</p><h2>${esc(data.event.title)}</h2><div class="stats-grid"><div><strong>${data.summary.attendingPeople}</strong><span>參加人數</span></div><div><strong>${data.summary.attendingReplies}</strong><span>參加回覆</span></div><div><strong>${data.summary.notAttendingReplies}</strong><span>不參加</span></div></div><div class="admin-toolbar"><button class="primary" id="manager-edit">修改活動</button></div><section class="admin-section"><div class="table-scroll"><table><thead><tr><th>姓名</th><th>回覆</th><th>人數</th><th>飲食</th><th>備註</th><th>登記時間</th></tr></thead><tbody>${rows}</tbody></table></div></section></section></div>`;
   document.querySelector("#manager-edit").addEventListener("click", () => openManagerEdit(data.event, editCode));
 }
 
