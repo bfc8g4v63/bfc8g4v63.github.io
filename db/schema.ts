@@ -63,3 +63,9 @@ export const lineReminderDeliveries = sqliteTable("line_reminder_deliveries", {
 }, (table) => [uniqueIndex("line_reminder_delivery_unique").on(
   table.eventId, table.reminderKey, table.eventFingerprint,
 )]);
+
+export const siteStats = sqliteTable("site_stats", {
+  key: text("key").primaryKey(),
+  views: integer("views").notNull().default(0),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});

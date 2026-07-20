@@ -71,6 +71,11 @@ export function ensureSchema() {
         FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
       )`),
       database.prepare("CREATE UNIQUE INDEX IF NOT EXISTS line_reminder_delivery_unique ON line_reminder_deliveries (event_id, reminder_key, event_fingerprint)"),
+      database.prepare(`CREATE TABLE IF NOT EXISTS site_stats (
+        key TEXT PRIMARY KEY NOT NULL,
+        views INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`),
     ]);
     const columns = await database.prepare("PRAGMA table_info(events)").all<{ name: string }>();
     const names = new Set((columns.results || []).map((column) => column.name));

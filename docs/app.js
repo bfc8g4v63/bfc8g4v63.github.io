@@ -33,6 +33,20 @@ function showNotice(message) {
   window.setTimeout(() => { noticeBox.hidden = true; }, 5000);
 }
 
+async function trackSiteVisit() {
+  const countBox = document.querySelector("#visitor-count");
+  const countValue = document.querySelector("#visitor-count-value");
+  if (!countBox || !countValue) return;
+  try {
+    const response = await fetch(`${API}/site-stats`, { method: "POST", cache: "no-store" });
+    const data = await response.json();
+    if (!response.ok || typeof data.views !== "number") throw new Error("瀏覽人次暫時無法取得");
+    countValue.textContent = new Intl.NumberFormat("zh-TW").format(data.views);
+  } catch {
+    countBox.hidden = true;
+  }
+}
+
 function eventCard(event) {
   const parts = dateParts(event.eventDate);
   const people = event.summary?.attendingPeople || 0;
@@ -473,3 +487,4 @@ document.addEventListener("click", (clickEvent) => {
 
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => undefined);
 loadEvents();
+trackSiteVisit();
