@@ -9,13 +9,13 @@ export async function generateMetadata(): Promise<Metadata> {
   const protocol = requestHeaders.get("x-forwarded-proto") ?? (host.startsWith("localhost") ? "http" : "https");
   const image = `${protocol}://${host}/og.png`;
   return {
-    title: "好日子｜家庭活動",
+    title: "好日子｜相聚",
     description: "建立活動、分享給家人，長輩一鍵就能回覆參加。",
-    applicationName: "好日子家庭活動",
+    applicationName: "好日子相聚",
     manifest: "/manifest.webmanifest",
     themeColor: "#fffaf0",
     icons: { icon: "/icon-192.png", apple: "/icon-192.png" },
-    openGraph: { title: "好日子｜家庭活動", description: "建立、分享、參加，一看就會。", type: "website", images: [{ url: image, width: 1735, height: 907 }] },
+    openGraph: { title: "好日子｜相聚", description: "建立、分享、參加，一看就會。", type: "website", images: [{ url: image, width: 1735, height: 907 }] },
     twitter: { card: "summary_large_image", images: [image] },
   };
 }

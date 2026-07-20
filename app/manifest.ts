@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "好日子家庭活動",
+    name: "好日子相聚",
     short_name: "好日子",
     description: "全家人都會用的活動簿",
     start_url: "/",
