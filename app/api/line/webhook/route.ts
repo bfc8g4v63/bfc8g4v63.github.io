@@ -7,7 +7,7 @@ import { getGroupName, replyText, rsvpSummaryMessage, verifyLineSignature } from
 type LineEvent = {
   type?: string;
   replyToken?: string;
-  source?: { type?: string; groupId?: string };
+  source?: { type?: string; groupId?: string; roomId?: string };
   message?: { type?: string; text?: string };
 };
 
@@ -22,8 +22,13 @@ export async function POST(request: Request) {
     await ensureSchema();
     const payload = JSON.parse(rawBody) as { events?: LineEvent[] };
     for (const event of payload.events || []) {
-      const groupId = event.source?.type === "group" ? event.source.groupId : "";
-      if (!groupId || !event.replyToken) continue;
+      const sourceType = event.source?.type || "";
+      const chatId = sourceType === "group"
+        ? event.source?.groupId || ""
+        : sourceType === "room"
+          ? event.source?.roomId || ""
+          : "";
+      if (!chatId || !event.replyToken) continue;
 
       if (event.type === "join") {
         await replyText(event.replyToken, "好日子機器人已加入。請由活動管理者在網站取得 6 位數綁定碼，再於群組輸入：綁定 123456");
@@ -32,10 +37,11 @@ export async function POST(request: Request) {
 
       if (event.type !== "message" || event.message?.type !== "text") continue;
       const text = event.message.text?.trim() || "";
-      if (text === "原神啟動") {
+      const command = text.normalize("NFKC").replace(/\s+/g, "");
+      if (command === "原神啟動") {
         const db = getDb();
         const [binding] = await db.select().from(lineBindings)
-          .where(eq(lineBindings.groupId, groupId)).limit(1);
+          .where(eq(lineBindings.groupId, chatId)).limit(1);
         if (!binding) {
           await replyText(event.replyToken, "這個群組尚未綁定活動，請先在活動管理後台產生綁定碼，再輸入「綁定 123456」。");
           continue;
@@ -74,10 +80,10 @@ export async function POST(request: Request) {
         continue;
       }
 
-      const groupName = await getGroupName(groupId);
-      await db.delete(lineBindings).where(eq(lineBindings.groupId, groupId));
+      const groupName = sourceType === "group" ? await getGroupName(chatId) : "LINE 多人聊天室";
+      await db.delete(lineBindings).where(eq(lineBindings.groupId, chatId));
       await db.insert(lineBindings).values({
-        eventId: bindingCode.eventId, groupId, groupName, boundAt: new Date().toISOString(),
+        eventId: bindingCode.eventId, groupId: chatId, groupName, boundAt: new Date().toISOString(),
       }).onConflictDoUpdate({
         target: lineBindings.eventId,
         set: { groupId, groupName, boundAt: new Date().toISOString() },
