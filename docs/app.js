@@ -188,7 +188,7 @@ function openRsvpForm(event) {
             <label class="choice"><input type="radio" name="response" value="not_attending"><span>這次無法參加</span></label>
           </fieldset>
           <div id="attending-fields">
-            <label>總共幾人參加？<select name="partySize">${Array.from({ length: 10 }, (_, i) => `<option value="${i + 1}">${i + 1} 人</option>`).join("")}</select></label>
+            <label>總共幾人參加？<input name="partySize" type="number" min="1" step="1" inputmode="numeric" value="1" required></label>
             ${field("飲食需求", "diet", "", 'placeholder="例如：吃素、不吃牛（可留白）"')}
             <label>想告訴主辦人<textarea name="note" rows="2" placeholder="可留白"></textarea></label>
           </div>

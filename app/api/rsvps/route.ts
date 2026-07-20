@@ -22,10 +22,12 @@ export async function POST(request: Request) {
     const participantCode = clean(body.participantCode, 80);
     const name = clean(body.name, 60);
     const response = body.response === "not_attending" ? "not_attending" : "attending";
-    const partySize = Math.max(1, Math.min(
-      10,
-      typeof body.partySize === "number" ? Math.floor(body.partySize) : 1,
-    ));
+    const partySize = Math.max(
+      1,
+      typeof body.partySize === "number" && Number.isFinite(body.partySize)
+        ? Math.floor(body.partySize)
+        : 1,
+    );
     if (!eventId || !name) return json(request, { error: "請填寫姓名" }, 400);
     const db = getDb();
     const [event] = await db.select({
