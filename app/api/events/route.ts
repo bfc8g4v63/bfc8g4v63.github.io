@@ -18,7 +18,7 @@ export async function GET(request: Request) {
         id: events.id, title: events.title, eventDate: events.eventDate,
         startTime: events.startTime, location: events.location,
         description: events.description, contactName: events.contactName,
-        contactPhone: events.contactPhone, capacity: events.capacity, status: events.status,
+        capacity: events.capacity, status: events.status,
       }).from(events).orderBy(asc(events.eventDate), asc(events.startTime)),
       db.select({
         eventId: rsvps.eventId, partySize: rsvps.partySize, response: rsvps.response,

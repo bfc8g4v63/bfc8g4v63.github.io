@@ -19,8 +19,10 @@ test("public activity response is summary-only", async () => {
   ]);
   assert.doesNotMatch(route, /name:\s*rsvps\.name/);
   assert.doesNotMatch(route, /diet:\s*rsvps\.diet/);
+  assert.doesNotMatch(route, /contactPhone:\s*events\.contactPhone/);
   assert.match(route, /attendingPeople/);
-  assert.match(client, /姓名與飲食備註僅活動管理者可查看/);
+  assert.doesNotMatch(client, /tel:/);
+  assert.match(client, /聯絡電話、姓名與飲食備註僅活動管理者可查看/);
   assert.match(client, /\/admin\/event/);
 });
 

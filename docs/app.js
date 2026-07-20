@@ -36,8 +36,8 @@ function showNotice(message) {
 function eventCard(event) {
   const parts = dateParts(event.eventDate);
   const people = event.summary?.attendingPeople || 0;
-  const contact = event.contactName || event.contactPhone
-    ? `<p class="contact">活動聯絡人：${esc(event.contactName)}${event.contactPhone ? ` · <a href="tel:${esc(event.contactPhone)}">${esc(event.contactPhone)}</a>` : ""}</p>` : "";
+  const contact = event.contactName
+    ? `<p class="contact">活動聯絡人：${esc(event.contactName)}</p>` : "";
   return `
     <article class="event-card ${event.status === "cancelled" ? "cancelled" : ""}" id="event-${esc(event.id)}">
       <div class="date-block"><span>${esc(parts.month)}</span><strong>${esc(parts.day)}</strong></div>
@@ -47,7 +47,7 @@ function eventCard(event) {
         <p class="event-meta"><span aria-hidden="true">⌖</span>${esc(event.location || "地點未定")}</p>
         ${event.description ? `<p class="event-description">${esc(event.description)}</p>` : ""}
         <div class="attendance"><strong>${people} 人參加</strong><span>${event.capacity ? `／上限 ${event.capacity} 人` : "歡迎全家一起來"}</span></div>
-        <p class="privacy-note">姓名與飲食備註僅活動管理者可查看</p>
+        <p class="privacy-note">聯絡電話、姓名與飲食備註僅活動管理者可查看</p>
         <div class="card-actions">
           <button class="primary" data-action="rsvp" data-id="${esc(event.id)}" ${event.status === "cancelled" ? "disabled" : ""}>我要參加</button>
           <button class="icon-button" data-action="share" data-id="${esc(event.id)}">分享</button>
@@ -116,7 +116,7 @@ function openEventForm(event, knownEditCode = "") {
           <label>活動說明<textarea name="description" rows="3" placeholder="要帶什麼？在哪裡集合？">${esc(event?.description)}</textarea></label>
           <div class="form-row">
             ${field("聯絡人", "contactName", event?.contactName, 'placeholder="王小明"')}
-            ${field("聯絡電話", "contactPhone", event?.contactPhone, 'inputmode="tel" placeholder="0912 345 678"')}
+            ${field("聯絡電話（僅管理者可見）", "contactPhone", event?.contactPhone, 'inputmode="tel" placeholder="0912 345 678"')}
           </div>
           <div class="form-row">
             ${field("人數上限", "capacity", event?.capacity || "", 'type="number" min="1" max="999" placeholder="不限可留白"')}
