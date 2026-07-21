@@ -31,16 +31,25 @@ function formatDateTime(value) {
 }
 
 async function post(path, body, method = "POST") {
-  const response = await fetch(`${API}${path}`, {
-    method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
-  });
-  const data = await response.json();
-  if (!response.ok) {
-    const error = new Error(data.error || "操作失敗");
-    error.requiresParticipantCode = data.requiresParticipantCode;
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 10_000);
+  try {
+    const response = await fetch(`${API}${path}`, {
+      method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: controller.signal,
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      const error = new Error(data.error || "操作失敗");
+      error.requiresParticipantCode = data.requiresParticipantCode;
+      throw error;
+    }
+    return data;
+  } catch (error) {
+    if (error?.name === "AbortError") throw new Error("連線逾時，請檢查網路後再試");
     throw error;
+  } finally {
+    window.clearTimeout(timeout);
   }
-  return data;
 }
 
 function showCodeGate(message = "這是一個需要參加碼的私人活動。") {
@@ -93,7 +102,10 @@ async function loadEvent() {
     renderEvent(currentEvent);
   } catch (error) {
     if (error.requiresParticipantCode) showCodeGate(error.message);
-    else root.innerHTML = `<section class="event-gate"><h1>無法開啟活動</h1><p>${esc(error.message)}</p><a class="primary" href="/">回到好日子</a></section>`;
+    else {
+      root.innerHTML = `<section class="event-gate"><h1>無法開啟活動</h1><p>${esc(error.message)}</p><div class="form-actions"><button class="secondary" id="retry-event">重新嘗試</button><a class="primary" href="/">回到好日子</a></div></section>`;
+      document.querySelector("#retry-event")?.addEventListener("click", () => void loadEvent());
+    }
   }
 }
 

@@ -558,7 +558,8 @@ function exportRsvps(event, rsvps) {
 }
 
 function showFormError(form, message) {
-  const box = form.querySelector("#form-error");
+  const box = form.querySelector("#form-error, .form-error");
+  if (!box) return;
   box.textContent = message;
   box.hidden = false;
 }

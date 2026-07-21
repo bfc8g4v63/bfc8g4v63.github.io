@@ -1,4 +1,4 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, or } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { ensureSchema } from "../../../db/init";
 import { events } from "../../../db/schema";
@@ -26,11 +26,17 @@ export async function POST(request: Request) {
 
     await ensureSchema();
     const db = getDb();
+    // Activities created before recovery was introduced do not have creator_name.
+    // Their existing contact name remains the recovery name so no activity is lost.
+    const creatorMatch = or(
+      eq(events.creatorName, creatorName),
+      and(eq(events.creatorName, ""), eq(events.contactName, creatorName)),
+    );
     if (action === "search") {
       // Search intentionally reveals no count, ID, title, date, or link.
       const [match] = await db.select({ creatorName: events.creatorName }).from(events)
-        .where(eq(events.creatorName, creatorName)).limit(1);
-      return json(request, { matches: match ? [{ creatorName: match.creatorName }] : [] });
+        .where(creatorMatch).limit(1);
+      return json(request, { matches: match ? [{ creatorName: match.creatorName || creatorName }] : [] });
     }
 
     const editCode = clean(body.editCode, 80);
@@ -40,7 +46,7 @@ export async function POST(request: Request) {
       id: events.id, title: events.title, eventDate: events.eventDate,
       startTime: events.startTime, status: events.status, shareToken: events.shareToken,
     }).from(events).where(and(
-      eq(events.creatorName, creatorName),
+      creatorMatch,
       eq(events.editCodeHash, codeHash),
     )).orderBy(asc(events.eventDate), asc(events.startTime)).limit(50);
     if (!rows.length) return json(request, { error: "姓名或管理碼不正確" }, 403);

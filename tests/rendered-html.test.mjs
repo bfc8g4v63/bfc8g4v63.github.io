@@ -73,16 +73,14 @@ test("creator recovery and attendee-roster privacy stay gated", async () => {
   assert.match(eventClient, /公開我的顯示名稱給同場參加者/);
 });
 
-test("cancelled and stale activities have a defined cleanup path", async () => {
-  const [eventsRoute, purge, workflow] = await Promise.all([
+test("cancelled activities remain recoverable because scheduled deletion is disabled", async () => {
+  const [eventsRoute, workflow] = await Promise.all([
     readFile(new URL("../app/api/events/route.ts", import.meta.url), "utf8"),
-    readFile(new URL("../app/api/maintenance/purge/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../.github/workflows/line-reminders.yml", import.meta.url), "utf8"),
   ]);
   assert.match(eventsRoute, /cancelledAt/);
-  assert.match(purge, /30 \* 86_400_000/);
-  assert.match(purge, /taipeiDateDaysAgo\(90\)/);
-  assert.match(workflow, /MAINTENANCE_SECRET/);
+  assert.doesNotMatch(workflow, /maintenance\/purge/);
+  assert.doesNotMatch(workflow, /MAINTENANCE_SECRET/);
 });
 
 test("only a verified creator can cancel or permanently delete an activity", async () => {
