@@ -2,7 +2,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { ensureSchema } from "../../../../db/init";
 import { getDb } from "../../../../db";
 import { events, lineBindCodes, lineBindings, lineReminderSettings, rsvps } from "../../../../db/schema";
-import { getGroupName, replyText, rsvpSummaryMessage, verifyLineSignature } from "../lib";
+import { getGroupName, replyMessages, replyText, rsvpSummaryMessage, verifyLineSignature } from "../lib";
 
 type LineEvent = {
   type?: string;
@@ -38,6 +38,29 @@ export async function POST(request: Request) {
       if (event.type !== "message" || event.message?.type !== "text") continue;
       const text = event.message.text?.trim() || "";
       const command = text.normalize("NFKC").replace(/\s+/g, "");
+      if (command === "活動") {
+        const db = getDb();
+        const [binding] = await db.select().from(lineBindings)
+          .where(eq(lineBindings.groupId, chatId)).limit(1);
+        if (!binding) {
+          await replyText(event.replyToken, "這個群組尚未綁定活動，請先在活動管理後台產生綁定碼，再輸入「綁定 123456」。");
+          continue;
+        }
+        const [targetEvent] = await db.select({ title: events.title, shareToken: events.shareToken })
+          .from(events).where(eq(events.id, binding.eventId)).limit(1);
+        if (!targetEvent?.shareToken) {
+          await replyText(event.replyToken, "找不到這個群組綁定的活動連結，請到活動管理後台重新綁定。 ");
+          continue;
+        }
+        const shareUrl = `https://bfc8g4v63.github.io/e/?s=${encodeURIComponent(targetEvent.shareToken)}`;
+        const qrUrl = new URL("/api/line/qr", request.url);
+        qrUrl.searchParams.set("s", targetEvent.shareToken);
+        await replyMessages(event.replyToken, [
+          { type: "text", text: `〖${targetEvent.title}〗活動連結\n${shareUrl}\n\n請掃描下方 QR Code，或點選連結查看與報名。` },
+          { type: "image", originalContentUrl: qrUrl.toString(), previewImageUrl: qrUrl.toString() },
+        ]);
+        continue;
+      }
       if (command === "原神啟動") {
         const db = getDb();
         const [binding] = await db.select().from(lineBindings)

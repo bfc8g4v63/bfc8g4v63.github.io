@@ -41,9 +41,17 @@ export async function pushText(to: string, text: string) {
 }
 
 export async function replyText(replyToken: string, text: string) {
+  await replyMessages(replyToken, [{ type: "text", text: text.slice(0, 5000) }]);
+}
+
+export type LineReplyMessage =
+  | { type: "text"; text: string }
+  | { type: "image"; originalContentUrl: string; previewImageUrl: string };
+
+export async function replyMessages(replyToken: string, messages: LineReplyMessage[]) {
   await lineRequest("/v2/bot/message/reply", {
     method: "POST",
-    body: JSON.stringify({ replyToken, messages: [{ type: "text", text: text.slice(0, 5000) }] }),
+    body: JSON.stringify({ replyToken, messages }),
   });
 }
 
