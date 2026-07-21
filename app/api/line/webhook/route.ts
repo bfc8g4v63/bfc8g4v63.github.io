@@ -47,7 +47,7 @@ export async function POST(request: Request) {
           continue;
         }
 
-        const [targetEvent, registrations] = await Promise.all([
+        const [eventRows, registrations] = await Promise.all([
           db.select({ title: events.title }).from(events)
             .where(eq(events.id, binding.eventId)).limit(1),
           db.select({ name: rsvps.name, partySize: rsvps.partySize, diet: rsvps.diet, note: rsvps.note })
@@ -55,6 +55,7 @@ export async function POST(request: Request) {
             .where(and(eq(rsvps.eventId, binding.eventId), eq(rsvps.response, "attending")))
             .orderBy(asc(rsvps.createdAt)),
         ]);
+        const [targetEvent] = eventRows;
         if (!targetEvent) {
           await replyText(event.replyToken, "找不到這個群組綁定的活動，請重新建立綁定。 ");
           continue;
