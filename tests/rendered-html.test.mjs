@@ -106,6 +106,8 @@ test("RSVP capacity is enforced atomically while existing attendees can reduce t
   assert.match(schemaInit, /rsvps_capacity_before_insert/);
   assert.match(schemaInit, /rsvps_capacity_before_update/);
   assert.match(schemaInit, /RAISE\(ABORT, 'capacity_exceeded'\)/);
+  assert.match(rsvp, /function errorMessages/);
+  assert.match(rsvp, /message\.includes\("capacity_exceeded"\)/);
   assert.match(rsvp, /這個活動已額滿/);
   assert.match(eventClient, /目前已額滿；已報名者仍可更新內容/);
 });

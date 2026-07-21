@@ -10,6 +10,18 @@ function clean(value: unknown, max = 300) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
 }
 
+function errorMessages(error: unknown) {
+  const messages: string[] = [];
+  let current = error;
+  for (let depth = 0; depth < 4 && current; depth += 1) {
+    if (current instanceof Error) messages.push(current.message);
+    else if (typeof current === "string") messages.push(current);
+    if (typeof current !== "object" || !("cause" in current)) break;
+    current = (current as { cause?: unknown }).cause;
+  }
+  return messages.join("\n");
+}
+
 export function OPTIONS(request: Request) {
   return preflight(request);
 }
@@ -66,11 +78,12 @@ export async function POST(request: Request) {
     else await db.insert(rsvps).values({ id: crypto.randomUUID(), ...values });
     return json(request, { ok: true, attendeeToken: attendeeToken || undefined });
   } catch (error) {
-    if (error instanceof Error && error.message.includes("capacity_exceeded")) {
+    const message = errorMessages(error);
+    if (message.includes("capacity_exceeded")) {
       return json(request, {
         error: "這個活動已額滿；已報名者仍可用相同姓名更新內容、減少人數或改為不參加。",
       }, 409);
     }
-    return json(request, { error: error instanceof Error ? error.message : "回覆失敗" }, 500);
+    return json(request, { error: message || "回覆失敗" }, 500);
   }
 }
