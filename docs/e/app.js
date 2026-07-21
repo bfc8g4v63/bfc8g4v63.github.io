@@ -68,6 +68,7 @@ function showCodeGate(message = "這是一個需要參加碼的私人活動。")
 
 function renderEvent(event) {
   const people = event.summary?.attendingPeople || 0;
+  const isFull = Boolean(event.capacity && people >= event.capacity);
   const roster = event.roster?.names;
   const rosterHtml = Array.isArray(roster) ? `
     <section class="attendee-roster"><h2>同場參加者</h2>
@@ -81,7 +82,7 @@ function renderEvent(event) {
       <p class="invitation-meta">${esc(formatDate(event.eventDate))} · ${esc(event.startTime)}<br>${esc(event.location)}</p>
       ${event.description ? `<p class="event-description">${esc(event.description)}</p>` : ""}
       <p class="attendance"><strong>${people} 人參加</strong>${event.capacity ? `<span>／上限 ${event.capacity} 人</span>` : ""}</p>
-      ${event.status === "cancelled" ? '<p class="form-error">此活動已取消</p>' : '<button class="primary" id="rsvp">我要參加</button>'}
+      ${event.status === "cancelled" ? '<p class="form-error">此活動已取消</p>' : `<button class="primary" id="rsvp">${isFull ? "活動已額滿" : "我要參加"}</button>${isFull ? '<p class="form-hint">目前已額滿；已報名者仍可更新內容、減少人數或改為不參加。</p>' : ""}`}
       ${rosterHtml}
       ${event.contactName ? `<p class="contact">活動聯絡人：${esc(event.contactName)}</p>` : ""}
       <p class="privacy-note">電話、飲食、備註與管理資訊只會讓活動管理者看到。</p>

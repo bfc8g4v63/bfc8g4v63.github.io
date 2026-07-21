@@ -92,9 +92,22 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.1/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.2/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
   assert.match(styles, /grid-template-areas:"visitor" "owner" "tagline" "top"/);
+});
+
+test("RSVP capacity is enforced atomically while existing attendees can reduce their reply", async () => {
+  const [rsvp, eventClient] = await Promise.all([
+    readFile(new URL("../app/api/rsvps/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../docs/e/app.js", import.meta.url), "utf8"),
+  ]);
+  assert.match(rsvp, /INSERT INTO rsvps/);
+  assert.match(rsvp, /ON CONFLICT\(event_id, name\) DO UPDATE/);
+  assert.match(rsvp, /name <> \?/);
+  assert.match(rsvp, /result\.meta\.changes !== 1/);
+  assert.match(rsvp, /這個活動已額滿/);
+  assert.match(eventClient, /目前已額滿；已報名者仍可更新內容/);
 });
 
 test("only a verified creator can cancel or permanently delete an activity", async () => {

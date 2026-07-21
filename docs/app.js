@@ -66,6 +66,7 @@ async function trackSiteVisit() {
 function eventCard(event) {
   const parts = dateParts(event.eventDate);
   const people = event.summary?.attendingPeople || 0;
+  const isFull = Boolean(event.capacity && people >= event.capacity);
   const contact = event.contactName
     ? `<p class="contact">活動聯絡人：${esc(event.contactName)}</p>` : "";
   return `
@@ -79,7 +80,7 @@ function eventCard(event) {
         <div class="attendance"><strong>${people} 人參加</strong><span>${event.capacity ? `／上限 ${event.capacity} 人` : "歡迎全家一起來"}</span></div>
         <p class="privacy-note">聯絡電話、姓名與飲食備註僅活動管理者可查看</p>
         <div class="card-actions">
-          <button class="primary" data-action="rsvp" data-id="${esc(event.id)}" ${event.status === "cancelled" ? "disabled" : ""}>我要參加</button>
+          <button class="primary" data-action="rsvp" data-id="${esc(event.id)}" ${event.status === "cancelled" ? "disabled" : ""}>${isFull ? "活動已額滿" : "我要參加"}</button>
           <button class="icon-button" data-action="share" data-id="${esc(event.id)}">分享</button>
           <button class="icon-button" data-action="admin" data-id="${esc(event.id)}">管理</button>
         </div>
