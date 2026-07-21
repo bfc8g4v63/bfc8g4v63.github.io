@@ -85,6 +85,17 @@ test("cancelled activities remain recoverable because scheduled deletion is disa
   assert.doesNotMatch(workflow, /MAINTENANCE_SECRET/);
 });
 
+test("visitor count has its own footer row", async () => {
+  const [page, styles] = await Promise.all([
+    readFile(new URL("../docs/index.html", import.meta.url), "utf8"),
+    readFile(new URL("../docs/styles.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(page, /class="visitor-count" id="visitor-count"/);
+  assert.match(page, /id="visitor-count-value"/);
+  assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
+  assert.match(styles, /grid-template-areas:"visitor" "owner" "tagline" "top"/);
+});
+
 test("only a verified creator can cancel or permanently delete an activity", async () => {
   const [eventsRoute, client] = await Promise.all([
     readFile(new URL("../app/api/events/route.ts", import.meta.url), "utf8"),
