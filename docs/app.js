@@ -279,7 +279,7 @@ function linePanel(line) {
   return `
     <div class="line-status ${binding ? "connected" : ""}">
       <strong>${binding ? `已綁定：${esc(binding.groupName)}` : "尚未綁定 LINE 群組"}</strong>
-      <p>${binding ? "自動提醒會傳送到這個群組；輸入「原神啟動」可廣播報名名單與人數、飲食、備註。" : "先產生 6 位數綁定碼，再到家族 LINE 群組輸入。"}</p>
+      <p>${binding ? "自動提醒會傳送到這個群組；輸入「活動」可廣播活動連結與 QR Code，輸入「原神啟動」可廣播報名名單與人數、飲食、備註。" : "先產生 6 位數綁定碼，再到家族 LINE 群組輸入。"}</p>
       <div id="binding-code-area"></div>
       <div class="inline-actions">
         ${binding ? '<button class="secondary" id="line-test">傳送測試提醒</button><button class="text-danger" id="line-unbind">解除綁定</button>' : '<button class="line-button" id="line-code">產生群組綁定碼</button>'}
