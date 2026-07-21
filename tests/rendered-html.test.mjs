@@ -92,9 +92,21 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.2/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.3/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
   assert.match(styles, /grid-template-areas:"visitor" "owner" "tagline" "top"/);
+});
+
+test("the service worker replaces cached management assets when a frontend release ships", async () => {
+  const [page, eventPage, worker] = await Promise.all([
+    readFile(new URL("../docs/index.html", import.meta.url), "utf8"),
+    readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
+    readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
+  ]);
+  assert.match(page, /\/app\.js\?v=1\.2\.3/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.3/);
+  assert.match(worker, /good-days-github-v5/);
+  assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
 test("RSVP capacity is enforced atomically while existing attendees can reduce their reply", async () => {
