@@ -65,11 +65,13 @@ test("creator recovery and attendee-roster privacy stay gated", async () => {
   ]);
   assert.match(recovery, /action === "search"/);
   assert.match(recovery, /creatorName: match\.creatorName/);
+  assert.match(recovery, /editCode\.length < 4/);
   assert.match(recovery, /editCodeHash/);
   assert.match(access, /viewerTokenHash/);
   assert.match(access, /attendanceVisibility !== "count"/);
   assert.match(rsvp, /shareName/);
   assert.match(client, /找回我的活動/);
+  assert.match(client, /recovery-unlock-form.*minlength="4"/);
   assert.match(eventClient, /公開我的顯示名稱給同場參加者/);
 });
 

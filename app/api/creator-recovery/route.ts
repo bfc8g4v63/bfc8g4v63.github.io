@@ -40,7 +40,9 @@ export async function POST(request: Request) {
     }
 
     const editCode = clean(body.editCode, 80);
-    if (editCode.length < 6) return json(request, { error: "請輸入至少 6 個字元的管理碼" }, 400);
+    // Older activities were created with four-digit management codes.
+    // New activities still require six characters when they are created.
+    if (editCode.length < 4) return json(request, { error: "請輸入至少 4 個字元的管理碼" }, 400);
     const codeHash = await hashCode(editCode);
     const rows = await db.select({
       id: events.id, title: events.title, eventDate: events.eventDate,

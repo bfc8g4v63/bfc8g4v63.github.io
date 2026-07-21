@@ -376,7 +376,7 @@ function openCreatorRecoveryUnlock(creatorName) {
       <button class="modal-close" data-close aria-label="關閉">×</button>
       <p class="eyebrow">搜尋結果</p><h2 id="unlock-title">${esc(creatorName)}</h2>
       <div class="locked-recovery"><span aria-hidden="true">🔒</span><div><strong>活動內容已鎖定</strong><p>輸入建立活動時設定的管理碼，才能查看並分享活動連結。</p></div></div>
-      <form id="recovery-unlock-form"><label>活動管理碼<input name="editCode" required minlength="6" autofocus autocomplete="current-password"></label><p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" id="recovery-back">返回</button><button class="primary">解鎖活動</button></div></form>
+      <form id="recovery-unlock-form"><label>活動管理碼<input name="editCode" required minlength="4" autofocus autocomplete="current-password"></label><p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" id="recovery-back">返回</button><button class="primary">解鎖活動</button></div></form>
     </section></div>`;
   document.querySelector("#recovery-back").addEventListener("click", openCreatorRecovery);
   const form = document.querySelector("#recovery-unlock-form");
