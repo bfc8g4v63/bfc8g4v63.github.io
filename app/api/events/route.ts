@@ -7,8 +7,10 @@ import {
 import { json, preflight } from "../cors";
 import { clean, hashCode, requireEventManager } from "../admin/auth";
 import { lineConfig, pushText } from "../line/lib";
+import { rateLimit } from "../rate-limit";
 
 const accessModes = new Set(["public", "unlisted", "private"]);
+const attendanceVisibilities = new Set(["count", "opt_in", "all"]);
 
 export function OPTIONS(request: Request) {
   return preflight(request);
@@ -16,6 +18,10 @@ export function OPTIONS(request: Request) {
 
 function accessMode(value: unknown, fallback = "unlisted") {
   return typeof value === "string" && accessModes.has(value) ? value : fallback;
+}
+
+function attendanceVisibility(value: unknown, fallback = "count") {
+  return typeof value === "string" && attendanceVisibilities.has(value) ? value : fallback;
 }
 
 function shareUrl(token: string) {
@@ -50,6 +56,7 @@ export async function GET(request: Request) {
         startTime: events.startTime, location: events.location,
         description: events.description, contactName: events.contactName,
         capacity: events.capacity, status: events.status, accessMode: events.accessMode,
+        attendanceVisibility: events.attendanceVisibility,
         shareToken: events.shareToken,
       }).from(events).where(and(eq(events.accessMode, "public"), eq(events.status, "active")))
         .orderBy(asc(events.eventDate), asc(events.startTime)),
@@ -82,49 +89,53 @@ function withSummary<T extends { id: string }>(event: T, rows: Array<{ eventId: 
 
 export async function POST(request: Request) {
   try {
+    const limit = rateLimit(request, "event-create", 8, 60 * 60 * 1000);
+    if (!limit.allowed) return json(request, { error: `建立活動過於頻繁，請 ${limit.retryAfterSeconds} 秒後再試` }, 429);
     await ensureSchema();
     const body = await request.json() as Record<string, unknown>;
     const title = clean(body.title, 80);
+    const creatorName = clean(body.creatorName, 60);
     const eventDate = clean(body.eventDate, 10);
     const startTime = clean(body.startTime, 5);
     const location = clean(body.location, 160);
     const editCode = clean(body.editCode, 80);
     const mode = accessMode(body.accessMode);
+    const visibility = attendanceVisibility(body.attendanceVisibility);
     const participantCode = clean(body.participantCode, 80);
-    if (!title || !eventDate || !startTime || !location) {
+    if (!title || !creatorName || !eventDate || !startTime || !location) {
       return json(request, { error: "請填寫活動名稱、日期、時間與地點" }, 400);
     }
-    if (editCode && editCode.length < 4) {
-      return json(request, { error: "管理密碼至少需要 4 個字" }, 400);
-    }
-    if (!editCode && mode !== "unlisted") {
-      return json(request, { error: "公開或私人活動請設定管理密碼" }, 400);
+    if (editCode.length < 6) {
+      return json(request, { error: "管理碼至少需要 6 個字元" }, 400);
     }
     if (mode === "private" && participantCode.length < 4) {
       return json(request, { error: "私人活動的參加碼至少需要 4 個字" }, 400);
     }
     const id = crypto.randomUUID();
     const token = crypto.randomUUID();
-    const managerToken = !editCode && mode === "unlisted" ? crypto.randomUUID() : "";
+    const managerToken = crypto.randomUUID();
     await getDb().insert(events).values({
       id, title, eventDate, startTime, location,
       description: clean(body.description, 1000),
+      creatorName,
       contactName: clean(body.contactName, 60),
       contactPhone: clean(body.contactPhone, 40),
       capacity: typeof body.capacity === "number" && body.capacity > 0
         ? Math.min(Math.floor(body.capacity), 999) : null,
       accessMode: mode,
+      attendanceVisibility: visibility,
       shareToken: token,
       participantCodeHash: mode === "private" ? await hashCode(participantCode) : "",
-      editCodeHash: await hashCode(editCode || managerToken),
+      editCodeHash: await hashCode(editCode),
+      managerTokenHash: await hashCode(managerToken),
     });
     return json(request, {
       id,
       shareToken: token,
       shareUrl: shareUrl(token),
       // Returned only at creation time. The database stores only its hash.
-      managerToken: managerToken || undefined,
-      managerUrl: managerToken ? managerUrl(id, managerToken) : undefined,
+      managerToken,
+      managerUrl: managerUrl(id, managerToken),
     }, 201);
   } catch (error) {
     return json(request, { error: error instanceof Error ? error.message : "建立活動失敗" }, 500);
@@ -145,6 +156,9 @@ export async function PATCH(request: Request) {
     const startTime = body.startTime === undefined ? existing.startTime : clean(body.startTime, 5);
     const location = body.location === undefined ? existing.location : clean(body.location, 160);
     const mode = body.accessMode === undefined ? existing.accessMode : accessMode(body.accessMode, existing.accessMode);
+    const visibility = body.attendanceVisibility === undefined
+      ? existing.attendanceVisibility
+      : attendanceVisibility(body.attendanceVisibility, existing.attendanceVisibility);
     const participantCode = clean(body.participantCode, 80);
     if (!title || !eventDate || !startTime || !location) {
       return json(request, { error: "請填寫活動名稱、日期、時間與地點" }, 400);
@@ -155,9 +169,14 @@ export async function PATCH(request: Request) {
     const participantCodeHash = mode !== "private" ? ""
       : participantCode ? await hashCode(participantCode) : existing.participantCodeHash;
     const shareToken = existing.shareToken || crypto.randomUUID();
+    const cancelledAt = status === "cancelled"
+      ? (existing.status === "cancelled" ? existing.cancelledAt : new Date().toISOString())
+      : null;
     await getDb().update(events).set({
-      title, eventDate, startTime, location, status, accessMode: mode, shareToken, participantCodeHash,
+      title, eventDate, startTime, location, status, accessMode: mode, attendanceVisibility: visibility,
+      shareToken, participantCodeHash, cancelledAt,
       description: body.description === undefined ? existing.description : clean(body.description, 1000),
+      creatorName: body.creatorName === undefined ? existing.creatorName : clean(body.creatorName, 60),
       contactName: body.contactName === undefined ? existing.contactName : clean(body.contactName, 60),
       contactPhone: body.contactPhone === undefined ? existing.contactPhone : clean(body.contactPhone, 40),
       capacity: body.capacity === undefined ? existing.capacity

@@ -15,14 +15,18 @@ export function ensureSchema() {
         start_time TEXT NOT NULL,
         location TEXT NOT NULL,
         description TEXT NOT NULL DEFAULT '',
+        creator_name TEXT NOT NULL DEFAULT '',
         contact_name TEXT NOT NULL DEFAULT '',
         contact_phone TEXT NOT NULL DEFAULT '',
         capacity INTEGER,
         status TEXT NOT NULL DEFAULT 'active',
         access_mode TEXT NOT NULL DEFAULT 'unlisted',
+        attendance_visibility TEXT NOT NULL DEFAULT 'count',
         share_token TEXT NOT NULL DEFAULT '',
         participant_code_hash TEXT NOT NULL DEFAULT '',
         edit_code_hash TEXT NOT NULL,
+        manager_token_hash TEXT NOT NULL DEFAULT '',
+        cancelled_at TEXT,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       )`),
@@ -34,6 +38,8 @@ export function ensureSchema() {
         diet TEXT NOT NULL DEFAULT '',
         note TEXT NOT NULL DEFAULT '',
         response TEXT NOT NULL DEFAULT 'attending',
+        share_name INTEGER NOT NULL DEFAULT 0,
+        viewer_token_hash TEXT NOT NULL DEFAULT '',
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
@@ -88,6 +94,26 @@ export function ensureSchema() {
     }
     if (!names.has("participant_code_hash")) {
       await database.prepare("ALTER TABLE events ADD COLUMN participant_code_hash TEXT NOT NULL DEFAULT ''").run();
+    }
+    if (!names.has("creator_name")) {
+      await database.prepare("ALTER TABLE events ADD COLUMN creator_name TEXT NOT NULL DEFAULT ''").run();
+    }
+    if (!names.has("attendance_visibility")) {
+      await database.prepare("ALTER TABLE events ADD COLUMN attendance_visibility TEXT NOT NULL DEFAULT 'count'").run();
+    }
+    if (!names.has("manager_token_hash")) {
+      await database.prepare("ALTER TABLE events ADD COLUMN manager_token_hash TEXT NOT NULL DEFAULT ''").run();
+    }
+    if (!names.has("cancelled_at")) {
+      await database.prepare("ALTER TABLE events ADD COLUMN cancelled_at TEXT").run();
+    }
+    const rsvpColumns = await database.prepare("PRAGMA table_info(rsvps)").all<{ name: string }>();
+    const rsvpNames = new Set((rsvpColumns.results || []).map((column) => column.name));
+    if (!rsvpNames.has("share_name")) {
+      await database.prepare("ALTER TABLE rsvps ADD COLUMN share_name INTEGER NOT NULL DEFAULT 0").run();
+    }
+    if (!rsvpNames.has("viewer_token_hash")) {
+      await database.prepare("ALTER TABLE rsvps ADD COLUMN viewer_token_hash TEXT NOT NULL DEFAULT ''").run();
     }
     await database.prepare("UPDATE events SET share_token = lower(hex(randomblob(16))) WHERE share_token = '' OR share_token IS NULL").run();
     await database.prepare("CREATE UNIQUE INDEX IF NOT EXISTS events_share_token_unique ON events (share_token)").run();

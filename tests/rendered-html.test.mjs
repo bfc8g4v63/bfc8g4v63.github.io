@@ -37,20 +37,52 @@ test("LINE webhook verifies signatures and reminder workflow uses a secret", asy
   assert.match(workflow, /Authorization: Bearer/);
 });
 
-test("creators can manage passwordless unlisted activities without exposing admin rights to guests", async () => {
+test("creators can manage activities with an independent management link without exposing admin rights to guests", async () => {
   const [eventsRoute, auth, lineAdmin, client] = await Promise.all([
     readFile(new URL("../app/api/events/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/admin/auth.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/admin/line/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../docs/app.js", import.meta.url), "utf8"),
   ]);
-  assert.match(eventsRoute, /managerToken = !editCode && mode === "unlisted"/);
+  assert.match(eventsRoute, /managerToken = crypto\.randomUUID\(\)/);
+  assert.match(eventsRoute, /managerTokenHash/);
   assert.match(eventsRoute, /#token=/);
   assert.match(auth, /managerToken/);
   assert.match(lineAdmin, /body\.managerToken/);
   assert.match(client, /managerAuthFromLink/);
   assert.match(client, /現在綁定 LINE 小幫手/);
   assert.match(client, /請保存建立者管理連結/);
+  assert.match(client, /管理碼可用於遺失管理連結後找回活動/);
+});
+
+test("creator recovery and attendee-roster privacy stay gated", async () => {
+  const [recovery, access, rsvp, client, eventClient] = await Promise.all([
+    readFile(new URL("../app/api/creator-recovery/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/events/access/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/rsvps/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../docs/app.js", import.meta.url), "utf8"),
+    readFile(new URL("../docs/e/app.js", import.meta.url), "utf8"),
+  ]);
+  assert.match(recovery, /action === "search"/);
+  assert.match(recovery, /creatorName: match\.creatorName/);
+  assert.match(recovery, /editCodeHash/);
+  assert.match(access, /viewerTokenHash/);
+  assert.match(access, /attendanceVisibility !== "count"/);
+  assert.match(rsvp, /shareName/);
+  assert.match(client, /找回我的活動/);
+  assert.match(eventClient, /公開我的顯示名稱給同場參加者/);
+});
+
+test("cancelled and stale activities have a defined cleanup path", async () => {
+  const [eventsRoute, purge, workflow] = await Promise.all([
+    readFile(new URL("../app/api/events/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/maintenance/purge/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../.github/workflows/line-reminders.yml", import.meta.url), "utf8"),
+  ]);
+  assert.match(eventsRoute, /cancelledAt/);
+  assert.match(purge, /30 \* 86_400_000/);
+  assert.match(purge, /taipeiDateDaysAgo\(90\)/);
+  assert.match(workflow, /MAINTENANCE_SECRET/);
 });
 
 test("only a verified creator can cancel or permanently delete an activity", async () => {

@@ -132,7 +132,7 @@ function openEventForm(event, managerAuth = null) {
   const editing = Boolean(event);
   const managerField = editing
     ? '<p class="form-hint">已完成建立者驗證；儲存、取消與永久刪除都會使用目前的建立者權限。</p>'
-    : '<label id="edit-code-field">活動管理碼 <span id="edit-code-label">不公開免密碼可留白</span><input name="editCode" minlength="4" autocomplete="new-password" placeholder="自訂至少 4 碼；推薦方式可留白"></label>';
+    : '<label>活動管理碼 <span>至少 6 個字元；用來找回與管理活動</span><input name="editCode" required minlength="6" autocomplete="new-password" placeholder="請妥善保存，不會提供給參加者"></label>';
   modalRoot.innerHTML = `
     <div class="modal-backdrop">
       <section class="modal" role="dialog" aria-modal="true" aria-labelledby="event-form-title">
@@ -141,6 +141,7 @@ function openEventForm(event, managerAuth = null) {
         <h2 id="event-form-title">${editing ? "修改活動" : "建立活動"}</h2>
         <form id="event-form">
           ${field('活動名稱 <span>必填</span>', "title", event?.title, 'required placeholder="例如：阿嬤生日午餐"')}
+          ${field('建立者姓名 <span>必填；僅用於遺失連結後找回活動</span>', "creatorName", event?.creatorName, 'required placeholder="例如：王小明"')}
           <div class="form-row">
             ${field('日期 <span>必填</span>', "eventDate", event?.eventDate, 'required type="date"')}
             ${field('時間 <span>必填</span>', "startTime", event?.startTime, 'required type="time"')}
@@ -153,6 +154,12 @@ function openEventForm(event, managerAuth = null) {
             <label class="choice"><input type="radio" name="accessMode" value="private" ${event?.accessMode === "private" ? "checked" : ""}><span><strong>不公開＋參加碼</strong><small>拿到連結後仍需輸入參加碼，適合私人或敏感活動。</small></span></label>
             <label class="choice"><input type="radio" name="accessMode" value="public" ${event?.accessMode === "public" ? "checked" : ""}><span><strong>完全公開</strong><small>會出現在首頁，任何訪客都能查看與參加。</small></span></label>
           </fieldset>
+          <fieldset class="access-options"><legend>參加者名單顯示方式</legend>
+            <p class="access-privacy-note">預設只顯示參加人數。只有已成功報名的參加者，才可能看到依本設定公開的姓名；電話、飲食、備註與管理資料永不公開。</p>
+            <label class="choice"><input type="radio" name="attendanceVisibility" value="count" ${(!event || !event.attendanceVisibility || event.attendanceVisibility === "count") ? "checked" : ""}><span><strong>僅顯示人數（預設）</strong><small>例如：目前 12 人參加。</small></span></label>
+            <label class="choice"><input type="radio" name="attendanceVisibility" value="opt_in" ${event?.attendanceVisibility === "opt_in" ? "checked" : ""}><span><strong>自願公開名單（推薦）</strong><small>參加者可自行同意是否公開顯示名稱。</small></span></label>
+            <label class="choice"><input type="radio" name="attendanceVisibility" value="all" ${event?.attendanceVisibility === "all" ? "checked" : ""}><span><strong>全部名單</strong><small>所有已參加者的顯示名稱皆可見，適合熟人小群組。</small></span></label>
+          </fieldset>
           <label id="participant-code-field" ${event?.accessMode === "private" ? "" : "hidden"}>參加碼 <span>私人活動必填</span><input name="participantCode" minlength="4" autocomplete="new-password" placeholder="自訂至少 4 碼；留白代表不變"></label>
           <div class="form-row">
             ${field("聯絡人", "contactName", event?.contactName, 'placeholder="王小明"')}
@@ -160,7 +167,7 @@ function openEventForm(event, managerAuth = null) {
           </div>
           ${field("人數上限", "capacity", event?.capacity || "", 'type="number" min="1" max="999" placeholder="不限可留白"')}
           ${managerField}
-          ${editing ? "" : '<p class="form-hint">推薦方式留白時，系統會建立只給建立者的管理連結，可用來修改活動、取消活動與設定 LINE 提醒。</p>'}
+          ${editing ? "" : '<p class="form-hint">系統同時建立專屬管理連結。管理碼可用於遺失管理連結後找回活動；兩者皆可修改、取消、永久刪除與設定 LINE 提醒。</p>'}
           <p class="form-error" id="form-error" role="alert" hidden></p>
           <div class="form-actions">
             ${editing ? `<button type="button" class="danger" id="toggle-event">${event.status === "cancelled" ? "恢復活動" : "取消活動"}</button>` : ""}
@@ -174,19 +181,11 @@ function openEventForm(event, managerAuth = null) {
 
   const form = document.querySelector("#event-form");
   const participantCodeField = form.querySelector("#participant-code-field");
-  const editCodeField = form.querySelector("#edit-code-field");
   const syncParticipantCode = () => {
     const privateMode = form.elements.accessMode.value === "private";
     participantCodeField.hidden = !privateMode;
     const input = form.elements.participantCode;
     input.required = privateMode && !event?.accessMode?.includes("private");
-    if (editCodeField) {
-      const managerCodeRequired = form.elements.accessMode.value !== "unlisted";
-      form.elements.editCode.required = managerCodeRequired;
-      editCodeField.querySelector("#edit-code-label").textContent = managerCodeRequired
-        ? "公開與私人活動必填"
-        : "不公開免密碼可留白";
-    }
   };
   form.addEventListener("change", syncParticipantCode);
   syncParticipantCode();
@@ -204,9 +203,7 @@ function openEventForm(event, managerAuth = null) {
       button.disabled = false;
       button.textContent = original;
     } else if (!editing) {
-      const creatorAuth = data.managerToken
-        ? { type: "token", value: data.managerToken }
-        : { type: "code", value: body.editCode };
+      const creatorAuth = { type: "code", value: body.editCode };
       openCreatorNextSteps({ ...body, id: data.id, shareUrl: data.shareUrl }, creatorAuth, data.managerUrl);
     }
   });
@@ -251,6 +248,8 @@ function openRsvpForm(event) {
             <label>總共幾人參加？<input name="partySize" type="number" min="1" step="1" inputmode="numeric" value="1" required></label>
             ${field("飲食需求", "diet", "", 'placeholder="例如：吃素、不吃牛（可留白）"')}
             <label>想告訴主辦人<textarea name="note" rows="2" placeholder="可留白"></textarea></label>
+            ${event.attendanceVisibility === "opt_in" ? '<label class="toggle"><input name="shareName" type="checkbox" value="true"><span>公開我的顯示名稱給同場參加者</span></label>' : ""}
+            ${event.attendanceVisibility === "all" ? '<p class="form-hint">此活動設定為全部名單，完成報名後您的顯示名稱會提供給已報名的同場參加者查看。</p>' : ""}
           </div>
           <p class="form-hint">同一姓名再次回覆，會更新原本的內容。資料僅活動管理者可查看。</p>
           <p class="form-error" id="form-error" role="alert" hidden></p>
@@ -267,7 +266,13 @@ function openRsvpForm(event) {
     const body = Object.fromEntries(new FormData(form));
     body.eventId = event.id;
     body.partySize = Number(body.partySize || 1);
-    await save(`${API}/rsvps`, "POST", body, "已收到回覆，期待見面！", form);
+    const data = await save(`${API}/rsvps`, "POST", body, "已收到回覆，期待見面！", form);
+    if (data?.attendeeToken && event.shareUrl) {
+      try {
+        const shareToken = new URL(event.shareUrl).searchParams.get("s");
+        if (shareToken) localStorage.setItem(`good-days-rsvp:${shareToken}`, data.attendeeToken);
+      } catch {}
+    }
   });
 }
 
@@ -343,6 +348,63 @@ function openCreatorNextSteps(event, managerAuth, issuedManagerUrl = "") {
   document.querySelector("#start-line-binding").addEventListener("click", () => {
     void openAdminFromCredential(event.id, managerAuth, document.querySelector("#form-error"));
   });
+}
+
+function openCreatorRecovery() {
+  modalRoot.innerHTML = `
+    <div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="recovery-title">
+      <button class="modal-close" data-close aria-label="關閉">×</button>
+      <p class="eyebrow">建立者專用</p><h2 id="recovery-title">找回我的活動</h2>
+      <p>先輸入建立者姓名。搜尋結果只會顯示完全符合的姓名；活動內容、連結與 QR Code 都會保持鎖定。</p>
+      <form id="recovery-search-form"><label>建立者姓名<input name="creatorName" required minlength="2" autofocus autocomplete="name"></label><p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button class="primary">搜尋</button></div></form>
+    </section></div>`;
+  const form = document.querySelector("#recovery-search-form");
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const creatorName = form.elements.creatorName.value.trim();
+    try {
+      const data = await requestJson("/creator-recovery", { action: "search", creatorName });
+      if (!data.matches?.length) throw new Error("找不到符合的建立者姓名");
+      openCreatorRecoveryUnlock(creatorName);
+    } catch (error) { showFormError(form, error.message || "無法搜尋活動"); }
+  });
+}
+
+function openCreatorRecoveryUnlock(creatorName) {
+  modalRoot.innerHTML = `
+    <div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="unlock-title">
+      <button class="modal-close" data-close aria-label="關閉">×</button>
+      <p class="eyebrow">搜尋結果</p><h2 id="unlock-title">${esc(creatorName)}</h2>
+      <div class="locked-recovery"><span aria-hidden="true">🔒</span><div><strong>活動內容已鎖定</strong><p>輸入建立活動時設定的管理碼，才能查看並分享活動連結。</p></div></div>
+      <form id="recovery-unlock-form"><label>活動管理碼<input name="editCode" required minlength="6" autofocus autocomplete="current-password"></label><p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" id="recovery-back">返回</button><button class="primary">解鎖活動</button></div></form>
+    </section></div>`;
+  document.querySelector("#recovery-back").addEventListener("click", openCreatorRecovery);
+  const form = document.querySelector("#recovery-unlock-form");
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const editCode = form.elements.editCode.value.trim();
+    try {
+      const data = await requestJson("/creator-recovery", { action: "unlock", creatorName, editCode });
+      openRecoveredActivities(data.activities || [], editCode);
+    } catch (error) { showFormError(form, error.message || "無法解鎖活動"); }
+  });
+}
+
+function openRecoveredActivities(activities, editCode) {
+  const cards = activities.map((event) => `
+    <article class="recovered-activity"><div><strong>${esc(event.title)}</strong><span>${esc(formatDate(event.eventDate))} · ${esc(event.startTime)}${event.status === "cancelled" ? " · 已取消" : ""}</span></div><div class="inline-actions"><button class="secondary" data-recovery-share="${esc(event.id)}">分享連結／QR</button><button class="primary" data-recovery-manage="${esc(event.id)}">管理活動</button></div></article>`).join("");
+  modalRoot.innerHTML = `
+    <div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="recovered-title">
+      <button class="modal-close" data-close aria-label="關閉">×</button>
+      <p class="eyebrow">已解鎖</p><h2 id="recovered-title">我的活動</h2>
+      <div class="recovered-activities">${cards || '<p class="form-hint">沒有可顯示的活動。</p>'}</div>
+    </section></div>`;
+  for (const event of activities) {
+    document.querySelector(`[data-recovery-share="${CSS.escape(event.id)}"]`)?.addEventListener("click", () => openSharePanel(event));
+    document.querySelector(`[data-recovery-manage="${CSS.escape(event.id)}"]`)?.addEventListener("click", () => {
+      void openAdminFromCredential(event.id, { type: "code", value: editCode });
+    });
+  }
 }
 
 function responseLabel(value) {
@@ -566,6 +628,7 @@ function openSharePanel(event) {
 document.addEventListener("click", (clickEvent) => {
   const create = clickEvent.target.closest("[data-create]");
   if (create) return openEventForm();
+  if (clickEvent.target.closest("[data-recover]")) return openCreatorRecovery();
   const close = clickEvent.target.closest("[data-close]");
   if (close || clickEvent.target.classList.contains("modal-backdrop")) return closeModal();
   if (clickEvent.target.id === "retry") return loadEvents();

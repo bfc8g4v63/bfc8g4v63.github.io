@@ -4,6 +4,7 @@ import { ensureSchema } from "../../../db/init";
 import { events, rsvps } from "../../../db/schema";
 import { hashCode } from "../admin/auth";
 import { json, preflight } from "../cors";
+import { rateLimit } from "../rate-limit";
 
 function clean(value: unknown, max = 300) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
@@ -15,6 +16,8 @@ export function OPTIONS(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const limit = rateLimit(request, "rsvp", 24, 15 * 60 * 1000);
+    if (!limit.allowed) return json(request, { error: `回覆過於頻繁，請 ${limit.retryAfterSeconds} 秒後再試` }, 429);
     await ensureSchema();
     const body = await request.json() as Record<string, unknown>;
     const eventId = clean(body.eventId, 80);
@@ -32,6 +35,7 @@ export async function POST(request: Request) {
     const db = getDb();
     const [event] = await db.select({
       id: events.id, status: events.status, accessMode: events.accessMode,
+      attendanceVisibility: events.attendanceVisibility,
       shareToken: events.shareToken, participantCodeHash: events.participantCodeHash,
     }).from(events).where(eq(events.id, eventId)).limit(1);
     if (!event) return json(request, { error: "找不到活動" }, 404);
@@ -44,16 +48,23 @@ export async function POST(request: Request) {
     }
     const [existing] = await db.select({ id: rsvps.id }).from(rsvps)
       .where(and(eq(rsvps.eventId, eventId), eq(rsvps.name, name))).limit(1);
+    const attendeeToken = response === "attending" ? crypto.randomUUID() : "";
+    const shareName = response === "attending" && (
+      event.attendanceVisibility === "all"
+      || (event.attendanceVisibility === "opt_in" && (body.shareName === true || body.shareName === "true"))
+    );
     const values = {
       eventId, name, partySize,
       diet: clean(body.diet, 120),
       note: clean(body.note, 300),
       response,
+      shareName,
+      viewerTokenHash: attendeeToken ? await hashCode(attendeeToken) : "",
       updatedAt: new Date().toISOString(),
     };
     if (existing) await db.update(rsvps).set(values).where(eq(rsvps.id, existing.id));
     else await db.insert(rsvps).values({ id: crypto.randomUUID(), ...values });
-    return json(request, { ok: true });
+    return json(request, { ok: true, attendeeToken: attendeeToken || undefined });
   } catch (error) {
     return json(request, { error: error instanceof Error ? error.message : "回覆失敗" }, 500);
   }

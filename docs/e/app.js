@@ -4,6 +4,13 @@ const modalRoot = document.querySelector("#modal-root");
 const shareToken = new URLSearchParams(location.search).get("s") || "";
 let currentEvent;
 let participantCode = "";
+let attendeeToken = "";
+
+function attendeeStorageKey() {
+  return `good-days-rsvp:${shareToken}`;
+}
+
+try { attendeeToken = localStorage.getItem(attendeeStorageKey()) || ""; } catch {}
 
 const esc = (value = "") => String(value).replace(/[&<>"']/g, (char) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
@@ -52,6 +59,12 @@ function showCodeGate(message = "這是一個需要參加碼的私人活動。")
 
 function renderEvent(event) {
   const people = event.summary?.attendingPeople || 0;
+  const roster = event.roster?.names;
+  const rosterHtml = Array.isArray(roster) ? `
+    <section class="attendee-roster"><h2>同場參加者</h2>
+      ${roster.length ? `<ul class="attendee-names">${roster.map((name) => `<li>${esc(name)}</li>`).join("")}</ul>` : '<p>目前沒有可公開的顯示名稱。</p>'}
+    </section>` : event.attendanceVisibility !== "count" && event.status === "active"
+      ? '<p class="privacy-note">完成報名後，可在這裡查看依活動設定公開的參加者名稱。</p>' : "";
   root.innerHTML = `
     <article class="event-invitation ${event.status === "cancelled" ? "cancelled" : ""}">
       <p class="eyebrow">${event.accessMode === "public" ? "公開活動" : "活動邀請"}</p>
@@ -60,8 +73,9 @@ function renderEvent(event) {
       ${event.description ? `<p class="event-description">${esc(event.description)}</p>` : ""}
       <p class="attendance"><strong>${people} 人參加</strong>${event.capacity ? `<span>／上限 ${event.capacity} 人</span>` : ""}</p>
       ${event.status === "cancelled" ? '<p class="form-error">此活動已取消</p>' : '<button class="primary" id="rsvp">我要參加</button>'}
+      ${rosterHtml}
       ${event.contactName ? `<p class="contact">活動聯絡人：${esc(event.contactName)}</p>` : ""}
-      <p class="privacy-note">您的姓名、飲食與備註只會讓活動管理者看到。</p>
+      <p class="privacy-note">電話、飲食、備註與管理資訊只會讓活動管理者看到。</p>
       <button class="text-link manage-link" id="manager">活動管理</button>
     </article>`;
   document.querySelector("#rsvp")?.addEventListener("click", openRsvp);
@@ -74,7 +88,7 @@ async function loadEvent() {
     return;
   }
   try {
-    const data = await post("/events/access", { shareToken, participantCode });
+    const data = await post("/events/access", { shareToken, participantCode, attendeeToken });
     currentEvent = data.event;
     renderEvent(currentEvent);
   } catch (error) {
@@ -91,7 +105,7 @@ function openRsvp() {
       <button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">回覆活動</p><h2 id="rsvp-title">${esc(currentEvent.title)}</h2>
       <form id="rsvp-form"><label>您的姓名 <span>必填</span><input name="name" required autofocus placeholder="例如：王奶奶"></label>
         <fieldset><legend>是否參加？</legend><label class="choice"><input type="radio" name="response" value="attending" checked><span>✓ 我要參加</span></label><label class="choice"><input type="radio" name="response" value="not_attending"><span>這次無法參加</span></label></fieldset>
-        <div id="attending-fields"><label>總共幾人參加？<input name="partySize" type="number" min="1" step="1" inputmode="numeric" value="1" required></label><label>飲食需求<input name="diet" placeholder="例如：吃素、不吃牛（可留白）"></label><label>想告訴主辦人<textarea name="note" rows="2" placeholder="可留白"></textarea></label></div>
+        <div id="attending-fields"><label>總共幾人參加？<input name="partySize" type="number" min="1" step="1" inputmode="numeric" value="1" required></label><label>飲食需求<input name="diet" placeholder="例如：吃素、不吃牛（可留白）"></label><label>想告訴主辦人<textarea name="note" rows="2" placeholder="可留白"></textarea></label>${currentEvent.attendanceVisibility === "opt_in" ? '<label class="toggle"><input name="shareName" type="checkbox" value="true"><span>公開我的顯示名稱給同場參加者</span></label>' : ""}${currentEvent.attendanceVisibility === "all" ? '<p class="form-hint">此活動設定為全部名單；完成報名後，您的顯示名稱會提供給已報名的同場參加者查看。</p>' : ""}</div>
         <p class="form-hint">同一姓名再次回覆，會更新原本的內容。</p><p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button class="primary">確認送出</button></div>
       </form>
     </section></div>`;
@@ -101,7 +115,15 @@ function openRsvp() {
     event.preventDefault();
     const body = Object.fromEntries(new FormData(form));
     body.eventId = currentEvent.id; body.shareToken = shareToken; body.participantCode = participantCode; body.partySize = Number(body.partySize || 1);
-    try { await post("/rsvps", body); closeModal(); await loadEvent(); }
+    try {
+      const data = await post("/rsvps", body);
+      attendeeToken = data.attendeeToken || "";
+      try {
+        if (attendeeToken) localStorage.setItem(attendeeStorageKey(), attendeeToken);
+        else localStorage.removeItem(attendeeStorageKey());
+      } catch {}
+      closeModal(); await loadEvent();
+    }
     catch (error) { const box = form.querySelector(".form-error"); box.textContent = error.message; box.hidden = false; }
   });
 }

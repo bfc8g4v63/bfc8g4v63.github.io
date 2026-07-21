@@ -20,3 +20,14 @@ jobs:
             --request POST \
             --header "Authorization: Bearer ${REMINDER_SECRET}" \
             https://good-days-family-events.x0925234139.chatgpt.site/api/line/run-reminders
+  purge-expired-data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Remove expired activity data
+        env:
+          MAINTENANCE_SECRET: ${{ secrets.MAINTENANCE_SECRET || secrets.REMINDER_SECRET }}
+        run: |
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --header "Authorization: Bearer ${MAINTENANCE_SECRET}" \
+            https://good-days-family-events.x0925234139.chatgpt.site/api/maintenance/purge

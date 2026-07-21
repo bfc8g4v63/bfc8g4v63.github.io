@@ -32,6 +32,7 @@ export async function POST(request: Request) {
       event: {
         ...access.event,
         editCodeHash: undefined,
+        managerTokenHash: undefined,
         participantCodeHash: undefined,
         shareUrl: `https://bfc8g4v63.github.io/e/?s=${encodeURIComponent(access.event.shareToken)}`,
       },
