@@ -92,7 +92,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.3/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.4/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
   assert.match(styles, /grid-template-areas:"visitor" "owner" "tagline" "top"/);
 });
@@ -103,9 +103,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.3/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.3/);
-  assert.match(worker, /good-days-github-v5/);
+  assert.match(page, /\/app\.js\?v=1\.2\.4/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.4/);
+  assert.match(worker, /good-days-github-v6/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -132,6 +132,10 @@ test("only a verified creator can cancel or permanently delete an activity", asy
   assert.match(eventsRoute, /export async function DELETE/);
   assert.match(eventsRoute, /requireEventManager\(body\.id, body\.editCode, body\.managerToken\)/);
   assert.match(eventsRoute, /eq\(events\.status, "active"\)/);
+  assert.match(client, /function eventManagerPayload/);
+  assert.match(client, /Object\.assign\(body, eventManagerPayload\(event\.id, managerAuth\)\)/);
+  assert.match(client, /\.\.\.eventManagerPayload\(event\.id, managerAuth\), status/);
+  assert.match(client, /JSON\.stringify\(eventManagerPayload\(event\.id, managerAuth\)\)/);
   assert.match(client, /永久刪除/);
   assert.match(client, /活動已取消/);
 });

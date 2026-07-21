@@ -13,10 +13,18 @@ function managerAuthFromLink() {
   return eventId && token ? { type: "token", value: token, eventId } : null;
 }
 
-function managerPayload(eventId, managerAuth) {
+function managerCredentials(managerAuth) {
   return managerAuth?.type === "token"
-    ? { eventId, managerToken: managerAuth.value }
-    : { eventId, editCode: managerAuth?.value || "" };
+    ? { managerToken: managerAuth.value }
+    : { editCode: managerAuth?.value || "" };
+}
+
+function managerPayload(eventId, managerAuth) {
+  return { eventId, ...managerCredentials(managerAuth) };
+}
+
+function eventManagerPayload(eventId, managerAuth) {
+  return { id: eventId, ...managerCredentials(managerAuth) };
 }
 
 function managerUrl(eventId, managerToken) {
@@ -198,7 +206,7 @@ function openEventForm(event, managerAuth = null) {
     button.textContent = "儲存中…";
     const body = Object.fromEntries(new FormData(form));
     body.capacity = body.capacity ? Number(body.capacity) : null;
-    if (editing) Object.assign(body, managerPayload(event.id, managerAuth));
+    if (editing) Object.assign(body, eventManagerPayload(event.id, managerAuth));
     const data = await save(`${API}/events`, editing ? "PATCH" : "POST", body, editing ? "活動內容已更新" : "活動已建立", form);
     if (!data) {
       button.disabled = false;
@@ -211,7 +219,7 @@ function openEventForm(event, managerAuth = null) {
 
   document.querySelector("#toggle-event")?.addEventListener("click", async () => {
     await save(`${API}/events`, "PATCH", {
-      ...managerPayload(event.id, managerAuth), status: event.status === "cancelled" ? "active" : "cancelled",
+      ...eventManagerPayload(event.id, managerAuth), status: event.status === "cancelled" ? "active" : "cancelled",
     }, event.status === "cancelled" ? "活動已恢復" : "活動已取消", form);
   });
 
@@ -221,7 +229,7 @@ function openEventForm(event, managerAuth = null) {
     try {
       const response = await fetch(`${API}/events`, {
         method: "DELETE", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(managerPayload(event.id, managerAuth)),
+        body: JSON.stringify(eventManagerPayload(event.id, managerAuth)),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "永久刪除失敗");
