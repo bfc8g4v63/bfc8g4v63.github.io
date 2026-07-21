@@ -117,6 +117,43 @@ export function ensureSchema() {
     }
     await database.prepare("UPDATE events SET share_token = lower(hex(randomblob(16))) WHERE share_token = '' OR share_token IS NULL").run();
     await database.prepare("CREATE UNIQUE INDEX IF NOT EXISTS events_share_token_unique ON events (share_token)").run();
+    await database.batch([
+      database.prepare("DROP TRIGGER IF EXISTS rsvps_capacity_before_insert"),
+      database.prepare("DROP TRIGGER IF EXISTS rsvps_capacity_before_update"),
+      database.prepare(`CREATE TRIGGER rsvps_capacity_before_insert
+        BEFORE INSERT ON rsvps
+        WHEN NEW.response = 'attending'
+          AND EXISTS (
+            SELECT 1 FROM events
+            WHERE id = NEW.event_id
+              AND capacity IS NOT NULL
+              AND COALESCE((
+                SELECT SUM(party_size) FROM rsvps
+                WHERE event_id = NEW.event_id AND response = 'attending'
+              ), 0) + NEW.party_size > capacity
+          )
+        BEGIN
+          SELECT RAISE(ABORT, 'capacity_exceeded');
+        END`),
+      database.prepare(`CREATE TRIGGER rsvps_capacity_before_update
+        BEFORE UPDATE OF party_size, response ON rsvps
+        WHEN NEW.response = 'attending'
+          AND EXISTS (
+            SELECT 1 FROM events
+            WHERE id = NEW.event_id
+              AND capacity IS NOT NULL
+              AND NEW.party_size > CASE WHEN OLD.response = 'attending' THEN OLD.party_size ELSE 0 END
+              AND COALESCE((
+                SELECT SUM(party_size) FROM rsvps
+                WHERE event_id = NEW.event_id AND response = 'attending'
+              ), 0)
+                - CASE WHEN OLD.response = 'attending' THEN OLD.party_size ELSE 0 END
+                + NEW.party_size > capacity
+          )
+        BEGIN
+          SELECT RAISE(ABORT, 'capacity_exceeded');
+        END`),
+    ]);
   })().catch((error) => {
     ready = null;
     throw error;

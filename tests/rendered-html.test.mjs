@@ -98,14 +98,14 @@ test("visitor count has its own footer row", async () => {
 });
 
 test("RSVP capacity is enforced atomically while existing attendees can reduce their reply", async () => {
-  const [rsvp, eventClient] = await Promise.all([
+  const [rsvp, schemaInit, eventClient] = await Promise.all([
     readFile(new URL("../app/api/rsvps/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../db/init.ts", import.meta.url), "utf8"),
     readFile(new URL("../docs/e/app.js", import.meta.url), "utf8"),
   ]);
-  assert.match(rsvp, /INSERT INTO rsvps/);
-  assert.match(rsvp, /ON CONFLICT\(event_id, name\) DO UPDATE/);
-  assert.match(rsvp, /name <> \?/);
-  assert.match(rsvp, /result\.meta\.changes !== 1/);
+  assert.match(schemaInit, /rsvps_capacity_before_insert/);
+  assert.match(schemaInit, /rsvps_capacity_before_update/);
+  assert.match(schemaInit, /RAISE\(ABORT, 'capacity_exceeded'\)/);
   assert.match(rsvp, /這個活動已額滿/);
   assert.match(eventClient, /目前已額滿；已報名者仍可更新內容/);
 });

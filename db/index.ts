@@ -2,16 +2,12 @@ import { env } from "cloudflare:workers";
 import { drizzle } from "drizzle-orm/d1";
 import * as schema from "./schema";
 
-export function getD1() {
+export function getDb() {
   const bindings = env as unknown as { DB?: D1Database };
   if (!bindings.DB) {
     throw new Error(
       "Cloudflare D1 binding `DB` is unavailable. Set the `d1` field in site configuration to `DB` or let your control plane inject the real binding values before using the database."
     );
   }
-  return bindings.DB;
-}
-
-export function getDb() {
-  return drizzle(getD1(), { schema });
+  return drizzle(bindings.DB, { schema });
 }
