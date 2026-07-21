@@ -7,6 +7,22 @@ const errorBox = document.querySelector("#error");
 const noticeBox = document.querySelector("#notice");
 const modalRoot = document.querySelector("#modal-root");
 
+function managerAuthFromLink() {
+  const eventId = new URLSearchParams(location.search).get("manage") || "";
+  const token = new URLSearchParams(location.hash.slice(1)).get("token") || "";
+  return eventId && token ? { type: "token", value: token, eventId } : null;
+}
+
+function managerPayload(eventId, managerAuth) {
+  return managerAuth?.type === "token"
+    ? { eventId, managerToken: managerAuth.value }
+    : { eventId, editCode: managerAuth?.value || "" };
+}
+
+function managerUrl(eventId, managerToken) {
+  return `${location.origin}/?manage=${encodeURIComponent(eventId)}#token=${encodeURIComponent(managerToken)}`;
+}
+
 const esc = (value = "") => String(value).replace(/[&<>"']/g, (char) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
 })[char]);
@@ -112,8 +128,11 @@ async function requestJson(path, body) {
   return data;
 }
 
-function openEventForm(event, knownEditCode = "") {
+function openEventForm(event, managerAuth = null) {
   const editing = Boolean(event);
+  const managerField = editing
+    ? '<p class="form-hint">已完成建立者驗證；儲存、取消與永久刪除都會使用目前的建立者權限。</p>'
+    : '<label id="edit-code-field">活動管理碼 <span id="edit-code-label">不公開免密碼可留白</span><input name="editCode" minlength="4" autocomplete="new-password" placeholder="自訂至少 4 碼；推薦方式可留白"></label>';
   modalRoot.innerHTML = `
     <div class="modal-backdrop">
       <section class="modal" role="dialog" aria-modal="true" aria-labelledby="event-form-title">
@@ -139,14 +158,13 @@ function openEventForm(event, knownEditCode = "") {
             ${field("聯絡人", "contactName", event?.contactName, 'placeholder="王小明"')}
             ${field("聯絡電話（僅管理者可見）", "contactPhone", event?.contactPhone, 'inputmode="tel" placeholder="0912 345 678"')}
           </div>
-          <div class="form-row">
-            ${field("人數上限", "capacity", event?.capacity || "", 'type="number" min="1" max="999" placeholder="不限可留白"')}
-            ${field('活動管理碼 <span>必填</span>', "editCode", knownEditCode, `required minlength="4" placeholder="${editing ? "輸入活動管理碼" : "自訂至少 4 碼"}"`)}
-          </div>
-          ${editing ? "" : '<p class="form-hint">管理碼可查看私人名單、修改活動及設定 LINE 提醒，請妥善保存。</p>'}
+          ${field("人數上限", "capacity", event?.capacity || "", 'type="number" min="1" max="999" placeholder="不限可留白"')}
+          ${managerField}
+          ${editing ? "" : '<p class="form-hint">推薦方式留白時，系統會建立只給建立者的管理連結，可用來修改活動、取消活動與設定 LINE 提醒。</p>'}
           <p class="form-error" id="form-error" role="alert" hidden></p>
           <div class="form-actions">
             ${editing ? `<button type="button" class="danger" id="toggle-event">${event.status === "cancelled" ? "恢復活動" : "取消活動"}</button>` : ""}
+            ${editing ? '<button type="button" class="text-danger" id="delete-event">永久刪除</button>' : ""}
             <button type="button" class="secondary" data-close>返回</button>
             <button type="submit" class="primary">${editing ? "儲存修改" : "建立活動"}</button>
           </div>
@@ -156,11 +174,19 @@ function openEventForm(event, knownEditCode = "") {
 
   const form = document.querySelector("#event-form");
   const participantCodeField = form.querySelector("#participant-code-field");
+  const editCodeField = form.querySelector("#edit-code-field");
   const syncParticipantCode = () => {
     const privateMode = form.elements.accessMode.value === "private";
     participantCodeField.hidden = !privateMode;
     const input = form.elements.participantCode;
     input.required = privateMode && !event?.accessMode?.includes("private");
+    if (editCodeField) {
+      const managerCodeRequired = form.elements.accessMode.value !== "unlisted";
+      form.elements.editCode.required = managerCodeRequired;
+      editCodeField.querySelector("#edit-code-label").textContent = managerCodeRequired
+        ? "公開與私人活動必填"
+        : "不公開免密碼可留白";
+    }
   };
   form.addEventListener("change", syncParticipantCode);
   syncParticipantCode();
@@ -172,20 +198,39 @@ function openEventForm(event, knownEditCode = "") {
     button.textContent = "儲存中…";
     const body = Object.fromEntries(new FormData(form));
     body.capacity = body.capacity ? Number(body.capacity) : null;
-    if (editing) body.id = event.id;
-    const ok = await save(`${API}/events`, editing ? "PATCH" : "POST", body, editing ? "活動內容已更新" : "活動已建立，可以分享給家人了", form);
-    if (!ok) {
+    if (editing) Object.assign(body, managerPayload(event.id, managerAuth));
+    const data = await save(`${API}/events`, editing ? "PATCH" : "POST", body, editing ? "活動內容已更新" : "活動已建立", form);
+    if (!data) {
       button.disabled = false;
       button.textContent = original;
+    } else if (!editing) {
+      const creatorAuth = data.managerToken
+        ? { type: "token", value: data.managerToken }
+        : { type: "code", value: body.editCode };
+      openCreatorNextSteps({ ...body, id: data.id, shareUrl: data.shareUrl }, creatorAuth, data.managerUrl);
     }
   });
 
   document.querySelector("#toggle-event")?.addEventListener("click", async () => {
-    const editCode = form.elements.editCode.value.trim();
-    if (!editCode) return showFormError(form, "請先輸入活動管理碼");
     await save(`${API}/events`, "PATCH", {
-      id: event.id, editCode, status: event.status === "cancelled" ? "active" : "cancelled",
+      ...managerPayload(event.id, managerAuth), status: event.status === "cancelled" ? "active" : "cancelled",
     }, event.status === "cancelled" ? "活動已恢復" : "活動已取消", form);
+  });
+
+  document.querySelector("#delete-event")?.addEventListener("click", async () => {
+    if (!confirm("永久刪除後，所有報名資料、LINE 綁定與提醒紀錄都無法復原。要繼續嗎？")) return;
+    if (prompt(`請輸入活動名稱「${event.title}」以確認永久刪除`) !== event.title) return;
+    try {
+      const response = await fetch(`${API}/events`, {
+        method: "DELETE", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(managerPayload(event.id, managerAuth)),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "永久刪除失敗");
+      closeModal();
+      showNotice("活動已永久刪除");
+      await loadEvents();
+    } catch (error) { showFormError(form, error.message || "永久刪除失敗"); }
   });
 }
 
@@ -248,13 +293,55 @@ function openAdminLogin(event) {
     button.disabled = true;
     button.textContent = "驗證中…";
     try {
-      const data = await requestJson("/admin/event", { eventId: event.id, editCode });
-      openAdminDashboard(data, editCode);
+      const managerAuth = { type: "code", value: editCode };
+      const data = await requestJson("/admin/event", managerPayload(event.id, managerAuth));
+      openAdminDashboard(data, managerAuth);
     } catch (error) {
       showFormError(form, error.message);
       button.disabled = false;
       button.textContent = "開啟管理後台";
     }
+  });
+}
+
+async function openAdminFromCredential(eventId, managerAuth, errorBox) {
+  try {
+    const data = await requestJson("/admin/event", managerPayload(eventId, managerAuth));
+    openAdminDashboard(data, managerAuth);
+  } catch (error) {
+    if (errorBox) {
+      errorBox.textContent = error.message || "無法開啟建立者管理區";
+      errorBox.hidden = false;
+    }
+    else showNotice(error.message || "無法開啟建立者管理區");
+  }
+}
+
+function openCreatorNextSteps(event, managerAuth, issuedManagerUrl = "") {
+  const shareUrl = event.shareUrl;
+  const privateManagerUrl = managerAuth.type === "token"
+    ? (issuedManagerUrl || managerUrl(event.id, managerAuth.value))
+    : "";
+  modalRoot.innerHTML = `
+    <div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="created-title">
+      <button class="modal-close" data-close aria-label="關閉">×</button>
+      <p class="eyebrow">活動已建立</p><h2 id="created-title">下一步：分享或綁定 LINE</h2>
+      <p>活動邀請已建立完成。現在就可以加入 LINE 小幫手並產生群組綁定碼。</p>
+      <label>活動分享連結<input id="created-share-url" value="${esc(shareUrl)}" readonly></label>
+      ${privateManagerUrl ? `<div class="line-status warning"><strong>請保存建立者管理連結</strong><p>這個連結可修改、取消或永久刪除活動，也可管理 LINE 小幫手；請勿分享給參加者。</p><label>建立者管理連結<input id="created-manager-url" value="${esc(privateManagerUrl)}" readonly></label><button class="secondary" id="copy-manager-link">複製管理連結</button></div>` : ""}
+      <p class="form-error" id="form-error" role="alert" hidden></p>
+      <div class="form-actions"><button class="secondary" id="copy-created-share">複製分享連結</button><button class="primary" id="start-line-binding">現在綁定 LINE 小幫手</button></div>
+    </section></div>`;
+  document.querySelector("#copy-created-share").addEventListener("click", async () => {
+    await navigator.clipboard.writeText(shareUrl);
+    showNotice("活動分享連結已複製");
+  });
+  document.querySelector("#copy-manager-link")?.addEventListener("click", async () => {
+    await navigator.clipboard.writeText(privateManagerUrl);
+    showNotice("建立者管理連結已複製，請妥善保存");
+  });
+  document.querySelector("#start-line-binding").addEventListener("click", () => {
+    void openAdminFromCredential(event.id, managerAuth, document.querySelector("#form-error"));
   });
 }
 
@@ -293,7 +380,7 @@ function linePanel(line) {
     </fieldset>`;
 }
 
-function openAdminDashboard(data, editCode) {
+function openAdminDashboard(data, managerAuth) {
   const event = data.event;
   const remaining = event.capacity ? Math.max(0, event.capacity - data.summary.attendingPeople) : null;
   modalRoot.innerHTML = `
@@ -311,6 +398,7 @@ function openAdminDashboard(data, editCode) {
         <div class="admin-toolbar">
           <button class="primary" id="edit-from-admin">修改活動</button>
           <button class="secondary" id="show-share">分享連結與 QR Code</button>
+          ${managerAuth.type === "token" ? '<button class="secondary" id="show-manager-link">複製建立者管理連結</button>' : ""}
           <button class="secondary" id="export-rsvps">下載 CSV 名單</button>
         </div>
         <section class="admin-section">
@@ -325,14 +413,20 @@ function openAdminDashboard(data, editCode) {
       </section>
     </div>`;
 
-  document.querySelector("#edit-from-admin").addEventListener("click", () => openEventForm(event, editCode));
+  document.querySelector("#edit-from-admin").addEventListener("click", () => openEventForm(event, managerAuth));
   document.querySelector("#show-share").addEventListener("click", () => openSharePanel(event));
+  document.querySelector("#show-manager-link")?.addEventListener("click", async () => {
+    await navigator.clipboard.writeText(managerUrl(event.id, managerAuth.value));
+    showNotice("建立者管理連結已複製，請勿分享給參加者");
+  });
   document.querySelector("#export-rsvps").addEventListener("click", () => exportRsvps(event, data.rsvps));
   document.querySelector("#line-code")?.addEventListener("click", async (clickEvent) => {
     const button = clickEvent.currentTarget;
     button.disabled = true;
     try {
-      const result = await requestJson("/admin/line", { action: "create_binding_code", eventId: event.id, editCode });
+      const result = await requestJson("/admin/line", {
+        action: "create_binding_code", ...managerPayload(event.id, managerAuth),
+      });
       document.querySelector("#binding-code-area").innerHTML = `<div class="binding-code"><span>請在群組輸入</span><strong>綁定 ${esc(result.code)}</strong><small>15 分鐘內有效</small></div>`;
       button.textContent = "重新產生綁定碼";
     } catch (error) {
@@ -344,7 +438,7 @@ function openAdminDashboard(data, editCode) {
     button.disabled = true;
     try {
       await requestJson("/admin/line", {
-        action: "save_settings", eventId: event.id, editCode,
+        action: "save_settings", ...managerPayload(event.id, managerAuth),
         sevenDays: document.querySelector('[name="sevenDays"]').checked,
         oneDay: document.querySelector('[name="oneDay"]').checked,
         twoHours: document.querySelector('[name="twoHours"]').checked,
@@ -357,7 +451,9 @@ function openAdminDashboard(data, editCode) {
     const button = clickEvent.currentTarget;
     button.disabled = true;
     try {
-      await requestJson("/admin/line", { action: "send_test", eventId: event.id, editCode });
+      await requestJson("/admin/line", {
+        action: "send_test", ...managerPayload(event.id, managerAuth),
+      });
       showNotice("測試提醒已傳到 LINE 群組");
     } catch (error) { showLineError(error.message); }
     finally { button.disabled = false; }
@@ -365,9 +461,9 @@ function openAdminDashboard(data, editCode) {
   document.querySelector("#line-unbind")?.addEventListener("click", async () => {
     if (!confirm("確定解除這個活動的 LINE 群組綁定？")) return;
     try {
-      await requestJson("/admin/line", { action: "unbind", eventId: event.id, editCode });
-      const fresh = await requestJson("/admin/event", { eventId: event.id, editCode });
-      openAdminDashboard(fresh, editCode);
+      await requestJson("/admin/line", { action: "unbind", ...managerPayload(event.id, managerAuth) });
+      const fresh = await requestJson("/admin/event", managerPayload(event.id, managerAuth));
+      openAdminDashboard(fresh, managerAuth);
       showNotice("已解除 LINE 群組綁定");
     } catch (error) { showLineError(error.message); }
   });
@@ -415,13 +511,10 @@ async function save(url, method, body, successMessage, form) {
     closeModal();
     showNotice(successMessage);
     await loadEvents();
-    if (data.shareUrl && (method === "POST" || body.accessMode === "unlisted" || body.accessMode === "private")) {
-      openSharePanel({ title: body.title, accessMode: body.accessMode, shareUrl: data.shareUrl });
-    }
-    return true;
+    return data;
   } catch (error) {
     showFormError(form, error.message || "操作失敗");
-    return false;
+    return null;
   }
 }
 
@@ -488,3 +581,5 @@ document.addEventListener("click", (clickEvent) => {
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => undefined);
 loadEvents();
 trackSiteVisit();
+const linkedManager = managerAuthFromLink();
+if (linkedManager) void openAdminFromCredential(linkedManager.eventId, linkedManager);

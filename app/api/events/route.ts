@@ -1,9 +1,12 @@
 import { and, asc, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { ensureSchema } from "../../../db/init";
-import { events, rsvps } from "../../../db/schema";
+import {
+  events, lineBindCodes, lineBindings, lineReminderDeliveries, lineReminderSettings, rsvps,
+} from "../../../db/schema";
 import { json, preflight } from "../cors";
-import { clean, hashCode } from "../admin/auth";
+import { clean, hashCode, requireEventManager } from "../admin/auth";
+import { lineConfig, pushText } from "../line/lib";
 
 const accessModes = new Set(["public", "unlisted", "private"]);
 
@@ -19,6 +22,24 @@ function shareUrl(token: string) {
   return `https://bfc8g4v63.github.io/e/?s=${encodeURIComponent(token)}`;
 }
 
+function managerUrl(id: string, token: string) {
+  // Keep the capability in the fragment so it is never sent as part of the
+  // page request or a referrer header.
+  return `https://bfc8g4v63.github.io/?manage=${encodeURIComponent(id)}#token=${encodeURIComponent(token)}`;
+}
+
+async function notifyBoundGroup(event: typeof events.$inferSelect, message: string) {
+  if (!lineConfig().token) return;
+  try {
+    const [binding] = await getDb().select().from(lineBindings).where(eq(lineBindings.eventId, event.id)).limit(1);
+    if (binding) await pushText(binding.groupId, message);
+  } catch (error) {
+    // A notification failure must not prevent the creator from cancelling or
+    // deleting their activity. The status change still stops future reminders.
+    console.error("Unable to notify the LINE group", error);
+  }
+}
+
 export async function GET(request: Request) {
   try {
     await ensureSchema();
@@ -30,7 +51,7 @@ export async function GET(request: Request) {
         description: events.description, contactName: events.contactName,
         capacity: events.capacity, status: events.status, accessMode: events.accessMode,
         shareToken: events.shareToken,
-      }).from(events).where(eq(events.accessMode, "public"))
+      }).from(events).where(and(eq(events.accessMode, "public"), eq(events.status, "active")))
         .orderBy(asc(events.eventDate), asc(events.startTime)),
       db.select({
         eventId: rsvps.eventId, partySize: rsvps.partySize, response: rsvps.response,
@@ -73,14 +94,18 @@ export async function POST(request: Request) {
     if (!title || !eventDate || !startTime || !location) {
       return json(request, { error: "請填寫活動名稱、日期、時間與地點" }, 400);
     }
-    if (editCode.length < 4) {
+    if (editCode && editCode.length < 4) {
       return json(request, { error: "管理密碼至少需要 4 個字" }, 400);
+    }
+    if (!editCode && mode !== "unlisted") {
+      return json(request, { error: "公開或私人活動請設定管理密碼" }, 400);
     }
     if (mode === "private" && participantCode.length < 4) {
       return json(request, { error: "私人活動的參加碼至少需要 4 個字" }, 400);
     }
     const id = crypto.randomUUID();
     const token = crypto.randomUUID();
+    const managerToken = !editCode && mode === "unlisted" ? crypto.randomUUID() : "";
     await getDb().insert(events).values({
       id, title, eventDate, startTime, location,
       description: clean(body.description, 1000),
@@ -91,9 +116,16 @@ export async function POST(request: Request) {
       accessMode: mode,
       shareToken: token,
       participantCodeHash: mode === "private" ? await hashCode(participantCode) : "",
-      editCodeHash: await hashCode(editCode),
+      editCodeHash: await hashCode(editCode || managerToken),
     });
-    return json(request, { id, shareToken: token, shareUrl: shareUrl(token) }, 201);
+    return json(request, {
+      id,
+      shareToken: token,
+      shareUrl: shareUrl(token),
+      // Returned only at creation time. The database stores only its hash.
+      managerToken: managerToken || undefined,
+      managerUrl: managerToken ? managerUrl(id, managerToken) : undefined,
+    }, 201);
   } catch (error) {
     return json(request, { error: error instanceof Error ? error.message : "建立活動失敗" }, 500);
   }
@@ -103,13 +135,10 @@ export async function PATCH(request: Request) {
   try {
     await ensureSchema();
     const body = await request.json() as Record<string, unknown>;
-    const id = clean(body.id, 80);
-    const editCode = clean(body.editCode, 80);
-    const [existing] = await getDb().select().from(events).where(eq(events.id, id)).limit(1);
-    if (!existing) return json(request, { error: "找不到活動" }, 404);
-    if (!editCode || await hashCode(editCode) !== existing.editCodeHash) {
-      return json(request, { error: "活動管理密碼不正確" }, 403);
-    }
+    const access = await requireEventManager(body.id, body.editCode, body.managerToken);
+    if ("error" in access) return json(request, { error: access.error }, access.status);
+    const existing = access.event;
+    const id = existing.id;
     const status = body.status === "cancelled" || body.status === "active" ? body.status : existing.status;
     const title = body.title === undefined ? existing.title : clean(body.title, 80);
     const eventDate = body.eventDate === undefined ? existing.eventDate : clean(body.eventDate, 10);
@@ -136,8 +165,40 @@ export async function PATCH(request: Request) {
           ? Math.min(Math.floor(body.capacity), 999) : null,
       updatedAt: new Date().toISOString(),
     }).where(and(eq(events.id, id), eq(events.editCodeHash, existing.editCodeHash)));
+    if (existing.status !== "cancelled" && status === "cancelled") {
+      await notifyBoundGroup(
+        existing,
+        `活動取消通知\n「${existing.title}」原訂 ${existing.eventDate} ${existing.startTime} 的活動已由建立者取消。`,
+      );
+    }
     return json(request, { ok: true, shareToken, shareUrl: shareUrl(shareToken) });
   } catch (error) {
     return json(request, { error: error instanceof Error ? error.message : "修改活動失敗" }, 500);
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    await ensureSchema();
+    const body = await request.json() as Record<string, unknown>;
+    const access = await requireEventManager(body.id, body.editCode, body.managerToken);
+    if ("error" in access) return json(request, { error: access.error }, access.status);
+
+    const db = getDb();
+    await notifyBoundGroup(
+      access.event,
+      `活動刪除通知\n「${access.event.title}」已由建立者永久刪除，活動提醒將不再發送。`,
+    );
+    // Delete dependent records explicitly. This keeps the behaviour reliable
+    // even if a deployed SQLite database has foreign-key cascades disabled.
+    await db.delete(lineBindCodes).where(eq(lineBindCodes.eventId, access.event.id));
+    await db.delete(lineReminderDeliveries).where(eq(lineReminderDeliveries.eventId, access.event.id));
+    await db.delete(lineReminderSettings).where(eq(lineReminderSettings.eventId, access.event.id));
+    await db.delete(lineBindings).where(eq(lineBindings.eventId, access.event.id));
+    await db.delete(rsvps).where(eq(rsvps.eventId, access.event.id));
+    await db.delete(events).where(eq(events.id, access.event.id));
+    return json(request, { ok: true });
+  } catch (error) {
+    return json(request, { error: error instanceof Error ? error.message : "刪除活動失敗" }, 500);
   }
 }

@@ -110,7 +110,7 @@ export async function POST(request: Request) {
         eventId: bindingCode.eventId, groupId: chatId, groupName, boundAt: new Date().toISOString(),
       }).onConflictDoUpdate({
         target: lineBindings.eventId,
-        set: { groupId, groupName, boundAt: new Date().toISOString() },
+        set: { groupId: chatId, groupName, boundAt: new Date().toISOString() },
       });
       await db.insert(lineReminderSettings).values({ eventId: bindingCode.eventId })
         .onConflictDoNothing({ target: lineReminderSettings.eventId });

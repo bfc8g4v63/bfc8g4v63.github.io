@@ -29,7 +29,7 @@ export async function POST(request: Request) {
   try {
     await ensureSchema();
     const body = await request.json() as Record<string, unknown>;
-    const access = await requireEventManager(body.eventId, body.editCode);
+    const access = await requireEventManager(body.eventId, body.editCode, body.managerToken);
     if ("error" in access) return json(request, { error: access.error }, access.status);
     const db = getDb();
     const action = body.action;
