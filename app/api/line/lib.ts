@@ -79,6 +79,20 @@ export function rsvpSummaryMessage(eventTitle: string, rsvps: RsvpSummaryItem[])
   return lines.join("\n\n");
 }
 
+export function activityShareMessage(event: {
+  title: string;
+  eventDate: string;
+  startTime: string;
+  location: string;
+  description: string;
+  shareUrl: string;
+}) {
+  const description = event.description.trim()
+    ? `\n\n活動內容\n${event.description.trim()}`
+    : "";
+  return `〖${event.title}〗\n日期：${event.eventDate}\n時間：${event.startTime}\n餐廳／地點：${event.location}${description}\n\n活動連結\n${event.shareUrl}\n\n請掃描下方 QR Code，或點選連結查看與報名。`;
+}
+
 export async function getGroupName(groupId: string) {
   try {
     const response = await lineRequest(`/v2/bot/group/${encodeURIComponent(groupId)}/summary`, { method: "GET" });

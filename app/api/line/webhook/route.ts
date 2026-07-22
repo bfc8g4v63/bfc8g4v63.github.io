@@ -2,7 +2,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { ensureSchema } from "../../../../db/init";
 import { getDb } from "../../../../db";
 import { events, lineBindCodes, lineBindings, lineReminderSettings, rsvps } from "../../../../db/schema";
-import { getGroupName, replyMessages, replyText, rsvpSummaryMessage, verifyLineSignature } from "../lib";
+import { activityShareMessage, getGroupName, replyMessages, replyText, rsvpSummaryMessage, verifyLineSignature } from "../lib";
 
 type LineEvent = {
   type?: string;
@@ -46,7 +46,10 @@ export async function POST(request: Request) {
           await replyText(event.replyToken, "這個群組尚未綁定活動，請先在活動管理後台產生綁定碼，再輸入「綁定 123456」。");
           continue;
         }
-        const [targetEvent] = await db.select({ title: events.title, shareToken: events.shareToken })
+        const [targetEvent] = await db.select({
+          title: events.title, eventDate: events.eventDate, startTime: events.startTime,
+          location: events.location, description: events.description, shareToken: events.shareToken,
+        })
           .from(events).where(eq(events.id, binding.eventId)).limit(1);
         if (!targetEvent?.shareToken) {
           await replyText(event.replyToken, "找不到這個群組綁定的活動連結，請到活動管理後台重新綁定。 ");
@@ -56,7 +59,7 @@ export async function POST(request: Request) {
         const qrUrl = new URL("/api/line/qr", request.url);
         qrUrl.searchParams.set("s", targetEvent.shareToken);
         await replyMessages(event.replyToken, [
-          { type: "text", text: `〖${targetEvent.title}〗活動連結\n${shareUrl}\n\n請掃描下方 QR Code，或點選連結查看與報名。` },
+          { type: "text", text: activityShareMessage({ ...targetEvent, shareUrl }) },
           { type: "image", originalContentUrl: qrUrl.toString(), previewImageUrl: qrUrl.toString() },
         ]);
         continue;
