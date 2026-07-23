@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { normalizeLineCommand } from "../app/api/line/commands.ts";
 
 test("legacy host renders the GitHub Pages handoff", async () => {
   const [page, layout] = await Promise.all([
@@ -35,6 +36,11 @@ test("LINE webhook verifies signatures and reminder workflow uses a secret", asy
   assert.match(webhook, /x-line-signature|signature/i);
   assert.match(workflow, /secrets\.REMINDER_SECRET/);
   assert.match(workflow, /Authorization: Bearer/);
+});
+
+test("LINE roster command accepts both 啟動 and 啓動", () => {
+  assert.equal(normalizeLineCommand("原神啟動"), "原神啟動");
+  assert.equal(normalizeLineCommand(" 原神　啓動 "), "原神啟動");
 });
 
 test("creators can manage activities with an independent management link without exposing admin rights to guests", async () => {
