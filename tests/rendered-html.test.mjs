@@ -92,7 +92,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.7/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.8/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
   assert.match(styles, /grid-template-areas:"visitor" "owner" "tagline" "top"/);
 });
@@ -103,9 +103,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.7/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.7/);
-  assert.match(worker, /good-days-github-v9/);
+  assert.match(page, /\/app\.js\?v=1\.2\.8/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.8/);
+  assert.match(worker, /good-days-github-v10/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -159,4 +159,17 @@ test("only the attendee's saved token can update or cancel an existing RSVP", as
   assert.match(guide, /\?recover=1/);
   assert.doesNotMatch(guide, /回好日子首頁/);
   assert.match(homepageClient, /get\("recover"\) === "1"/);
+});
+
+test("home action buttons use the shared primary style while recovery remains available", async () => {
+  const [page, client] = await Promise.all([
+    readFile(new URL("../docs/index.html", import.meta.url), "utf8"),
+    readFile(new URL("../docs/app.js", import.meta.url), "utf8"),
+  ]);
+  assert.match(page, /class="header-actions"><button class="primary small" data-recover>找回我的活動<\/button><button class="primary small" data-create>＋ 建立活動/);
+  assert.match(page, /<a class="primary" href="#activities">看看近期公開活動<\/a>/);
+  assert.doesNotMatch(page, /建立第一個活動/);
+  assert.doesNotMatch(page, /＋ 新活動/);
+  assert.equal((page.match(/data-recover/g) || []).length, 1);
+  assert.match(client, /get\("recover"\) === "1"/);
 });
