@@ -92,7 +92,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.4/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.6/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
   assert.match(styles, /grid-template-areas:"visitor" "owner" "tagline" "top"/);
 });
@@ -103,9 +103,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.4/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.4/);
-  assert.match(worker, /good-days-github-v6/);
+  assert.match(page, /\/app\.js\?v=1\.2\.6/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.6/);
+  assert.match(worker, /good-days-github-v8/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -138,4 +138,22 @@ test("only a verified creator can cancel or permanently delete an activity", asy
   assert.match(client, /JSON\.stringify\(eventManagerPayload\(event\.id, managerAuth\)\)/);
   assert.match(client, /永久刪除/);
   assert.match(client, /活動已取消/);
+});
+
+test("only the attendee's saved token can update or cancel an existing RSVP", async () => {
+  const [rsvp, homepageClient, eventClient, guide] = await Promise.all([
+    readFile(new URL("../app/api/rsvps/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../docs/app.js", import.meta.url), "utf8"),
+    readFile(new URL("../docs/e/app.js", import.meta.url), "utf8"),
+    readFile(new URL("../docs/line-bot-guide.html", import.meta.url), "utf8"),
+  ]);
+  assert.match(rsvp, /suppliedAttendeeToken/);
+  assert.match(rsvp, /viewerTokenHash/);
+  assert.match(rsvp, /為保護您的回覆/);
+  assert.match(homepageClient, /body\.attendeeToken = localStorage\.getItem/);
+  assert.match(eventClient, /attendeeToken = data\.attendeeToken/);
+  assert.match(guide, /取消自己的報名/);
+  assert.match(guide, /取消整場活動/);
+  assert.match(guide, /找回我的活動/);
+  assert.match(guide, /建立者姓名/);
 });

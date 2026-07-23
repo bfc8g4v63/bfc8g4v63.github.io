@@ -119,7 +119,7 @@ function openRsvp() {
       <form id="rsvp-form"><label>您的姓名 <span>必填</span><input name="name" required autofocus placeholder="例如：王奶奶"></label>
         <fieldset><legend>是否參加？</legend><label class="choice"><input type="radio" name="response" value="attending" checked><span>✓ 我要參加</span></label><label class="choice"><input type="radio" name="response" value="not_attending"><span>這次無法參加</span></label></fieldset>
         <div id="attending-fields"><label>總共幾人參加？<input name="partySize" type="number" min="1" step="1" inputmode="numeric" value="1" required></label><label>飲食需求<input name="diet" placeholder="例如：吃素、不吃牛（可留白）"></label><label>想告訴主辦人<textarea name="note" rows="2" placeholder="可留白"></textarea></label>${currentEvent.attendanceVisibility === "opt_in" ? '<label class="toggle"><input name="shareName" type="checkbox" value="true"><span>公開我的顯示名稱給同場參加者</span></label>' : ""}${currentEvent.attendanceVisibility === "all" ? '<p class="form-hint">此活動設定為全部名單；完成報名後，您的顯示名稱會提供給已報名的同場參加者查看。</p>' : ""}</div>
-        <p class="form-hint">同一姓名再次回覆，會更新原本的內容。</p><p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button class="primary">確認送出</button></div>
+        <p class="form-hint">要取消自己的報名，請用原先報名的裝置再次輸入相同姓名，並選擇「這次無法參加」。</p><p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button class="primary">確認送出</button></div>
       </form>
     </section></div>`;
   const form = document.querySelector("#rsvp-form");

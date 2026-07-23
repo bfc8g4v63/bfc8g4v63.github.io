@@ -260,7 +260,7 @@ function openRsvpForm(event) {
             ${event.attendanceVisibility === "opt_in" ? '<label class="toggle"><input name="shareName" type="checkbox" value="true"><span>公開我的顯示名稱給同場參加者</span></label>' : ""}
             ${event.attendanceVisibility === "all" ? '<p class="form-hint">此活動設定為全部名單，完成報名後您的顯示名稱會提供給已報名的同場參加者查看。</p>' : ""}
           </div>
-          <p class="form-hint">同一姓名再次回覆，會更新原本的內容。資料僅活動管理者可查看。</p>
+          <p class="form-hint">要取消自己的報名，請用原先報名的裝置再次輸入相同姓名，並選擇「這次無法參加」。資料僅活動管理者可查看。</p>
           <p class="form-error" id="form-error" role="alert" hidden></p>
           <div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button type="submit" class="primary">確認送出</button></div>
         </form>
@@ -275,6 +275,13 @@ function openRsvpForm(event) {
     const body = Object.fromEntries(new FormData(form));
     body.eventId = event.id;
     body.partySize = Number(body.partySize || 1);
+    try {
+      const shareToken = new URL(event.shareUrl).searchParams.get("s");
+      if (shareToken) {
+        body.shareToken = shareToken;
+        body.attendeeToken = localStorage.getItem(`good-days-rsvp:${shareToken}`) || "";
+      }
+    } catch {}
     const data = await save(`${API}/rsvps`, "POST", body, "已收到回覆，期待見面！", form);
     if (data?.attendeeToken && event.shareUrl) {
       try {
