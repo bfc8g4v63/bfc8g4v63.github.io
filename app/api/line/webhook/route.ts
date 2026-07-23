@@ -2,6 +2,7 @@ import { and, asc, eq } from "drizzle-orm";
 import { ensureSchema } from "../../../../db/init";
 import { getDb } from "../../../../db";
 import { events, lineBindCodes, lineBindings, lineReminderSettings, rsvps } from "../../../../db/schema";
+import { normalizeLineCommand } from "../commands";
 import { activityShareMessage, getGroupName, replyMessages, replyText, rsvpSummaryMessage, verifyLineSignature } from "../lib";
 
 type LineEvent = {
@@ -37,7 +38,7 @@ export async function POST(request: Request) {
 
       if (event.type !== "message" || event.message?.type !== "text") continue;
       const text = event.message.text?.trim() || "";
-      const command = text.normalize("NFKC").replace(/\s+/g, "");
+      const command = normalizeLineCommand(text);
       if (command === "活動") {
         const db = getDb();
         const [binding] = await db.select().from(lineBindings)
