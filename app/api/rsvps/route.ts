@@ -35,6 +35,7 @@ export async function POST(request: Request) {
     const eventId = clean(body.eventId, 80);
     const shareToken = clean(body.shareToken, 80);
     const participantCode = clean(body.participantCode, 80);
+    const suppliedAttendeeToken = clean(body.attendeeToken, 160);
     const name = clean(body.name, 60);
     const response = body.response === "not_attending" ? "not_attending" : "attending";
     const partySize = Math.max(
@@ -58,9 +59,19 @@ export async function POST(request: Request) {
     if (event.accessMode === "private" && await hashCode(participantCode) !== event.participantCodeHash) {
       return json(request, { error: "參加碼不正確" }, 403);
     }
-    const [existing] = await db.select({ id: rsvps.id }).from(rsvps)
+    const [existing] = await db.select({ id: rsvps.id, viewerTokenHash: rsvps.viewerTokenHash }).from(rsvps)
       .where(and(eq(rsvps.eventId, eventId), eq(rsvps.name, name))).limit(1);
-    const attendeeToken = response === "attending" ? crypto.randomUUID() : "";
+    if (existing?.viewerTokenHash) {
+      if (!suppliedAttendeeToken || await hashCode(suppliedAttendeeToken) !== existing.viewerTokenHash) {
+        return json(request, {
+          error: "為保護您的回覆，請使用原先報名的裝置，從活動連結重新開啟後再更新或取消。",
+        }, 403);
+      }
+    }
+    // Older responses did not retain a token after cancellation. Let their next
+    // update establish one, while all newly created or updated responses remain
+    // tied to the attendee's browser.
+    const attendeeToken = suppliedAttendeeToken || crypto.randomUUID();
     const shareName = response === "attending" && (
       event.attendanceVisibility === "all"
       || (event.attendanceVisibility === "opt_in" && (body.shareName === true || body.shareName === "true"))
@@ -71,12 +82,12 @@ export async function POST(request: Request) {
       note: clean(body.note, 300),
       response,
       shareName,
-      viewerTokenHash: attendeeToken ? await hashCode(attendeeToken) : "",
+      viewerTokenHash: await hashCode(attendeeToken),
       updatedAt: new Date().toISOString(),
     };
     if (existing) await db.update(rsvps).set(values).where(eq(rsvps.id, existing.id));
     else await db.insert(rsvps).values({ id: crypto.randomUUID(), ...values });
-    return json(request, { ok: true, attendeeToken: attendeeToken || undefined });
+    return json(request, { ok: true, attendeeToken });
   } catch (error) {
     const message = errorMessages(error);
     if (message.includes("capacity_exceeded")) {
