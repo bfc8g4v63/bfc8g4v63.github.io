@@ -663,3 +663,4 @@ loadEvents();
 trackSiteVisit();
 const linkedManager = managerAuthFromLink();
 if (linkedManager) void openAdminFromCredential(linkedManager.eventId, linkedManager);
+else if (new URLSearchParams(location.search).get("recover") === "1") openCreatorRecovery();
