@@ -92,7 +92,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.6/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.7/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
   assert.match(styles, /grid-template-areas:"visitor" "owner" "tagline" "top"/);
 });
@@ -103,9 +103,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.6/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.6/);
-  assert.match(worker, /good-days-github-v8/);
+  assert.match(page, /\/app\.js\?v=1\.2\.7/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.7/);
+  assert.match(worker, /good-days-github-v9/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -156,4 +156,7 @@ test("only the attendee's saved token can update or cancel an existing RSVP", as
   assert.match(guide, /取消整場活動/);
   assert.match(guide, /找回我的活動/);
   assert.match(guide, /建立者姓名/);
+  assert.match(guide, /\?recover=1/);
+  assert.doesNotMatch(guide, /回好日子首頁/);
+  assert.match(homepageClient, /get\("recover"\) === "1"/);
 });

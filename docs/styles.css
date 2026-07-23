@@ -80,7 +80,10 @@ tbody tr:last-child td { border-bottom:0; }
 .guide-step code { overflow-wrap:anywhere; }
 .guide-commands { display:grid; gap:12px; margin:18px 0 0; }.guide-commands div { display:grid; grid-template-columns:110px 1fr; gap:14px; align-items:start; padding:15px; background:var(--cream); border-radius:12px; }.guide-commands dt { padding:6px 10px; border-radius:8px; background:var(--ink); color:white; text-align:center; font-weight:900; }.guide-commands dd { margin:3px 0 0; color:var(--ink-soft); line-height:1.6; }
 .guide-callout { padding:17px 19px; background:#fff3b8; border-radius:13px; }
-.guide-page .primary { display:inline-flex; align-items:center; text-decoration:none; }
+.guide-page .primary,.guide-page .secondary { display:inline-flex; align-items:center; text-decoration:none; }
+.guide-step > .form-hint { margin:18px 0 16px; }
+.guide-step > .primary,.guide-step > .secondary { margin-top:16px; }
+.guide-step > .form-hint + .line-join-button { margin-top:0; }
 .access-options { display:grid; gap:10px; padding:0; border:0; margin:0; }
 .access-options legend { font-weight:800; margin-bottom:8px; }
 .access-privacy-note { margin:0 0 4px; padding:12px 14px; border-left:4px solid var(--sage); background:var(--cream); color:var(--ink-soft); font-size:14px; line-height:1.55; }
