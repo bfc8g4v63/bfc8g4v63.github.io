@@ -428,12 +428,32 @@ function responseLabel(value) {
 }
 
 function adminRows(rsvps) {
-  if (!rsvps.length) return '<tr><td colspan="6" class="empty-cell">尚未收到回覆</td></tr>';
+  if (!rsvps.length) return '<tr><td colspan="7" class="empty-cell">尚未收到回覆</td></tr>';
   return rsvps.map((item) => `<tr>
     <td><strong>${esc(item.name)}</strong></td><td><span class="response-pill ${esc(item.response)}">${responseLabel(item.response)}</span></td>
     <td>${item.response === "attending" ? `${item.partySize} 人` : "—"}</td><td>${esc(item.diet || "—")}</td>
     <td>${esc(item.note || "—")}</td><td>${esc(new Date(item.updatedAt).toLocaleString("zh-TW"))}</td>
+    <td><div class="rsvp-row-actions">${item.response === "attending" ? `<button class="secondary" data-rsvp-cancel="${esc(item.id)}">取消參加</button>` : ""}<button class="text-danger" data-rsvp-delete="${esc(item.id)}">刪除</button></div></td>
   </tr>`).join("");
+}
+
+async function manageRsvp(action, rsvp, event, managerAuth) {
+  const isDelete = action === "delete_rsvp";
+  const message = isDelete
+    ? `要永久刪除「${rsvp.name}」的回覆嗎？此動作無法復原。`
+    : `要取消「${rsvp.name}」的參加嗎？這筆回覆會保留，但不再計入人數。`;
+  if (!confirm(message)) return;
+  try {
+    const result = await requestJson("/admin/event", {
+      action, rsvpId: rsvp.id, ...managerPayload(event.id, managerAuth),
+    });
+    const fresh = await requestJson("/admin/event", managerPayload(event.id, managerAuth));
+    openAdminDashboard(fresh, managerAuth);
+    showNotice(result.message);
+  } catch (error) {
+    const box = document.querySelector("#rsvp-error");
+    if (box) { box.textContent = error.message || "無法管理這筆回覆"; box.hidden = false; }
+  }
 }
 
 function linePanel(line) {
@@ -481,7 +501,9 @@ function openAdminDashboard(data, managerAuth) {
         </div>
         <section class="admin-section">
           <div class="admin-section-title"><div><p class="eyebrow">僅管理者可見</p><h3>參與者名單</h3></div><span>${data.rsvps.length} 筆回覆</span></div>
-          <div class="table-scroll"><table><thead><tr><th>姓名</th><th>回覆</th><th>人數</th><th>飲食</th><th>備註</th><th>更新時間</th></tr></thead><tbody>${adminRows(data.rsvps)}</tbody></table></div>
+          <p class="form-hint">受託取消時，請在該列按「取消參加」，人數會立刻扣除並保留紀錄；只有誤登或重複資料才使用「刪除」。</p>
+          <div class="table-scroll"><table><thead><tr><th>姓名</th><th>回覆</th><th>人數</th><th>飲食</th><th>備註</th><th>更新時間</th><th>管理</th></tr></thead><tbody>${adminRows(data.rsvps)}</tbody></table></div>
+          <p class="form-error" id="rsvp-error" role="alert" hidden></p>
         </section>
         <section class="admin-section line-section">
           <div class="admin-section-title"><div><p class="eyebrow line-eyebrow">LINE 群組</p><h3>自動提醒機器人</h3></div><a href="/line-bot-guide.html" target="_blank">查看設定教學</a></div>
@@ -498,6 +520,18 @@ function openAdminDashboard(data, managerAuth) {
     showNotice("建立者管理連結已複製，請勿分享給參加者");
   });
   document.querySelector("#export-rsvps").addEventListener("click", () => exportRsvps(event, data.rsvps));
+  document.querySelectorAll("[data-rsvp-cancel]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const rsvp = data.rsvps.find((item) => item.id === button.dataset.rsvpCancel);
+      if (rsvp) void manageRsvp("cancel_rsvp", rsvp, event, managerAuth);
+    });
+  });
+  document.querySelectorAll("[data-rsvp-delete]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const rsvp = data.rsvps.find((item) => item.id === button.dataset.rsvpDelete);
+      if (rsvp) void manageRsvp("delete_rsvp", rsvp, event, managerAuth);
+    });
+  });
   document.querySelector("#line-code")?.addEventListener("click", async (clickEvent) => {
     const button = clickEvent.currentTarget;
     button.disabled = true;

@@ -92,7 +92,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.8/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.9/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
   assert.match(styles, /grid-template-areas:"visitor" "owner" "tagline" "top"/);
 });
@@ -103,9 +103,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.8/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.8/);
-  assert.match(worker, /good-days-github-v10/);
+  assert.match(page, /\/app\.js\?v=1\.2\.9/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.9/);
+  assert.match(worker, /good-days-github-v11/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -172,4 +172,19 @@ test("home action buttons use the shared primary style while recovery remains av
   assert.doesNotMatch(page, /＋ 新活動/);
   assert.equal((page.match(/data-recover/g) || []).length, 1);
   assert.match(client, /get\("recover"\) === "1"/);
+});
+
+test("verified creators can cancel or permanently delete a single RSVP", async () => {
+  const [adminRoute, client] = await Promise.all([
+    readFile(new URL("../app/api/admin/event/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../docs/app.js", import.meta.url), "utf8"),
+  ]);
+  assert.match(adminRoute, /requireEventManager\(body\.eventId, body\.editCode, body\.managerToken\)/);
+  assert.match(adminRoute, /action === "cancel_rsvp"/);
+  assert.match(adminRoute, /action === "delete_rsvp"/);
+  assert.match(adminRoute, /eq\(rsvps\.eventId, access\.event\.id\)/);
+  assert.match(client, /data-rsvp-cancel/);
+  assert.match(client, /data-rsvp-delete/);
+  assert.match(client, /取消參加/);
+  assert.match(client, /永久刪除/);
 });
