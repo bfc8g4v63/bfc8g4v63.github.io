@@ -62,6 +62,26 @@ type RsvpSummaryItem = {
   note: string;
 };
 
+type ActivityArrangementTable = {
+  id: string;
+  name: string;
+  capacity: number;
+  isReserve: boolean;
+  note: string;
+};
+
+type ActivityArrangementAssignment = {
+  tableId: string;
+  rsvpId: string;
+  people: number;
+};
+
+type ActivityArrangementRsvp = {
+  id: string;
+  name: string;
+  partySize: number;
+};
+
 export function rsvpSummaryMessage(eventTitle: string, rsvps: RsvpSummaryItem[], includeDiet = false, includeNote = false) {
   const people = rsvps.reduce((sum, rsvp) => sum + rsvp.partySize, 0);
   const header = `${eventTitle}｜報名人數\n共 ${people} 人・${rsvps.length} 筆報名`;
@@ -79,6 +99,54 @@ export function rsvpSummaryMessage(eventTitle: string, rsvps: RsvpSummaryItem[],
       return `${lines.join("\n\n")}\n\n其餘 ${rsvps.length - index} 筆請至活動管理後台查看。`;
     }
     lines.push(entry);
+  }
+  return lines.join("\n\n");
+}
+
+export function activityArrangementMessage(
+  eventTitle: string,
+  tables: ActivityArrangementTable[],
+  assignments: ActivityArrangementAssignment[],
+  rsvps: ActivityArrangementRsvp[],
+) {
+  if (!tables.length) {
+    return `「${eventTitle}」尚未建立活動安排，請由建立者到活動管理後台設定。`;
+  }
+
+  const attending = new Map(rsvps.map((rsvp) => [rsvp.id, rsvp]));
+  const assignmentsByTable = new Map<string, ActivityArrangementAssignment[]>();
+  const assignedByRsvp = new Map<string, number>();
+  for (const assignment of assignments) {
+    if (!attending.has(assignment.rsvpId)) continue;
+    const tableAssignments = assignmentsByTable.get(assignment.tableId) || [];
+    tableAssignments.push(assignment);
+    assignmentsByTable.set(assignment.tableId, tableAssignments);
+    assignedByRsvp.set(assignment.rsvpId, (assignedByRsvp.get(assignment.rsvpId) || 0) + assignment.people);
+  }
+
+  const totalPeople = rsvps.reduce((sum, rsvp) => sum + rsvp.partySize, 0);
+  const assignedPeople = [...assignedByRsvp.values()].reduce((sum, people) => sum + people, 0);
+  const unassignedPeople = Math.max(0, totalPeople - assignedPeople);
+  const lines = [`${eventTitle}｜活動安排`, `已安排 ${assignedPeople} 人・尚未安排 ${unassignedPeople} 人`];
+
+  for (let index = 0; index < tables.length; index += 1) {
+    const table = tables[index];
+    const tableAssignments = assignmentsByTable.get(table.id) || [];
+    const people = tableAssignments.reduce((sum, assignment) => sum + assignment.people, 0);
+    const peopleList = tableAssignments.map((assignment) => {
+      const rsvp = attending.get(assignment.rsvpId);
+      return rsvp ? `${rsvp.name} ${assignment.people}人` : "";
+    }).filter(Boolean).join("、") || "尚未安排";
+    const tableLabel = `${table.name}${table.isReserve ? "（預備）" : ""}`;
+    const details = [
+      `${index + 1}. ${tableLabel}｜${people} / ${table.capacity} 人`,
+      peopleList,
+      table.note.trim() ? `位置／備註：${table.note.trim()}` : "",
+    ].filter(Boolean).join("\n");
+    if (`${lines.join("\n\n")}\n\n${details}`.length > 4800) {
+      return `${lines.join("\n\n")}\n\n其餘安排請至活動管理後台查看。`;
+    }
+    lines.push(details);
   }
   return lines.join("\n\n");
 }
