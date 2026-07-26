@@ -5,6 +5,7 @@ import { lineBindings, lineReminderSettings, rsvps } from "../../../../db/schema
 import { json, preflight } from "../../cors";
 import { clean, requireEventManager } from "../auth";
 import { lineConfig } from "../../line/lib";
+import { rateLimit } from "../../rate-limit";
 
 export function OPTIONS(request: Request) {
   return preflight(request);
@@ -12,6 +13,8 @@ export function OPTIONS(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const limit = await rateLimit(request, "admin-event", 12, 15 * 60 * 1000);
+    if (!limit.allowed) return json(request, { error: `管理操作過於頻繁，請 ${limit.retryAfterSeconds} 秒後再試` }, 429);
     await ensureSchema();
     const body = await request.json() as Record<string, unknown>;
     const access = await requireEventManager(body.eventId, body.editCode, body.managerToken);
@@ -47,7 +50,7 @@ export async function POST(request: Request) {
       db.select().from(lineReminderSettings).where(eq(lineReminderSettings.eventId, access.event.id)).limit(1),
     ]);
     const attending = responses.filter((item) => item.response === "attending");
-    const settings = settingRows[0] || { sevenDays: true, oneDay: true, twoHours: false };
+    const settings = settingRows[0] || { sevenDays: true, oneDay: true, twoHours: false, includeRsvpDetails: false };
     return json(request, {
       event: {
         ...access.event,
@@ -69,6 +72,7 @@ export async function POST(request: Request) {
           sevenDays: Boolean(settings.sevenDays),
           oneDay: Boolean(settings.oneDay),
           twoHours: Boolean(settings.twoHours),
+          includeRsvpDetails: Boolean(settings.includeRsvpDetails),
         },
       },
     });

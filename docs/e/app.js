@@ -119,7 +119,7 @@ function openRsvp() {
       <form id="rsvp-form"><label>您的姓名 <span>必填</span><input name="name" required autofocus placeholder="例如：王奶奶"></label>
         <fieldset><legend>是否參加？</legend><label class="choice"><input type="radio" name="response" value="attending" checked><span>✓ 我要參加</span></label><label class="choice"><input type="radio" name="response" value="not_attending"><span>這次無法參加</span></label></fieldset>
         <div id="attending-fields"><label>總共幾人參加？<input name="partySize" type="number" min="1" step="1" inputmode="numeric" value="1" required></label><label>飲食需求<input name="diet" placeholder="例如：吃素、不吃牛（可留白）"></label><label>想告訴主辦人<textarea name="note" rows="2" placeholder="可留白"></textarea></label>${currentEvent.attendanceVisibility === "opt_in" ? '<label class="toggle"><input name="shareName" type="checkbox" value="true"><span>公開我的顯示名稱給同場參加者</span></label>' : ""}${currentEvent.attendanceVisibility === "all" ? '<p class="form-hint">此活動設定為全部名單；完成報名後，您的顯示名稱會提供給已報名的同場參加者查看。</p>' : ""}</div>
-        <p class="form-hint">要取消自己的報名，請用原先報名的裝置再次輸入相同姓名，並選擇「這次無法參加」。</p><p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button class="primary">確認送出</button></div>
+        <p class="form-hint">輸入與原先完全相同的姓名，會更新原本那一筆回覆，不會新增重複資料。請使用原先報名的裝置。</p><p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button class="primary">確認送出</button><button type="button" class="text-danger" id="delete-my-rsvp">永久刪除我的回覆</button></div>
       </form>
     </section></div>`;
   const form = document.querySelector("#rsvp-form");
@@ -138,6 +138,16 @@ function openRsvp() {
       closeModal(); await loadEvent();
     }
     catch (error) { const box = form.querySelector(".form-error"); box.textContent = error.message; box.hidden = false; }
+  });
+  document.querySelector("#delete-my-rsvp").addEventListener("click", async () => {
+    const name = form.elements.name.value.trim();
+    if (!name) { const box = form.querySelector(".form-error"); box.textContent = "請先輸入原本報名的姓名"; box.hidden = false; return; }
+    if (!confirm(`要永久刪除「${name}」的回覆嗎？此動作無法復原。`)) return;
+    try {
+      await post("/rsvps", { eventId: currentEvent.id, name, attendeeToken }, "DELETE");
+      attendeeToken = ""; try { localStorage.removeItem(attendeeStorageKey()); } catch {}
+      closeModal(); await loadEvent();
+    } catch (error) { const box = form.querySelector(".form-error"); box.textContent = error.message; box.hidden = false; }
   });
 }
 

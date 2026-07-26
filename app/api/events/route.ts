@@ -5,7 +5,7 @@ import {
   events, lineBindCodes, lineBindings, lineReminderDeliveries, lineReminderSettings, rsvps,
 } from "../../../db/schema";
 import { json, preflight } from "../cors";
-import { clean, hashCode, requireEventManager } from "../admin/auth";
+import { clean, hashCredential, requireEventManager } from "../admin/auth";
 import { lineConfig, pushText } from "../line/lib";
 import { rateLimit } from "../rate-limit";
 
@@ -89,7 +89,7 @@ function withSummary<T extends { id: string }>(event: T, rows: Array<{ eventId: 
 
 export async function POST(request: Request) {
   try {
-    const limit = rateLimit(request, "event-create", 8, 60 * 60 * 1000);
+    const limit = await rateLimit(request, "event-create", 8, 60 * 60 * 1000);
     if (!limit.allowed) return json(request, { error: `建立活動過於頻繁，請 ${limit.retryAfterSeconds} 秒後再試` }, 429);
     await ensureSchema();
     const body = await request.json() as Record<string, unknown>;
@@ -125,9 +125,9 @@ export async function POST(request: Request) {
       accessMode: mode,
       attendanceVisibility: visibility,
       shareToken: token,
-      participantCodeHash: mode === "private" ? await hashCode(participantCode) : "",
-      editCodeHash: await hashCode(editCode),
-      managerTokenHash: await hashCode(managerToken),
+      participantCodeHash: mode === "private" ? await hashCredential(participantCode) : "",
+      editCodeHash: await hashCredential(editCode),
+      managerTokenHash: await hashCredential(managerToken),
     });
     return json(request, {
       id,
@@ -144,6 +144,8 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
+    const limit = await rateLimit(request, "event-manage", 12, 15 * 60 * 1000);
+    if (!limit.allowed) return json(request, { error: `管理操作過於頻繁，請 ${limit.retryAfterSeconds} 秒後再試` }, 429);
     await ensureSchema();
     const body = await request.json() as Record<string, unknown>;
     const access = await requireEventManager(body.id, body.editCode, body.managerToken);
@@ -167,7 +169,7 @@ export async function PATCH(request: Request) {
       return json(request, { error: "請設定至少 4 個字的參加碼" }, 400);
     }
     const participantCodeHash = mode !== "private" ? ""
-      : participantCode ? await hashCode(participantCode) : existing.participantCodeHash;
+      : participantCode ? await hashCredential(participantCode) : existing.participantCodeHash;
     const shareToken = existing.shareToken || crypto.randomUUID();
     const cancelledAt = status === "cancelled"
       ? (existing.status === "cancelled" ? existing.cancelledAt : new Date().toISOString())
@@ -198,6 +200,8 @@ export async function PATCH(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const limit = await rateLimit(request, "event-manage", 12, 15 * 60 * 1000);
+    if (!limit.allowed) return json(request, { error: `管理操作過於頻繁，請 ${limit.retryAfterSeconds} 秒後再試` }, 429);
     await ensureSchema();
     const body = await request.json() as Record<string, unknown>;
     const access = await requireEventManager(body.id, body.editCode, body.managerToken);

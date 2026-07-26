@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { ensureSchema } from "../../../db/init";
 import { events, rsvps } from "../../../db/schema";
-import { hashCode } from "../admin/auth";
+import { hashCode, verifyCredential } from "../admin/auth";
 import { json, preflight } from "../cors";
 import { rateLimit } from "../rate-limit";
 
@@ -28,7 +28,7 @@ export function OPTIONS(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    const limit = rateLimit(request, "rsvp", 24, 15 * 60 * 1000);
+    const limit = await rateLimit(request, "rsvp", 24, 15 * 60 * 1000);
     if (!limit.allowed) return json(request, { error: `回覆過於頻繁，請 ${limit.retryAfterSeconds} 秒後再試` }, 429);
     await ensureSchema();
     const body = await request.json() as Record<string, unknown>;
@@ -56,7 +56,7 @@ export async function POST(request: Request) {
     if (event.accessMode !== "public" && shareToken !== event.shareToken) {
       return json(request, { error: "請從活動專屬連結參加" }, 403);
     }
-    if (event.accessMode === "private" && await hashCode(participantCode) !== event.participantCodeHash) {
+    if (event.accessMode === "private" && !await verifyCredential(participantCode, event.participantCodeHash)) {
       return json(request, { error: "參加碼不正確" }, 403);
     }
     const [existing] = await db.select({ id: rsvps.id, viewerTokenHash: rsvps.viewerTokenHash }).from(rsvps)
@@ -96,5 +96,24 @@ export async function POST(request: Request) {
       }, 409);
     }
     return json(request, { error: message || "回覆失敗" }, 500);
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    await ensureSchema();
+    const body = await request.json() as Record<string, unknown>;
+    const eventId = clean(body.eventId, 80);
+    const name = clean(body.name, 60);
+    const attendeeToken = clean(body.attendeeToken, 160);
+    if (!eventId || !name || !attendeeToken) return json(request, { error: "請使用原本報名的裝置與姓名" }, 400);
+    const db = getDb();
+    const [existing] = await db.select({ id: rsvps.id, viewerTokenHash: rsvps.viewerTokenHash }).from(rsvps)
+      .where(and(eq(rsvps.eventId, eventId), eq(rsvps.name, name))).limit(1);
+    if (!existing || await hashCode(attendeeToken) !== existing.viewerTokenHash) return json(request, { error: "無法驗證這筆回覆" }, 403);
+    await db.delete(rsvps).where(eq(rsvps.id, existing.id));
+    return json(request, { ok: true });
+  } catch (error) {
+    return json(request, { error: error instanceof Error ? error.message : "無法刪除回覆" }, 500);
   }
 }
