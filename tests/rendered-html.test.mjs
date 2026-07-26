@@ -38,6 +38,21 @@ test("LINE webhook verifies signatures and reminder workflow uses a secret", asy
   assert.match(workflow, /Authorization: Bearer/);
 });
 
+test("privacy controls protect group broadcasts and expire operational data", async () => {
+  const [webhook, lineAdmin, reminders, rsvp, guide] = await Promise.all([
+    readFile(new URL("../app/api/line/webhook/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/line/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/line/run-reminders/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/rsvps/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../docs/line-bot-guide.html", import.meta.url), "utf8"),
+  ]);
+  assert.match(webhook, /includeRsvpDetails/);
+  assert.match(lineAdmin, /includeRsvpDetails/);
+  assert.match(reminders, /90 \* 24 \* 60 \* 60 \* 1000/);
+  assert.match(rsvp, /export async function DELETE/);
+  assert.match(guide, /3 個月後自動永久刪除/);
+});
+
 test("LINE roster command accepts both 啟動 and 啓動", () => {
   assert.equal(normalizeLineCommand("原神啟動"), "原神啟動");
   assert.equal(normalizeLineCommand(" 原神　啓動 "), "原神啟動");
@@ -81,14 +96,14 @@ test("creator recovery and attendee-roster privacy stay gated", async () => {
   assert.match(eventClient, /公開我的顯示名稱給同場參加者/);
 });
 
-test("cancelled activities remain recoverable because scheduled deletion is disabled", async () => {
-  const [eventsRoute, workflow] = await Promise.all([
+test("ended and cancelled activities are retained only for the recovery window", async () => {
+  const [eventsRoute, reminders] = await Promise.all([
     readFile(new URL("../app/api/events/route.ts", import.meta.url), "utf8"),
-    readFile(new URL("../.github/workflows/line-reminders.yml", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/line/run-reminders/route.ts", import.meta.url), "utf8"),
   ]);
   assert.match(eventsRoute, /cancelledAt/);
-  assert.doesNotMatch(workflow, /maintenance\/purge/);
-  assert.doesNotMatch(workflow, /MAINTENANCE_SECRET/);
+  assert.match(reminders, /status = 'cancelled'/);
+  assert.match(reminders, /event_date < \$\{expiry\}/);
 });
 
 test("visitor count has its own footer row", async () => {
@@ -98,7 +113,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.9/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.10/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
   assert.match(styles, /grid-template-areas:"visitor" "owner" "tagline" "top"/);
 });
@@ -109,9 +124,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.9/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.9/);
-  assert.match(worker, /good-days-github-v11/);
+  assert.match(page, /\/app\.js\?v=1\.2\.10/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.10/);
+  assert.match(worker, /good-days-github-v12/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -158,7 +173,7 @@ test("only the attendee's saved token can update or cancel an existing RSVP", as
   assert.match(rsvp, /為保護您的回覆/);
   assert.match(homepageClient, /body\.attendeeToken = localStorage\.getItem/);
   assert.match(eventClient, /attendeeToken = data\.attendeeToken/);
-  assert.match(guide, /取消自己的報名/);
+  assert.match(guide, /更新或取消自己的回覆/);
   assert.match(guide, /取消整場活動/);
   assert.match(guide, /找回我的活動/);
   assert.match(guide, /建立者姓名/);

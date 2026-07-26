@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "../../../../db";
 import { ensureSchema } from "../../../../db/init";
 import { events, rsvps } from "../../../../db/schema";
-import { clean, hashCode } from "../../admin/auth";
+import { clean, hashCode, verifyCredential } from "../../admin/auth";
 import { json, preflight } from "../../cors";
 
 export function OPTIONS(request: Request) {
@@ -56,7 +56,7 @@ export async function POST(request: Request) {
     }
     if (event.accessMode === "private") {
       if (!participantCode) return json(request, { error: "需要參加碼", requiresParticipantCode: true }, 401);
-      if (await hashCode(participantCode) !== event.participantCodeHash) {
+      if (!await verifyCredential(participantCode, event.participantCodeHash)) {
         return json(request, { error: "參加碼不正確", requiresParticipantCode: true }, 403);
       }
     }

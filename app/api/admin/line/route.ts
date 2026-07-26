@@ -5,6 +5,7 @@ import { lineBindCodes, lineBindings, lineReminderSettings, rsvps } from "../../
 import { json, preflight } from "../../cors";
 import { requireEventManager } from "../auth";
 import { eventMessage, lineConfig, pushText } from "../../line/lib";
+import { rateLimit } from "../../rate-limit";
 
 export function OPTIONS(request: Request) {
   return preflight(request);
@@ -27,6 +28,8 @@ async function createUniqueCode() {
 
 export async function POST(request: Request) {
   try {
+    const limit = await rateLimit(request, "admin-line", 12, 15 * 60 * 1000);
+    if (!limit.allowed) return json(request, { error: `管理操作過於頻繁，請 ${limit.retryAfterSeconds} 秒後再試` }, 429);
     await ensureSchema();
     const body = await request.json() as Record<string, unknown>;
     const access = await requireEventManager(body.eventId, body.editCode, body.managerToken);
@@ -51,6 +54,7 @@ export async function POST(request: Request) {
         sevenDays: boolean(body.sevenDays),
         oneDay: boolean(body.oneDay),
         twoHours: boolean(body.twoHours),
+        includeRsvpDetails: boolean(body.includeRsvpDetails),
         updatedAt: new Date().toISOString(),
       };
       await db.insert(lineReminderSettings).values(values).onConflictDoUpdate({

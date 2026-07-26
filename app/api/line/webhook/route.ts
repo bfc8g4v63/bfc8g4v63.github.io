@@ -74,20 +74,22 @@ export async function POST(request: Request) {
           continue;
         }
 
-        const [eventRows, registrations] = await Promise.all([
+        const [eventRows, registrations, settingRows] = await Promise.all([
           db.select({ title: events.title }).from(events)
             .where(eq(events.id, binding.eventId)).limit(1),
           db.select({ name: rsvps.name, partySize: rsvps.partySize, diet: rsvps.diet, note: rsvps.note })
             .from(rsvps)
             .where(and(eq(rsvps.eventId, binding.eventId), eq(rsvps.response, "attending")))
             .orderBy(asc(rsvps.createdAt)),
+          db.select({ includeRsvpDetails: lineReminderSettings.includeRsvpDetails }).from(lineReminderSettings)
+            .where(eq(lineReminderSettings.eventId, binding.eventId)).limit(1),
         ]);
         const [targetEvent] = eventRows;
         if (!targetEvent) {
           await replyText(event.replyToken, "找不到這個群組綁定的活動，請重新建立綁定。 ");
           continue;
         }
-        await replyText(event.replyToken, rsvpSummaryMessage(targetEvent.title, registrations));
+        await replyText(event.replyToken, rsvpSummaryMessage(targetEvent.title, registrations, Boolean(settingRows[0]?.includeRsvpDetails)));
         continue;
       }
 

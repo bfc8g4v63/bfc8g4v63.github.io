@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { ensureSchema } from "../../../../db/init";
 import { getDb } from "../../../../db";
 import {
@@ -22,6 +22,17 @@ export async function POST(request: Request) {
   try {
     await ensureSchema();
     const db = getDb();
+    const expiry = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    const expired = await db.select({ id: events.id }).from(events).where(
+      sql`(status = 'cancelled' AND substr(cancelled_at, 1, 10) <= ${expiry}) OR (status = 'active' AND event_date < ${expiry})`,
+    );
+    for (const event of expired) {
+      await db.delete(lineReminderDeliveries).where(eq(lineReminderDeliveries.eventId, event.id));
+      await db.delete(lineReminderSettings).where(eq(lineReminderSettings.eventId, event.id));
+      await db.delete(lineBindings).where(eq(lineBindings.eventId, event.id));
+      await db.delete(rsvps).where(eq(rsvps.eventId, event.id));
+      await db.delete(events).where(eq(events.id, event.id));
+    }
     const rows = await db.select({
       id: events.id, title: events.title, eventDate: events.eventDate,
       startTime: events.startTime, location: events.location, updatedAt: events.updatedAt,
@@ -64,7 +75,7 @@ export async function POST(request: Request) {
         sent.push({ eventId: event.id, reminder: rule.key });
       }
     }
-    return Response.json({ ok: true, checked: rows.length, sent });
+    return Response.json({ ok: true, checked: rows.length, sent, purged: expired.length });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "提醒排程失敗" }, { status: 500 });
   }

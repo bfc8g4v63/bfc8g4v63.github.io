@@ -464,7 +464,7 @@ function linePanel(line) {
   return `
     <div class="line-status ${binding ? "connected" : ""}">
       <strong>${binding ? `已綁定：${esc(binding.groupName)}` : "尚未綁定 LINE 群組"}</strong>
-      <p>${binding ? "自動提醒會傳送到這個群組；輸入「活動」可廣播活動連結與 QR Code，輸入「原神啟動」可廣播報名名單與人數、飲食、備註。" : "先產生 6 位數綁定碼，再到家族 LINE 群組輸入。"}</p>
+      <p>${binding ? "自動提醒會傳送到這個群組；輸入「活動」可廣播活動連結與 QR Code，輸入「原神啟動」預設只廣播姓名與人數。" : "先產生 6 位數綁定碼，再到家族 LINE 群組輸入。"}</p>
       <div id="binding-code-area"></div>
       <div class="inline-actions">
         ${binding ? '<button class="secondary" id="line-test">傳送測試提醒</button><button class="text-danger" id="line-unbind">解除綁定</button>' : '<button class="line-button" id="line-code">產生群組綁定碼</button>'}
@@ -474,6 +474,8 @@ function linePanel(line) {
       <label class="toggle"><input type="checkbox" name="sevenDays" ${line.settings.sevenDays ? "checked" : ""}><span>活動前 7 天</span></label>
       <label class="toggle"><input type="checkbox" name="oneDay" ${line.settings.oneDay ? "checked" : ""}><span>活動前 1 天</span></label>
       <label class="toggle"><input type="checkbox" name="twoHours" ${line.settings.twoHours ? "checked" : ""}><span>活動前 2 小時</span></label>
+      <label class="toggle"><input type="checkbox" name="includeRsvpDetails" ${line.settings.includeRsvpDetails ? "checked" : ""}><span>「原神啟動」也廣播飲食與備註</span></label>
+      <p class="form-hint">群組成員都能看到廣播內容；飲食與備註可能包含個人資訊，請確認後再開啟。</p>
       <button class="secondary" id="line-settings">儲存提醒設定</button>
     </fieldset>`;
 }
@@ -554,6 +556,7 @@ function openAdminDashboard(data, managerAuth) {
         sevenDays: document.querySelector('[name="sevenDays"]').checked,
         oneDay: document.querySelector('[name="oneDay"]').checked,
         twoHours: document.querySelector('[name="twoHours"]').checked,
+        includeRsvpDetails: document.querySelector('[name="includeRsvpDetails"]').checked,
       });
       showNotice("LINE 提醒時間已儲存");
     } catch (error) { showLineError(error.message); }
