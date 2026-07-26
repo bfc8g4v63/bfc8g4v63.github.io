@@ -55,6 +55,48 @@ export async function replyMessages(replyToken: string, messages: LineReplyMessa
   });
 }
 
+const arrangementImageSlotMs = 60 * 60 * 1000;
+
+function timingSafeEqual(left: string, right: string) {
+  if (left.length !== right.length) return false;
+  let difference = 0;
+  for (let index = 0; index < left.length; index += 1) {
+    difference |= left.charCodeAt(index) ^ right.charCodeAt(index);
+  }
+  return difference === 0;
+}
+
+async function arrangementImageSignature(eventId: string, page: number, slot: number) {
+  const { channelSecret } = lineConfig();
+  if (!channelSecret) return "";
+  const key = await crypto.subtle.importKey(
+    "raw", new TextEncoder().encode(channelSecret),
+    { name: "HMAC", hash: "SHA-256" }, false, ["sign"],
+  );
+  const body = new TextEncoder().encode(`arrangement-image:${eventId}:${page}:${slot}`);
+  const signature = await crypto.subtle.sign("HMAC", key, body);
+  return btoa(String.fromCharCode(...new Uint8Array(signature)))
+    .replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
+}
+
+export async function activityArrangementImageUrl(requestUrl: string, eventId: string, page: number) {
+  const slot = Math.floor(Date.now() / arrangementImageSlotMs);
+  const signature = await arrangementImageSignature(eventId, page, slot);
+  const url = new URL("/api/line/arrangement-image", requestUrl);
+  url.searchParams.set("e", eventId);
+  url.searchParams.set("p", String(page));
+  url.searchParams.set("t", String(slot));
+  url.searchParams.set("h", signature);
+  url.searchParams.set("v", crypto.randomUUID());
+  return url.toString();
+}
+
+export async function verifyActivityArrangementImage(eventId: string, page: number, slot: number, signature: string) {
+  const currentSlot = Math.floor(Date.now() / arrangementImageSlotMs);
+  if (!signature || (slot !== currentSlot && slot !== currentSlot - 1)) return false;
+  return timingSafeEqual(await arrangementImageSignature(eventId, page, slot), signature);
+}
+
 type RsvpSummaryItem = {
   name: string;
   partySize: number;
