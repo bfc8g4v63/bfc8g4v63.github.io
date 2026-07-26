@@ -54,7 +54,8 @@ export async function POST(request: Request) {
         sevenDays: boolean(body.sevenDays),
         oneDay: boolean(body.oneDay),
         twoHours: boolean(body.twoHours),
-        includeRsvpDetails: boolean(body.includeRsvpDetails),
+        includeDiet: boolean(body.includeDiet),
+        includeNote: boolean(body.includeNote),
         updatedAt: new Date().toISOString(),
       };
       await db.insert(lineReminderSettings).values(values).onConflictDoUpdate({

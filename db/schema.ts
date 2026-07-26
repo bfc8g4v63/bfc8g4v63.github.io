@@ -57,7 +57,8 @@ export const lineReminderSettings = sqliteTable("line_reminder_settings", {
   sevenDays: integer("seven_days", { mode: "boolean" }).notNull().default(true),
   oneDay: integer("one_day", { mode: "boolean" }).notNull().default(true),
   twoHours: integer("two_hours", { mode: "boolean" }).notNull().default(false),
-  includeRsvpDetails: integer("include_rsvp_details", { mode: "boolean" }).notNull().default(false),
+  includeDiet: integer("include_diet", { mode: "boolean" }).notNull().default(false),
+  includeNote: integer("include_note", { mode: "boolean" }).notNull().default(false),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
