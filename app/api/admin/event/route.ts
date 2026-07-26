@@ -1,7 +1,7 @@
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { ensureSchema } from "../../../../db/init";
 import { getDb } from "../../../../db";
-import { lineBindings, lineReminderSettings, rsvps } from "../../../../db/schema";
+import { lineBindings, lineReminderSettings, mealAssignments, mealTables, rsvps } from "../../../../db/schema";
 import { json, preflight } from "../../cors";
 import { clean, requireEventManager } from "../auth";
 import { lineConfig } from "../../line/lib";
@@ -9,6 +9,68 @@ import { rateLimit } from "../../rate-limit";
 
 export function OPTIONS(request: Request) {
   return preflight(request);
+}
+
+function wholeNumber(value: unknown, minimum: number, maximum: number) {
+  return typeof value === "number" && Number.isFinite(value)
+    && Number.isInteger(value) && value >= minimum && value <= maximum
+    ? value
+    : null;
+}
+
+async function saveMealSeating(
+  body: Record<string, unknown>,
+  eventId: string,
+  rows: Array<{ id: string; partySize: number; response: string }>,
+) {
+  const tableInput = Array.isArray(body.tables) ? body.tables : null;
+  const assignmentInput = Array.isArray(body.assignments) ? body.assignments : null;
+  if (!tableInput || !assignmentInput) throw new Error("餐桌安排資料不完整");
+  if (tableInput.length > 24 || assignmentInput.length > 240) throw new Error("餐桌安排數量超過第一版上限");
+
+  const tableIds = new Set<string>();
+  const tables = tableInput.map((item, index) => {
+    const input = item && typeof item === "object" ? item as Record<string, unknown> : {};
+    const id = clean(input.id, 80);
+    const capacity = wholeNumber(input.capacity, 1, 50);
+    if (!id || !capacity || tableIds.has(id)) throw new Error("每張餐桌都需要不同的名稱與人數上限");
+    tableIds.add(id);
+    return {
+      id,
+      eventId,
+      name: clean(input.name, 40) || `第 ${index + 1} 桌`,
+      capacity,
+      isReserve: input.isReserve === true,
+      note: clean(input.note, 80),
+      sortOrder: index,
+      updatedAt: new Date().toISOString(),
+    };
+  });
+
+  const attending = new Map(rows.filter((row) => row.response === "attending").map((row) => [row.id, row.partySize]));
+  const peopleByRsvp = new Map<string, number>();
+  const peopleByTable = new Map<string, number>();
+  const assignments = assignmentInput.map((item) => {
+    const input = item && typeof item === "object" ? item as Record<string, unknown> : {};
+    const tableId = clean(input.tableId, 80);
+    const rsvpId = clean(input.rsvpId, 80);
+    const people = wholeNumber(input.people, 1, 999);
+    if (!tableIds.has(tableId) || !attending.has(rsvpId) || !people) throw new Error("餐桌分配包含無效的報名資料");
+    const totalForRsvp = (peopleByRsvp.get(rsvpId) || 0) + people;
+    const totalForTable = (peopleByTable.get(tableId) || 0) + people;
+    if (totalForRsvp > (attending.get(rsvpId) || 0)) throw new Error("同一筆報名不能安排超過原本的人數");
+    const table = tables.find((item) => item.id === tableId);
+    if (!table || totalForTable > table.capacity) throw new Error(`「${table?.name || "這桌"}」超過人數上限`);
+    peopleByRsvp.set(rsvpId, totalForRsvp);
+    peopleByTable.set(tableId, totalForTable);
+    return { id: crypto.randomUUID(), eventId, tableId, rsvpId, people, updatedAt: new Date().toISOString() };
+  });
+
+  const db = getDb();
+  await db.delete(mealAssignments).where(eq(mealAssignments.eventId, eventId));
+  await db.delete(mealTables).where(eq(mealTables.eventId, eventId));
+  if (tables.length) await db.insert(mealTables).values(tables);
+  if (assignments.length) await db.insert(mealAssignments).values(assignments);
 }
 
 export async function POST(request: Request) {
@@ -21,6 +83,12 @@ export async function POST(request: Request) {
     if ("error" in access) return json(request, { error: access.error }, access.status);
     const db = getDb();
     const action = clean(body.action, 40);
+    if (action === "save_meal_seating") {
+      const rows = await db.select({ id: rsvps.id, partySize: rsvps.partySize, response: rsvps.response })
+        .from(rsvps).where(eq(rsvps.eventId, access.event.id));
+      await saveMealSeating(body, access.event.id, rows);
+      return json(request, { ok: true, message: "餐桌安排已儲存" });
+    }
     if (action === "cancel_rsvp" || action === "delete_rsvp") {
       const rsvpId = clean(body.rsvpId, 80);
       if (!rsvpId) return json(request, { error: "找不到要管理的回覆" }, 400);
@@ -30,6 +98,7 @@ export async function POST(request: Request) {
       )).limit(1);
       if (!rsvp) return json(request, { error: "找不到這筆回覆" }, 404);
       if (action === "cancel_rsvp") {
+        await db.delete(mealAssignments).where(eq(mealAssignments.rsvpId, rsvp.id));
         await db.update(rsvps).set({
           response: "not_attending",
           shareName: false,
@@ -37,10 +106,11 @@ export async function POST(request: Request) {
         }).where(eq(rsvps.id, rsvp.id));
         return json(request, { ok: true, message: `已取消「${rsvp.name}」的參加` });
       }
+      await db.delete(mealAssignments).where(eq(mealAssignments.rsvpId, rsvp.id));
       await db.delete(rsvps).where(eq(rsvps.id, rsvp.id));
       return json(request, { ok: true, message: `已刪除「${rsvp.name}」的回覆` });
     }
-    const [responses, bindingRows, settingRows] = await Promise.all([
+    const [responses, bindingRows, settingRows, mealTableRows, mealAssignmentRows] = await Promise.all([
       db.select({
         id: rsvps.id, name: rsvps.name, response: rsvps.response,
         partySize: rsvps.partySize, diet: rsvps.diet, note: rsvps.note,
@@ -48,6 +118,8 @@ export async function POST(request: Request) {
       }).from(rsvps).where(eq(rsvps.eventId, access.event.id)),
       db.select().from(lineBindings).where(eq(lineBindings.eventId, access.event.id)).limit(1),
       db.select().from(lineReminderSettings).where(eq(lineReminderSettings.eventId, access.event.id)).limit(1),
+      db.select().from(mealTables).where(eq(mealTables.eventId, access.event.id)).orderBy(asc(mealTables.sortOrder)),
+      db.select().from(mealAssignments).where(eq(mealAssignments.eventId, access.event.id)),
     ]);
     const attending = responses.filter((item) => item.response === "attending");
     const settings = settingRows[0] || { sevenDays: true, oneDay: true, twoHours: false, includeDiet: false, includeNote: false };
@@ -75,6 +147,15 @@ export async function POST(request: Request) {
           includeDiet: Boolean(settings.includeDiet),
           includeNote: Boolean(settings.includeNote),
         },
+      },
+      mealSeating: {
+        tables: mealTableRows.map((table) => ({
+          id: table.id, name: table.name, capacity: table.capacity,
+          isReserve: Boolean(table.isReserve), note: table.note, sortOrder: table.sortOrder,
+        })),
+        assignments: mealAssignmentRows.map((assignment) => ({
+          id: assignment.id, tableId: assignment.tableId, rsvpId: assignment.rsvpId, people: assignment.people,
+        })),
       },
     });
   } catch (error) {

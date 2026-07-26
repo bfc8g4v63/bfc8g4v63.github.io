@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { ensureSchema } from "../../../db/init";
-import { events, rsvps } from "../../../db/schema";
+import { events, mealAssignments, rsvps } from "../../../db/schema";
 import { hashCode, verifyCredential } from "../admin/auth";
 import { json, preflight } from "../cors";
 import { rateLimit } from "../rate-limit";
@@ -59,7 +59,9 @@ export async function POST(request: Request) {
     if (event.accessMode === "private" && !await verifyCredential(participantCode, event.participantCodeHash)) {
       return json(request, { error: "參加碼不正確" }, 403);
     }
-    const [existing] = await db.select({ id: rsvps.id, viewerTokenHash: rsvps.viewerTokenHash }).from(rsvps)
+    const [existing] = await db.select({
+      id: rsvps.id, viewerTokenHash: rsvps.viewerTokenHash, partySize: rsvps.partySize, response: rsvps.response,
+    }).from(rsvps)
       .where(and(eq(rsvps.eventId, eventId), eq(rsvps.name, name))).limit(1);
     if (existing?.viewerTokenHash) {
       if (!suppliedAttendeeToken || await hashCode(suppliedAttendeeToken) !== existing.viewerTokenHash) {
@@ -85,7 +87,12 @@ export async function POST(request: Request) {
       viewerTokenHash: await hashCode(attendeeToken),
       updatedAt: new Date().toISOString(),
     };
-    if (existing) await db.update(rsvps).set(values).where(eq(rsvps.id, existing.id));
+    if (existing) {
+      if (existing.partySize !== partySize || existing.response !== response) {
+        await db.delete(mealAssignments).where(eq(mealAssignments.rsvpId, existing.id));
+      }
+      await db.update(rsvps).set(values).where(eq(rsvps.id, existing.id));
+    }
     else await db.insert(rsvps).values({ id: crypto.randomUUID(), ...values });
     return json(request, { ok: true, attendeeToken });
   } catch (error) {
@@ -111,6 +118,7 @@ export async function DELETE(request: Request) {
     const [existing] = await db.select({ id: rsvps.id, viewerTokenHash: rsvps.viewerTokenHash }).from(rsvps)
       .where(and(eq(rsvps.eventId, eventId), eq(rsvps.name, name))).limit(1);
     if (!existing || await hashCode(attendeeToken) !== existing.viewerTokenHash) return json(request, { error: "無法驗證這筆回覆" }, 403);
+    await db.delete(mealAssignments).where(eq(mealAssignments.rsvpId, existing.id));
     await db.delete(rsvps).where(eq(rsvps.id, existing.id));
     return json(request, { ok: true });
   } catch (error) {
