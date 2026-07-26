@@ -80,6 +80,34 @@ test("calendar reminders use Taipei evening while the two-hour reminder stays re
   assert.match(reminders, /eventTime - 120 \* 60 \* 1000/);
 });
 
+test("meal seating keeps table allocation private and validates split family assignments", async () => {
+  const [admin, rsvp, schema, schemaInit, client, styles, migration] = await Promise.all([
+    readFile(new URL("../app/api/admin/event/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/rsvps/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
+    readFile(new URL("../db/init.ts", import.meta.url), "utf8"),
+    readFile(new URL("../docs/app.js", import.meta.url), "utf8"),
+    readFile(new URL("../docs/styles.css", import.meta.url), "utf8"),
+    readFile(new URL("../drizzle/0005_neat_harpoon.sql", import.meta.url), "utf8"),
+  ]);
+  assert.match(schema, /export const mealTables/);
+  assert.match(schema, /export const mealAssignments/);
+  assert.match(schemaInit, /CREATE TABLE IF NOT EXISTS meal_tables/);
+  assert.match(schemaInit, /CREATE TABLE IF NOT EXISTS meal_assignments/);
+  assert.match(migration, /CREATE TABLE `meal_tables`/);
+  assert.match(migration, /CREATE TABLE `meal_assignments`/);
+  assert.match(admin, /action === "save_meal_seating"/);
+  assert.match(admin, /totalForRsvp > \(attending\.get\(rsvpId\) \|\| 0\)/);
+  assert.match(admin, /totalForTable > table\.capacity/);
+  assert.match(admin, /mealSeating:/);
+  assert.match(rsvp, /db\.delete\(mealAssignments\)/);
+  assert.match(client, /function initMealSeating/);
+  assert.match(client, /swapAllocations/);
+  assert.match(client, /同一筆報名超過空位時/);
+  assert.match(styles, /\.meal-table-grid/);
+  assert.doesNotMatch(await readFile(new URL("../app/api/events/route.ts", import.meta.url), "utf8"), /mealTables/);
+});
+
 test("LINE roster command accepts both 啟動 and 啓動", () => {
   assert.equal(normalizeLineCommand("原神啟動"), "原神啟動");
   assert.equal(normalizeLineCommand(" 原神　啓動 "), "原神啟動");
@@ -140,7 +168,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.11/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.12/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
   assert.match(styles, /grid-template-areas:"visitor" "owner" "tagline" "top"/);
 });
@@ -151,9 +179,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.11/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.11/);
-  assert.match(worker, /good-days-github-v13/);
+  assert.match(page, /\/app\.js\?v=1\.2\.12/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.12/);
+  assert.match(worker, /good-days-github-v14/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 

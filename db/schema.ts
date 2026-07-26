@@ -72,6 +72,26 @@ export const lineReminderDeliveries = sqliteTable("line_reminder_deliveries", {
   table.eventId, table.reminderKey, table.eventFingerprint,
 )]);
 
+export const mealTables = sqliteTable("meal_tables", {
+  id: text("id").primaryKey(),
+  eventId: text("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  capacity: integer("capacity").notNull().default(10),
+  isReserve: integer("is_reserve", { mode: "boolean" }).notNull().default(false),
+  note: text("note").notNull().default(""),
+  sortOrder: integer("sort_order").notNull().default(0),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [uniqueIndex("meal_tables_event_sort_unique").on(table.eventId, table.sortOrder)]);
+
+export const mealAssignments = sqliteTable("meal_assignments", {
+  id: text("id").primaryKey(),
+  eventId: text("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  tableId: text("table_id").notNull().references(() => mealTables.id, { onDelete: "cascade" }),
+  rsvpId: text("rsvp_id").notNull().references(() => rsvps.id, { onDelete: "cascade" }),
+  people: integer("people").notNull(),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [uniqueIndex("meal_assignments_table_rsvp_unique").on(table.tableId, table.rsvpId)]);
+
 export const siteStats = sqliteTable("site_stats", {
   key: text("key").primaryKey(),
   views: integer("views").notNull().default(0),

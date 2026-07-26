@@ -481,6 +481,235 @@ function linePanel(line) {
     </fieldset>`;
 }
 
+function mealTableId() {
+  return globalThis.crypto?.randomUUID?.() || `meal-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function newMealTable(index, capacity = 10) {
+  return {
+    id: mealTableId(), name: `第 ${index + 1} 桌`, capacity,
+    isReserve: false, note: "", sortOrder: index,
+  };
+}
+
+function initMealSeating(data, event, managerAuth) {
+  const root = document.querySelector("#meal-seating-root");
+  if (!root) return;
+  const attending = data.rsvps.filter((item) => item.response === "attending");
+  const rsvpById = new Map(attending.map((item) => [item.id, item]));
+  const state = {
+    tables: (data.mealSeating?.tables || []).map((item, index) => ({ ...item, sortOrder: index })),
+    assignments: (data.mealSeating?.assignments || []).filter((item) => rsvpById.has(item.rsvpId)),
+    selectedRsvpId: "",
+    error: "",
+  };
+
+  const assignmentsFor = (tableId) => state.assignments.filter((item) => item.tableId === tableId);
+  const tableTotal = (tableId) => assignmentsFor(tableId).reduce((sum, item) => sum + item.people, 0);
+  const assignedFor = (rsvpId) => state.assignments
+    .filter((item) => item.rsvpId === rsvpId).reduce((sum, item) => sum + item.people, 0);
+  const unassignedFor = (rsvpId) => Math.max(0, (rsvpById.get(rsvpId)?.partySize || 0) - assignedFor(rsvpId));
+  const tableById = (tableId) => state.tables.find((item) => item.id === tableId);
+
+  function message(text) {
+    state.error = text;
+    render();
+  }
+
+  function addToTable(rsvpId, tableId, requestedPeople = null) {
+    const rsvp = rsvpById.get(rsvpId);
+    const table = tableById(tableId);
+    if (!rsvp || !table) return;
+    const available = unassignedFor(rsvpId);
+    const free = table.capacity - tableTotal(tableId);
+    if (!available) return message("這筆報名已全部安排完成；請先把其中一部分移回未安排區。");
+    if (free < 1) return message(`「${table.name}」已滿，請選擇其他桌次。`);
+    let people = requestedPeople || available;
+    if (people > free) {
+      const entered = prompt(`「${rsvp.name}」尚有 ${available} 人未安排；「${table.name}」可再坐 ${free} 人。要先安排幾人？`, String(free));
+      if (entered === null) return;
+      people = Number(entered);
+    }
+    if (!Number.isInteger(people) || people < 1 || people > available || people > free) {
+      return message("請輸入不超過剩餘人數與桌次空位的整數。");
+    }
+    const existing = state.assignments.find((item) => item.tableId === tableId && item.rsvpId === rsvpId);
+    if (existing) existing.people += people;
+    else state.assignments.push({ id: mealTableId(), tableId, rsvpId, people });
+    state.selectedRsvpId = unassignedFor(rsvpId) > 0 ? rsvpId : "";
+    state.error = "";
+    render();
+  }
+
+  function moveAllocation(assignmentId, tableId) {
+    const assignment = state.assignments.find((item) => item.id === assignmentId);
+    const target = tableById(tableId);
+    if (!assignment || !target || assignment.tableId === tableId) return;
+    const free = target.capacity - tableTotal(tableId);
+    if (assignment.people > free) return message(`移動後「${target.name}」會超過 ${target.capacity} 人上限。`);
+    const matching = state.assignments.find((item) => item.id !== assignment.id && item.tableId === tableId && item.rsvpId === assignment.rsvpId);
+    if (matching) {
+      matching.people += assignment.people;
+      state.assignments = state.assignments.filter((item) => item.id !== assignment.id);
+    } else assignment.tableId = tableId;
+    state.error = "";
+    render();
+  }
+
+  function swapAllocations(firstId, secondId) {
+    const first = state.assignments.find((item) => item.id === firstId);
+    const second = state.assignments.find((item) => item.id === secondId);
+    if (!first || !second || first.tableId === second.tableId) return;
+    const firstTable = tableById(first.tableId);
+    const secondTable = tableById(second.tableId);
+    if (!firstTable || !secondTable) return;
+    const firstAfter = tableTotal(first.tableId) - first.people + second.people;
+    const secondAfter = tableTotal(second.tableId) - second.people + first.people;
+    if (firstAfter > firstTable.capacity || secondAfter > secondTable.capacity) {
+      return message("交換後有桌次會超過人數上限，請先調整其他安排。\n");
+    }
+    const duplicate = state.assignments.some((item) => item.id !== first.id && item.id !== second.id && (
+      (item.tableId === second.tableId && item.rsvpId === first.rsvpId)
+      || (item.tableId === first.tableId && item.rsvpId === second.rsvpId)
+    ));
+    if (duplicate) return message("其中一家已在目標桌有安排；請先移回未安排區後再交換。\n");
+    const originalTable = first.tableId;
+    first.tableId = second.tableId;
+    second.tableId = originalTable;
+    state.error = "";
+    render();
+  }
+
+  function render() {
+    const assignedPeople = state.assignments.reduce((sum, item) => sum + item.people, 0);
+    const unassignedPeople = attending.reduce((sum, item) => sum + unassignedFor(item.id), 0);
+    const totalCapacity = state.tables.reduce((sum, table) => sum + table.capacity, 0);
+    const unassignedCards = attending.map((rsvp) => ({ rsvp, people: unassignedFor(rsvp.id) }))
+      .filter((item) => item.people > 0).map(({ rsvp, people }) => `
+        <button class="meal-party-card ${state.selectedRsvpId === rsvp.id ? "selected" : ""}" type="button" draggable="true" data-seat-select="${esc(rsvp.id)}">
+          <strong>${esc(rsvp.name)}</strong><span>尚待安排 ${people} ／ 共 ${rsvp.partySize} 人</span>
+        </button>`).join("") || '<p class="meal-empty">所有參加者都已安排。</p>';
+    const tables = state.tables.map((table) => {
+      const total = tableTotal(table.id);
+      const tableAssignments = assignmentsFor(table.id);
+      const status = total >= table.capacity ? "full" : total > table.capacity ? "over" : "";
+      const allocationRows = tableAssignments.map((assignment) => {
+        const rsvp = rsvpById.get(assignment.rsvpId);
+        if (!rsvp) return "";
+        return `<div class="meal-assignment" draggable="true" data-seat-assignment="${esc(assignment.id)}">
+          <span><strong>${esc(rsvp.name)}</strong><small>${assignment.people} 人</small></span>
+          <button class="text-danger" type="button" data-seat-unassign="${esc(assignment.id)}">移回</button>
+        </div>`;
+      }).join("") || '<p class="meal-empty">尚未安排</p>';
+      return `<article class="meal-table-card ${status}" data-seat-drop-table="${esc(table.id)}">
+        <div class="meal-table-head">
+          <label>桌次<input data-seat-table-name="${esc(table.id)}" value="${esc(table.name)}" maxlength="40"></label>
+          <label>上限<input data-seat-table-capacity="${esc(table.id)}" type="number" min="1" max="50" inputmode="numeric" value="${table.capacity}"></label>
+          <label class="meal-reserve"><input data-seat-table-reserve="${esc(table.id)}" type="checkbox" ${table.isReserve ? "checked" : ""}>預備桌</label>
+        </div>
+        <div class="meal-table-count"><strong>${total} / ${table.capacity}</strong><span>${total >= table.capacity ? "已滿" : `尚有 ${table.capacity - total} 位`}</span></div>
+        <label class="meal-table-note">位置／備註<input data-seat-table-note="${esc(table.id)}" value="${esc(table.note || "")}" maxlength="80" placeholder="例如：靠近投影、方便出入"></label>
+        <div class="meal-assignment-list">${allocationRows}</div>
+        <div class="meal-table-actions"><button class="secondary" type="button" data-seat-add-selected="${esc(table.id)}">安排選取家庭</button><button class="text-danger" type="button" data-seat-remove-table="${esc(table.id)}">移除桌次</button></div>
+      </article>`;
+    }).join("") || '<div class="meal-empty-state">請先設定桌數與每桌人數上限。</div>';
+    root.innerHTML = `
+      <div class="meal-seating-summary">
+        <div><strong>${attending.reduce((sum, item) => sum + item.partySize, 0)}</strong><span>參加人數</span></div>
+        <div><strong>${assignedPeople}</strong><span>已安排</span></div>
+        <div><strong>${unassignedPeople}</strong><span>未安排</span></div>
+        <div><strong>${totalCapacity || "—"}</strong><span>桌次總容量</span></div>
+      </div>
+      <details class="meal-setup" ${state.tables.length ? "" : "open"}><summary>設定桌數與人數上限</summary>
+        <div class="meal-setup-fields"><label>桌數<input id="meal-table-count" type="number" min="1" max="24" value="${state.tables.length || 6}" inputmode="numeric"></label><label>每桌預設上限<input id="meal-table-capacity" type="number" min="1" max="50" value="10" inputmode="numeric"></label><button class="secondary" type="button" id="meal-build-tables">${state.tables.length ? "重新建立桌次" : "建立桌次"}</button></div>
+        <p class="form-hint">重新建立會清除目前尚未儲存的桌次安排；各桌也可在下方個別調整人數與備註。</p>
+      </details>
+      <div class="meal-seating-actions"><button class="secondary" type="button" id="meal-add-table">＋ 新增一桌</button><button class="primary" type="button" id="meal-save">儲存餐桌安排</button></div>
+      ${state.error ? `<p class="form-error">${esc(state.error)}</p>` : ""}
+      <div class="meal-workspace"><section class="meal-unassigned"><div><p class="eyebrow">先選家庭，再點桌次</p><h4>未安排</h4></div>${unassignedCards}</section><section class="meal-table-grid">${tables}</section></div>
+      <p class="form-hint">電腦可把家庭卡拖到桌次；拖到另一張家庭卡可交換桌次。手機請先選家庭，再按目標桌的「安排選取家庭」。同一筆報名超過空位時，可輸入要先安排的人數。</p>`;
+
+    const readDrag = (dragEvent) => {
+      try { return JSON.parse(dragEvent.dataTransfer.getData("text/plain")); } catch { return null; }
+    };
+    root.querySelectorAll("[data-seat-select]").forEach((card) => {
+      card.addEventListener("click", () => { state.selectedRsvpId = card.dataset.seatSelect; state.error = ""; render(); });
+      card.addEventListener("dragstart", (dragEvent) => dragEvent.dataTransfer.setData("text/plain", JSON.stringify({ kind: "unassigned", id: card.dataset.seatSelect })));
+    });
+    root.querySelectorAll("[data-seat-assignment]").forEach((card) => {
+      card.addEventListener("dragstart", (dragEvent) => dragEvent.dataTransfer.setData("text/plain", JSON.stringify({ kind: "assignment", id: card.dataset.seatAssignment })));
+      card.addEventListener("dragover", (dragEvent) => dragEvent.preventDefault());
+      card.addEventListener("drop", (dragEvent) => {
+        dragEvent.preventDefault(); dragEvent.stopPropagation();
+        const dragged = readDrag(dragEvent);
+        if (dragged?.kind === "assignment") swapAllocations(dragged.id, card.dataset.seatAssignment);
+      });
+    });
+    root.querySelectorAll("[data-seat-drop-table]").forEach((tableCard) => {
+      tableCard.addEventListener("dragover", (dragEvent) => dragEvent.preventDefault());
+      tableCard.addEventListener("drop", (dragEvent) => {
+        dragEvent.preventDefault();
+        const dragged = readDrag(dragEvent);
+        if (dragged?.kind === "unassigned") addToTable(dragged.id, tableCard.dataset.seatDropTable);
+        if (dragged?.kind === "assignment") moveAllocation(dragged.id, tableCard.dataset.seatDropTable);
+      });
+    });
+    root.querySelectorAll("[data-seat-add-selected]").forEach((button) => button.addEventListener("click", () => {
+      if (!state.selectedRsvpId) return message("請先從未安排區選擇一個家庭。\n");
+      addToTable(state.selectedRsvpId, button.dataset.seatAddSelected);
+    }));
+    root.querySelectorAll("[data-seat-unassign]").forEach((button) => button.addEventListener("click", () => {
+      state.assignments = state.assignments.filter((item) => item.id !== button.dataset.seatUnassign); state.error = ""; render();
+    }));
+    root.querySelectorAll("[data-seat-remove-table]").forEach((button) => button.addEventListener("click", () => {
+      const tableId = button.dataset.seatRemoveTable;
+      if (assignmentsFor(tableId).length) return message("請先把這桌的家庭移回未安排區或移到其他桌。\n");
+      state.tables = state.tables.filter((item) => item.id !== tableId).map((item, index) => ({ ...item, sortOrder: index })); render();
+    }));
+    root.querySelectorAll("[data-seat-table-name]").forEach((input) => input.addEventListener("change", () => {
+      const table = tableById(input.dataset.seatTableName); if (table) table.name = input.value.trim().slice(0, 40) || table.name;
+    }));
+    root.querySelectorAll("[data-seat-table-note]").forEach((input) => input.addEventListener("change", () => {
+      const table = tableById(input.dataset.seatTableNote); if (table) table.note = input.value.trim().slice(0, 80);
+    }));
+    root.querySelectorAll("[data-seat-table-reserve]").forEach((input) => input.addEventListener("change", () => {
+      const table = tableById(input.dataset.seatTableReserve); if (table) table.isReserve = input.checked;
+    }));
+    root.querySelectorAll("[data-seat-table-capacity]").forEach((input) => input.addEventListener("change", () => {
+      const table = tableById(input.dataset.seatTableCapacity); const capacity = Number(input.value);
+      if (!table || !Number.isInteger(capacity) || capacity < 1 || capacity > 50) return message("每桌人數上限須為 1 到 50 的整數。\n");
+      if (capacity < tableTotal(table.id)) return message(`「${table.name}」目前已有 ${tableTotal(table.id)} 人，不能把上限設得更低。\n`);
+      table.capacity = capacity; state.error = ""; render();
+    }));
+    root.querySelector("#meal-build-tables")?.addEventListener("click", () => {
+      const count = Number(root.querySelector("#meal-table-count").value); const capacity = Number(root.querySelector("#meal-table-capacity").value);
+      if (!Number.isInteger(count) || count < 1 || count > 24 || !Number.isInteger(capacity) || capacity < 1 || capacity > 50) return message("桌數請填 1 到 24；每桌上限請填 1 到 50。\n");
+      if ((state.tables.length || state.assignments.length) && !confirm("重新建立桌次會清除目前尚未儲存的安排，確定繼續嗎？")) return;
+      state.tables = Array.from({ length: count }, (_, index) => newMealTable(index, capacity)); state.assignments = []; state.selectedRsvpId = ""; state.error = ""; render();
+    });
+    root.querySelector("#meal-add-table")?.addEventListener("click", () => {
+      if (state.tables.length >= 24) return message("第一版最多可建立 24 桌。\n");
+      state.tables.push(newMealTable(state.tables.length, 10)); render();
+    });
+    root.querySelector("#meal-save")?.addEventListener("click", async (clickEvent) => {
+      const button = clickEvent.currentTarget;
+      button.disabled = true;
+      try {
+        const result = await requestJson("/admin/event", {
+          action: "save_meal_seating", tables: state.tables.map((table, index) => ({ ...table, sortOrder: index })),
+          assignments: state.assignments.map(({ tableId, rsvpId, people }) => ({ tableId, rsvpId, people })),
+          ...managerPayload(event.id, managerAuth),
+        });
+        const fresh = await requestJson("/admin/event", managerPayload(event.id, managerAuth));
+        openAdminDashboard(fresh, managerAuth);
+        showNotice(result.message || "餐桌安排已儲存");
+      } catch (error) { message(error.message || "無法儲存餐桌安排"); }
+      finally { button.disabled = false; }
+    });
+  }
+  render();
+}
+
 function openAdminDashboard(data, managerAuth) {
   const event = data.event;
   const remaining = event.capacity ? Math.max(0, event.capacity - data.summary.attendingPeople) : null;
@@ -508,6 +737,11 @@ function openAdminDashboard(data, managerAuth) {
           <div class="table-scroll"><table><thead><tr><th>姓名</th><th>回覆</th><th>人數</th><th>飲食</th><th>備註</th><th>更新時間</th><th>管理</th></tr></thead><tbody>${adminRows(data.rsvps)}</tbody></table></div>
           <p class="form-error" id="rsvp-error" role="alert" hidden></p>
         </section>
+        <section class="admin-section meal-section">
+          <div class="admin-section-title"><div><p class="eyebrow">聚餐專用・僅管理者可見</p><h3>餐桌安排</h3></div><span>可拖曳、拆分與調整桌次</span></div>
+          <p class="form-hint">先設定桌數與每桌上限，再把家庭／同行者安排到不同桌次。人數超過單桌容量時，可分次安排到不同桌。</p>
+          <div id="meal-seating-root"></div>
+        </section>
         <section class="admin-section line-section">
           <div class="admin-section-title"><div><p class="eyebrow line-eyebrow">LINE 群組</p><h3>自動提醒機器人</h3></div><a href="/line-bot-guide.html" target="_blank">查看設定教學</a></div>
           ${linePanel(data.line)}
@@ -523,6 +757,7 @@ function openAdminDashboard(data, managerAuth) {
     showNotice("建立者管理連結已複製，請勿分享給參加者");
   });
   document.querySelector("#export-rsvps").addEventListener("click", () => exportRsvps(event, data.rsvps));
+  initMealSeating(data, event, managerAuth);
   document.querySelectorAll("[data-rsvp-cancel]").forEach((button) => {
     button.addEventListener("click", () => {
       const rsvp = data.rsvps.find((item) => item.id === button.dataset.rsvpCancel);

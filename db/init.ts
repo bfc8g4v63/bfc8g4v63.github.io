@@ -79,6 +79,30 @@ export function ensureSchema() {
         FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
       )`),
       database.prepare("CREATE UNIQUE INDEX IF NOT EXISTS line_reminder_delivery_unique ON line_reminder_deliveries (event_id, reminder_key, event_fingerprint)"),
+      database.prepare(`CREATE TABLE IF NOT EXISTS meal_tables (
+        id TEXT PRIMARY KEY NOT NULL,
+        event_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        capacity INTEGER NOT NULL DEFAULT 10,
+        is_reserve INTEGER NOT NULL DEFAULT 0,
+        note TEXT NOT NULL DEFAULT '',
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+      )`),
+      database.prepare("CREATE UNIQUE INDEX IF NOT EXISTS meal_tables_event_sort_unique ON meal_tables (event_id, sort_order)"),
+      database.prepare(`CREATE TABLE IF NOT EXISTS meal_assignments (
+        id TEXT PRIMARY KEY NOT NULL,
+        event_id TEXT NOT NULL,
+        table_id TEXT NOT NULL,
+        rsvp_id TEXT NOT NULL,
+        people INTEGER NOT NULL,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+        FOREIGN KEY (table_id) REFERENCES meal_tables(id) ON DELETE CASCADE,
+        FOREIGN KEY (rsvp_id) REFERENCES rsvps(id) ON DELETE CASCADE
+      )`),
+      database.prepare("CREATE UNIQUE INDEX IF NOT EXISTS meal_assignments_table_rsvp_unique ON meal_assignments (table_id, rsvp_id)"),
       database.prepare(`CREATE TABLE IF NOT EXISTS site_stats (
         key TEXT PRIMARY KEY NOT NULL,
         views INTEGER NOT NULL DEFAULT 0,
