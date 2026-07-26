@@ -6,10 +6,16 @@ import {
 } from "../../../../db/schema";
 import { eventMessage, lineConfig, pushText } from "../lib";
 
+const taipeiEvening = (eventDate: string, daysBefore: number) =>
+  Date.parse(`${eventDate}T18:00:00+08:00`) - daysBefore * 24 * 60 * 60 * 1000;
+
 const rules = [
-  { key: "seven_days", label: "活動前 7 天提醒", threshold: 10_080, window: 360, setting: "sevenDays" as const },
-  { key: "one_day", label: "活動前 1 天提醒", threshold: 1_440, window: 180, setting: "oneDay" as const },
-  { key: "two_hours", label: "活動前 2 小時提醒", threshold: 120, window: 120, setting: "twoHours" as const },
+  { key: "seven_days", label: "活動前 7 天提醒", setting: "sevenDays" as const, window: 90,
+    sendAt: (eventTime: number, eventDate: string) => taipeiEvening(eventDate, 7) },
+  { key: "one_day", label: "活動前 1 天提醒", setting: "oneDay" as const, window: 90,
+    sendAt: (eventTime: number, eventDate: string) => taipeiEvening(eventDate, 1) },
+  { key: "two_hours", label: "活動前 2 小時提醒", setting: "twoHours" as const, window: 120,
+    sendAt: (eventTime: number) => eventTime - 120 * 60 * 1000 },
 ];
 
 export async function POST(request: Request) {
@@ -50,7 +56,6 @@ export async function POST(request: Request) {
     for (const event of rows) {
       const eventTime = Date.parse(`${event.eventDate}T${event.startTime}:00+08:00`);
       if (!Number.isFinite(eventTime)) continue;
-      const minutesUntil = (eventTime - now) / 60_000;
       const attending = await db.select({ partySize: rsvps.partySize }).from(rsvps).where(and(
         eq(rsvps.eventId, event.id), eq(rsvps.response, "attending"),
       ));
@@ -59,7 +64,8 @@ export async function POST(request: Request) {
 
       for (const rule of rules) {
         if (!event[rule.setting]) continue;
-        if (minutesUntil > rule.threshold || minutesUntil <= rule.threshold - rule.window) continue;
+        const minutesSince = (now - rule.sendAt(eventTime, event.eventDate)) / 60_000;
+        if (minutesSince < 0 || minutesSince > rule.window) continue;
         const [delivered] = await db.select({ id: lineReminderDeliveries.id })
           .from(lineReminderDeliveries).where(and(
             eq(lineReminderDeliveries.eventId, event.id),
