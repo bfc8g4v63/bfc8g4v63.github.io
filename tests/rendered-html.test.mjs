@@ -53,6 +53,14 @@ test("privacy controls protect group broadcasts and expire operational data", as
   assert.match(guide, /3 個月後自動永久刪除/);
 });
 
+test("calendar reminders use Taipei evening while the two-hour reminder stays relative", async () => {
+  const reminders = await readFile(new URL("../app/api/line/run-reminders/route.ts", import.meta.url), "utf8");
+  assert.match(reminders, /T18:00:00\+08:00/);
+  assert.match(reminders, /taipeiEvening\(eventDate, 7\)/);
+  assert.match(reminders, /taipeiEvening\(eventDate, 1\)/);
+  assert.match(reminders, /eventTime - 120 \* 60 \* 1000/);
+});
+
 test("LINE roster command accepts both 啟動 and 啓動", () => {
   assert.equal(normalizeLineCommand("原神啟動"), "原神啟動");
   assert.equal(normalizeLineCommand(" 原神　啓動 "), "原神啟動");
