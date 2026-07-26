@@ -474,8 +474,9 @@ function linePanel(line) {
       <label class="toggle"><input type="checkbox" name="sevenDays" ${line.settings.sevenDays ? "checked" : ""}><span>活動前 7 天</span></label>
       <label class="toggle"><input type="checkbox" name="oneDay" ${line.settings.oneDay ? "checked" : ""}><span>活動前 1 天</span></label>
       <label class="toggle"><input type="checkbox" name="twoHours" ${line.settings.twoHours ? "checked" : ""}><span>活動前 2 小時</span></label>
-      <label class="toggle"><input type="checkbox" name="includeRsvpDetails" ${line.settings.includeRsvpDetails ? "checked" : ""}><span>「原神啟動」也廣播飲食與備註</span></label>
-      <p class="form-hint">群組成員都能看到廣播內容；飲食與備註可能包含個人資訊，請確認後再開啟。</p>
+      <label class="toggle"><input type="checkbox" name="includeDiet" ${line.settings.includeDiet ? "checked" : ""}><span>「原神啟動」包含飲食需求</span></label>
+      <label class="toggle"><input type="checkbox" name="includeNote" ${line.settings.includeNote ? "checked" : ""}><span>「原神啟動」包含備註</span></label>
+      <p class="form-hint">群組成員都能看到廣播內容；飲食需求與備註可能包含個人資訊，請分別確認後再開啟。</p>
       <button class="secondary" id="line-settings">儲存提醒設定</button>
     </fieldset>`;
 }
@@ -556,7 +557,8 @@ function openAdminDashboard(data, managerAuth) {
         sevenDays: document.querySelector('[name="sevenDays"]').checked,
         oneDay: document.querySelector('[name="oneDay"]').checked,
         twoHours: document.querySelector('[name="twoHours"]').checked,
-        includeRsvpDetails: document.querySelector('[name="includeRsvpDetails"]').checked,
+        includeDiet: document.querySelector('[name="includeDiet"]').checked,
+        includeNote: document.querySelector('[name="includeNote"]').checked,
       });
       showNotice("LINE 提醒時間已儲存");
     } catch (error) { showLineError(error.message); }

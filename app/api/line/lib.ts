@@ -62,7 +62,7 @@ type RsvpSummaryItem = {
   note: string;
 };
 
-export function rsvpSummaryMessage(eventTitle: string, rsvps: RsvpSummaryItem[], includeDetails = false) {
+export function rsvpSummaryMessage(eventTitle: string, rsvps: RsvpSummaryItem[], includeDiet = false, includeNote = false) {
   const people = rsvps.reduce((sum, rsvp) => sum + rsvp.partySize, 0);
   const header = `${eventTitle}｜報名人數\n共 ${people} 人・${rsvps.length} 筆報名`;
   if (!rsvps.length) return `${header}\n\n目前尚無參加者。`;
@@ -70,9 +70,11 @@ export function rsvpSummaryMessage(eventTitle: string, rsvps: RsvpSummaryItem[],
   const lines = [header];
   for (let index = 0; index < rsvps.length; index += 1) {
     const rsvp = rsvps[index];
-    const entry = includeDetails
-      ? `${index + 1}. 姓名：${rsvp.name}\n人數：${rsvp.partySize}\n飲食：${rsvp.diet || "—"}\n備註：${rsvp.note || "—"}`
-      : `${index + 1}. 姓名：${rsvp.name}\n人數：${rsvp.partySize}`;
+    const details = [
+      includeDiet ? `飲食：${rsvp.diet || "—"}` : "",
+      includeNote ? `備註：${rsvp.note || "—"}` : "",
+    ].filter(Boolean);
+    const entry = [`${index + 1}. 姓名：${rsvp.name}`, `人數：${rsvp.partySize}`, ...details].join("\n");
     if (`${lines.join("\n\n")}\n\n${entry}`.length > 4800) {
       return `${lines.join("\n\n")}\n\n其餘 ${rsvps.length - index} 筆請至活動管理後台查看。`;
     }

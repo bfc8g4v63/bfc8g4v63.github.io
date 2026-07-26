@@ -50,7 +50,7 @@ export async function POST(request: Request) {
       db.select().from(lineReminderSettings).where(eq(lineReminderSettings.eventId, access.event.id)).limit(1),
     ]);
     const attending = responses.filter((item) => item.response === "attending");
-    const settings = settingRows[0] || { sevenDays: true, oneDay: true, twoHours: false, includeRsvpDetails: false };
+    const settings = settingRows[0] || { sevenDays: true, oneDay: true, twoHours: false, includeDiet: false, includeNote: false };
     return json(request, {
       event: {
         ...access.event,
@@ -72,7 +72,8 @@ export async function POST(request: Request) {
           sevenDays: Boolean(settings.sevenDays),
           oneDay: Boolean(settings.oneDay),
           twoHours: Boolean(settings.twoHours),
-          includeRsvpDetails: Boolean(settings.includeRsvpDetails),
+          includeDiet: Boolean(settings.includeDiet),
+          includeNote: Boolean(settings.includeNote),
         },
       },
     });

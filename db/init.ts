@@ -65,7 +65,8 @@ export function ensureSchema() {
         seven_days INTEGER NOT NULL DEFAULT 1,
         one_day INTEGER NOT NULL DEFAULT 1,
         two_hours INTEGER NOT NULL DEFAULT 0,
-        include_rsvp_details INTEGER NOT NULL DEFAULT 0,
+        include_diet INTEGER NOT NULL DEFAULT 0,
+        include_note INTEGER NOT NULL DEFAULT 0,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
       )`),
@@ -122,8 +123,19 @@ export function ensureSchema() {
       await database.prepare("ALTER TABLE rsvps ADD COLUMN viewer_token_hash TEXT NOT NULL DEFAULT ''").run();
     }
     const settingColumns = await database.prepare("PRAGMA table_info(line_reminder_settings)").all<{ name: string }>();
-    if (!(settingColumns.results || []).some((column) => column.name === "include_rsvp_details")) {
-      await database.prepare("ALTER TABLE line_reminder_settings ADD COLUMN include_rsvp_details INTEGER NOT NULL DEFAULT 0").run();
+    const settingNames = new Set((settingColumns.results || []).map((column) => column.name));
+    const hasLegacyRsvpDetails = settingNames.has("include_rsvp_details");
+    if (!settingNames.has("include_diet")) {
+      await database.prepare("ALTER TABLE line_reminder_settings ADD COLUMN include_diet INTEGER NOT NULL DEFAULT 0").run();
+      if (hasLegacyRsvpDetails) {
+        await database.prepare("UPDATE line_reminder_settings SET include_diet = include_rsvp_details WHERE include_rsvp_details = 1").run();
+      }
+    }
+    if (!settingNames.has("include_note")) {
+      await database.prepare("ALTER TABLE line_reminder_settings ADD COLUMN include_note INTEGER NOT NULL DEFAULT 0").run();
+      if (hasLegacyRsvpDetails) {
+        await database.prepare("UPDATE line_reminder_settings SET include_note = include_rsvp_details WHERE include_rsvp_details = 1").run();
+      }
     }
     await database.prepare("UPDATE events SET share_token = lower(hex(randomblob(16))) WHERE share_token = '' OR share_token IS NULL").run();
     await database.prepare("CREATE UNIQUE INDEX IF NOT EXISTS events_share_token_unique ON events (share_token)").run();

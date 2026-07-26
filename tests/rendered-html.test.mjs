@@ -46,11 +46,30 @@ test("privacy controls protect group broadcasts and expire operational data", as
     readFile(new URL("../app/api/rsvps/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../docs/line-bot-guide.html", import.meta.url), "utf8"),
   ]);
-  assert.match(webhook, /includeRsvpDetails/);
-  assert.match(lineAdmin, /includeRsvpDetails/);
+  assert.match(webhook, /includeDiet/);
+  assert.match(webhook, /includeNote/);
+  assert.match(lineAdmin, /includeDiet/);
+  assert.match(lineAdmin, /includeNote/);
   assert.match(reminders, /90 \* 24 \* 60 \* 60 \* 1000/);
   assert.match(rsvp, /export async function DELETE/);
   assert.match(guide, /3 個月後自動永久刪除/);
+});
+
+test("LINE roster broadcasts can disclose diet and notes independently", async () => {
+  const [summary, schemaInit, client, guide] = await Promise.all([
+    readFile(new URL("../app/api/line/lib.ts", import.meta.url), "utf8"),
+    readFile(new URL("../db/init.ts", import.meta.url), "utf8"),
+    readFile(new URL("../docs/app.js", import.meta.url), "utf8"),
+    readFile(new URL("../docs/line-bot-guide.html", import.meta.url), "utf8"),
+  ]);
+  assert.match(summary, /includeDiet = false, includeNote = false/);
+  assert.match(summary, /includeDiet \? `飲食：/);
+  assert.match(summary, /includeNote \? `備註：/);
+  assert.match(schemaInit, /include_diet/);
+  assert.match(schemaInit, /include_note/);
+  assert.match(client, /name="includeDiet"/);
+  assert.match(client, /name="includeNote"/);
+  assert.match(guide, /分別選擇是否包含/);
 });
 
 test("calendar reminders use Taipei evening while the two-hour reminder stays relative", async () => {
@@ -121,7 +140,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.10/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.11/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
   assert.match(styles, /grid-template-areas:"visitor" "owner" "tagline" "top"/);
 });
@@ -132,9 +151,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.10/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.10/);
-  assert.match(worker, /good-days-github-v12/);
+  assert.match(page, /\/app\.js\?v=1\.2\.11/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.11/);
+  assert.match(worker, /good-days-github-v13/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
