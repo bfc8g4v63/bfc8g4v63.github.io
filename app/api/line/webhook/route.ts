@@ -1,9 +1,9 @@
 import { and, asc, eq } from "drizzle-orm";
 import { ensureSchema } from "../../../../db/init";
 import { getDb } from "../../../../db";
-import { events, lineBindCodes, lineBindings, lineReminderSettings, mealAssignments, mealTables, rsvps } from "../../../../db/schema";
+import { events, lineBindCodes, lineBindings, lineReminderSettings, mealTables, rsvps } from "../../../../db/schema";
 import { normalizeLineCommand } from "../commands";
-import { activityArrangementMessage, activityShareMessage, getGroupName, replyMessages, replyText, rsvpSummaryMessage, verifyLineSignature } from "../lib";
+import { activityArrangementImageUrl, activityShareMessage, getGroupName, replyMessages, replyText, rsvpSummaryMessage, verifyLineSignature } from "../lib";
 
 type LineEvent = {
   type?: string;
@@ -105,23 +105,28 @@ export async function POST(request: Request) {
           await replyText(event.replyToken, "這個群組尚未綁定活動，請先在活動管理後台產生綁定碼，再輸入「綁定 123456」。");
           continue;
         }
-        const [eventRows, tables, assignments, registrations] = await Promise.all([
+        const [eventRows, tables] = await Promise.all([
           db.select({ title: events.title }).from(events)
             .where(eq(events.id, binding.eventId)).limit(1),
           db.select({ id: mealTables.id, name: mealTables.name, capacity: mealTables.capacity, isReserve: mealTables.isReserve, note: mealTables.note })
             .from(mealTables).where(eq(mealTables.eventId, binding.eventId)).orderBy(asc(mealTables.sortOrder)),
-          db.select({ tableId: mealAssignments.tableId, rsvpId: mealAssignments.rsvpId, people: mealAssignments.people })
-            .from(mealAssignments).where(eq(mealAssignments.eventId, binding.eventId)),
-          db.select({ id: rsvps.id, name: rsvps.name, partySize: rsvps.partySize })
-            .from(rsvps)
-            .where(and(eq(rsvps.eventId, binding.eventId), eq(rsvps.response, "attending"))),
         ]);
         const [targetEvent] = eventRows;
         if (!targetEvent) {
           await replyText(event.replyToken, "找不到這個群組綁定的活動，請重新建立綁定。");
           continue;
         }
-        await replyText(event.replyToken, activityArrangementMessage(targetEvent.title, tables, assignments, registrations));
+        if (!tables.length) {
+          await replyText(event.replyToken, `「${targetEvent.title}」尚未建立活動安排，請由建立者到活動管理後台設定。`);
+          continue;
+        }
+        const pages = Math.ceil(tables.length / 6);
+        const messages = await Promise.all(Array.from({ length: pages }, async (_, page) => {
+          const originalContentUrl = await activityArrangementImageUrl(request.url, binding.eventId, page);
+          const previewImageUrl = originalContentUrl;
+          return { type: "image" as const, originalContentUrl, previewImageUrl };
+        }));
+        await replyMessages(event.replyToken, messages);
         continue;
       }
 
