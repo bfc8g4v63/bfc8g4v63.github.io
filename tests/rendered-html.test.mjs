@@ -135,6 +135,8 @@ test("bound LINE groups can show a privacy-safe current activity arrangement ima
   assert.match(imageRoute, /Content-Type|Cache-Control/);
   assert.match(imageRoute, /NotoSansTC-Regular\.otf/);
   assert.match(imageRoute, /PAGE_SIZE = 6/);
+  assert.match(imageRoute, /boxSizing: "border-box"/);
+  assert.match(imageRoute, /\+ 80/);
   assert.doesNotMatch(imageRoute, /rsvps\.diet|rsvps\.note/);
   assert.match(client, /輸入「安排」可收到目前活動安排圖卡/);
   assert.match(guide, /<dt>安排<\/dt>/);

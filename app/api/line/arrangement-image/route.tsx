@@ -96,9 +96,9 @@ export async function GET(request: Request) {
     const pageCards = arrangement.cards.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
     const rowHeights = Array.from({ length: Math.ceil(pageCards.length / 2) }, (_, row) => {
       const cards = pageCards.slice(row * 2, row * 2 + 2);
-      return Math.max(...cards.map((card) => 220 + Math.min(card.entries.length, 6) * 42 + (card.entries.length > 6 ? 34 : 0)));
+      return Math.max(...cards.map((card) => 230 + Math.min(card.entries.length, 6) * 48 + (card.entries.length > 6 ? 34 : 0)));
     });
-    const height = 210 + rowHeights.reduce((sum, rowHeight) => sum + rowHeight, 0) + Math.max(0, rowHeights.length - 1) * 22 + 42;
+    const height = 230 + rowHeights.reduce((sum, rowHeight) => sum + rowHeight, 0) + Math.max(0, rowHeights.length - 1) * 22 + 80;
     const font = await loadFont();
 
     return new ImageResponse(
@@ -112,7 +112,7 @@ export async function GET(request: Request) {
           {pageCards.map((card, index) => {
             const remaining = card.table.capacity - card.people;
             const visibleEntries = card.entries.slice(0, 6);
-            return <div key={card.table.id} style={{ width: 475, minHeight: rowHeights[Math.floor(index / 2)], display: "flex", flexDirection: "column", border: "2px solid #bd7623", borderRadius: 18, padding: 22, backgroundColor: "#fffdf8" }}>
+            return <div key={card.table.id} style={{ width: 475, height: rowHeights[Math.floor(index / 2)], boxSizing: "border-box", display: "flex", flexDirection: "column", border: "2px solid #bd7623", borderRadius: 18, padding: 22, backgroundColor: "#fffdf8" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <div style={{ display: "flex", fontSize: 28, fontWeight: 700 }}>{card.table.name}{card.table.isReserve ? "・預備區" : ""}</div>
                 <div style={{ display: "flex", fontSize: 21, color: "#6a7a75" }}>上限 {card.table.capacity}</div>
