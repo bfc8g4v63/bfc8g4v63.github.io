@@ -80,7 +80,7 @@ test("calendar reminders use Taipei evening while the two-hour reminder stays re
   assert.match(reminders, /eventTime - 120 \* 60 \* 1000/);
 });
 
-test("meal seating keeps table allocation private and validates split family assignments", async () => {
+test("activity arrangements keep allocation private and validate split family assignments", async () => {
   const [admin, rsvp, schema, schemaInit, client, styles, migration] = await Promise.all([
     readFile(new URL("../app/api/admin/event/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/rsvps/route.ts", import.meta.url), "utf8"),
@@ -103,6 +103,8 @@ test("meal seating keeps table allocation private and validates split family ass
   assert.match(rsvp, /db\.delete\(mealAssignments\)/);
   assert.match(client, /function initMealSeating/);
   assert.match(client, /swapAllocations/);
+  assert.match(client, /<h3>活動安排<\/h3>/);
+  assert.match(client, /桌遊、滑雪等活動/);
   assert.match(client, /同一筆報名超過空位時/);
   assert.match(styles, /\.meal-table-grid/);
   assert.doesNotMatch(await readFile(new URL("../app/api/events/route.ts", import.meta.url), "utf8"), /mealTables/);
@@ -111,6 +113,25 @@ test("meal seating keeps table allocation private and validates split family ass
 test("LINE roster command accepts both 啟動 and 啓動", () => {
   assert.equal(normalizeLineCommand("原神啟動"), "原神啟動");
   assert.equal(normalizeLineCommand(" 原神　啓動 "), "原神啟動");
+});
+
+test("bound LINE groups can show a privacy-safe current activity arrangement", async () => {
+  const [webhook, lineLib, client, guide] = await Promise.all([
+    readFile(new URL("../app/api/line/webhook/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/line/lib.ts", import.meta.url), "utf8"),
+    readFile(new URL("../docs/app.js", import.meta.url), "utf8"),
+    readFile(new URL("../docs/line-bot-guide.html", import.meta.url), "utf8"),
+  ]);
+  assert.equal(normalizeLineCommand(" 安 排 "), "安排");
+  assert.match(webhook, /command === "安排"/);
+  assert.match(webhook, /mealTables/);
+  assert.match(webhook, /mealAssignments/);
+  assert.match(webhook, /activityArrangementMessage/);
+  assert.match(lineLib, /export function activityArrangementMessage/);
+  assert.match(lineLib, /尚未建立活動安排/);
+  assert.match(client, /輸入「安排」可查看目前活動安排/);
+  assert.match(guide, /<dt>安排<\/dt>/);
+  assert.match(guide, /活動安排（聚餐、分組都適用）/);
 });
 
 test("creators can manage activities with an independent management link without exposing admin rights to guests", async () => {
@@ -168,7 +189,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.12/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.13/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
   assert.match(styles, /grid-template-areas:"visitor" "owner" "tagline" "top"/);
 });
@@ -179,9 +200,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.12/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.12/);
-  assert.match(worker, /good-days-github-v14/);
+  assert.match(page, /\/app\.js\?v=1\.2\.13/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.13/);
+  assert.match(worker, /good-days-github-v15/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 

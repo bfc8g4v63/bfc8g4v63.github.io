@@ -464,7 +464,7 @@ function linePanel(line) {
   return `
     <div class="line-status ${binding ? "connected" : ""}">
       <strong>${binding ? `已綁定：${esc(binding.groupName)}` : "尚未綁定 LINE 群組"}</strong>
-      <p>${binding ? "自動提醒會傳送到這個群組；輸入「活動」可廣播活動連結與 QR Code，輸入「原神啟動」預設只廣播姓名與人數。" : "先產生 6 位數綁定碼，再到家族 LINE 群組輸入。"}</p>
+      <p>${binding ? "自動提醒會傳送到這個群組；輸入「活動」可廣播活動連結與 QR Code，輸入「原神啟動」預設只廣播姓名與人數，輸入「安排」可查看目前活動安排。" : "先產生 6 位數綁定碼，再到家族 LINE 群組輸入。"}</p>
       <div id="binding-code-area"></div>
       <div class="inline-actions">
         ${binding ? '<button class="secondary" id="line-test">傳送測試提醒</button><button class="text-danger" id="line-unbind">解除綁定</button>' : '<button class="line-button" id="line-code">產生群組綁定碼</button>'}
@@ -572,7 +572,7 @@ function initMealSeating(data, event, managerAuth) {
       (item.tableId === second.tableId && item.rsvpId === first.rsvpId)
       || (item.tableId === first.tableId && item.rsvpId === second.rsvpId)
     ));
-    if (duplicate) return message("其中一家已在目標桌有安排；請先移回未安排區後再交換。\n");
+    if (duplicate) return message("其中一家已在目標安排區有安排；請先移回未安排區後再交換。\n");
     const originalTable = first.tableId;
     first.tableId = second.tableId;
     second.tableId = originalTable;
@@ -603,16 +603,16 @@ function initMealSeating(data, event, managerAuth) {
       }).join("") || '<p class="meal-empty">尚未安排</p>';
       return `<article class="meal-table-card ${status}" data-seat-drop-table="${esc(table.id)}">
         <div class="meal-table-head">
-          <label>桌次<input data-seat-table-name="${esc(table.id)}" value="${esc(table.name)}" maxlength="40"></label>
+          <label>安排區名稱<input data-seat-table-name="${esc(table.id)}" value="${esc(table.name)}" maxlength="40"></label>
           <label>上限<input data-seat-table-capacity="${esc(table.id)}" type="number" min="1" max="50" inputmode="numeric" value="${table.capacity}"></label>
-          <label class="meal-reserve"><input data-seat-table-reserve="${esc(table.id)}" type="checkbox" ${table.isReserve ? "checked" : ""}>預備桌</label>
+          <label class="meal-reserve"><input data-seat-table-reserve="${esc(table.id)}" type="checkbox" ${table.isReserve ? "checked" : ""}>預備區</label>
         </div>
         <div class="meal-table-count"><strong>${total} / ${table.capacity}</strong><span>${total >= table.capacity ? "已滿" : `尚有 ${table.capacity - total} 位`}</span></div>
-        <label class="meal-table-note">位置／備註<input data-seat-table-note="${esc(table.id)}" value="${esc(table.note || "")}" maxlength="80" placeholder="例如：靠近投影、方便出入"></label>
+        <label class="meal-table-note">位置／分組備註<input data-seat-table-note="${esc(table.id)}" value="${esc(table.note || "")}" maxlength="80" placeholder="例如：靠近投影、方便出入、帶隊小明"></label>
         <div class="meal-assignment-list">${allocationRows}</div>
-        <div class="meal-table-actions"><button class="secondary" type="button" data-seat-add-selected="${esc(table.id)}">安排選取家庭</button><button class="text-danger" type="button" data-seat-remove-table="${esc(table.id)}">移除桌次</button></div>
+        <div class="meal-table-actions"><button class="secondary" type="button" data-seat-add-selected="${esc(table.id)}">安排選取家庭</button><button class="text-danger" type="button" data-seat-remove-table="${esc(table.id)}">移除安排區</button></div>
       </article>`;
-    }).join("") || '<div class="meal-empty-state">請先設定桌數與每桌人數上限。</div>';
+    }).join("") || '<div class="meal-empty-state">請先設定安排區數量與每區人數上限。</div>';
     root.innerHTML = `
       <div class="meal-seating-summary">
         <div><strong>${attending.reduce((sum, item) => sum + item.partySize, 0)}</strong><span>參加人數</span></div>
@@ -620,11 +620,11 @@ function initMealSeating(data, event, managerAuth) {
         <div><strong>${unassignedPeople}</strong><span>未安排</span></div>
         <div><strong>${totalCapacity || "—"}</strong><span>桌次總容量</span></div>
       </div>
-      <details class="meal-setup" ${state.tables.length ? "" : "open"}><summary>設定桌數與人數上限</summary>
-        <div class="meal-setup-fields"><label>桌數<input id="meal-table-count" type="number" min="1" max="24" value="${state.tables.length || 6}" inputmode="numeric"></label><label>每桌預設上限<input id="meal-table-capacity" type="number" min="1" max="50" value="10" inputmode="numeric"></label><button class="secondary" type="button" id="meal-build-tables">${state.tables.length ? "重新建立桌次" : "建立桌次"}</button></div>
-        <p class="form-hint">重新建立會清除目前尚未儲存的桌次安排；各桌也可在下方個別調整人數與備註。</p>
+      <details class="meal-setup" ${state.tables.length ? "" : "open"}><summary>設定安排區與人數上限</summary>
+        <div class="meal-setup-fields"><label>安排區數量<input id="meal-table-count" type="number" min="1" max="24" value="${state.tables.length || 6}" inputmode="numeric"></label><label>每區預設上限<input id="meal-table-capacity" type="number" min="1" max="50" value="10" inputmode="numeric"></label><button class="secondary" type="button" id="meal-build-tables">${state.tables.length ? "重新建立安排區" : "建立安排區"}</button></div>
+        <p class="form-hint">重新建立會清除目前尚未儲存的安排；各區也可在下方個別調整人數與備註。</p>
       </details>
-      <div class="meal-seating-actions"><button class="secondary" type="button" id="meal-add-table">＋ 新增一桌</button><button class="primary" type="button" id="meal-save">儲存餐桌安排</button></div>
+      <div class="meal-seating-actions"><button class="secondary" type="button" id="meal-add-table">＋ 新增安排區</button><button class="primary" type="button" id="meal-save">儲存活動安排</button></div>
       ${state.error ? `<p class="form-error">${esc(state.error)}</p>` : ""}
       <div class="meal-workspace"><section class="meal-unassigned"><div><p class="eyebrow">先選家庭，再點桌次</p><h4>未安排</h4></div>${unassignedCards}</section><section class="meal-table-grid">${tables}</section></div>
       <p class="form-hint">電腦可把家庭卡拖到桌次；拖到另一張家庭卡可交換桌次。手機請先選家庭，再按目標桌的「安排選取家庭」。同一筆報名超過空位時，可輸入要先安排的人數。</p>`;
@@ -663,7 +663,7 @@ function initMealSeating(data, event, managerAuth) {
     }));
     root.querySelectorAll("[data-seat-remove-table]").forEach((button) => button.addEventListener("click", () => {
       const tableId = button.dataset.seatRemoveTable;
-      if (assignmentsFor(tableId).length) return message("請先把這桌的家庭移回未安排區或移到其他桌。\n");
+      if (assignmentsFor(tableId).length) return message("請先把這個安排區的家庭移回未安排區或移到其他安排區。\n");
       state.tables = state.tables.filter((item) => item.id !== tableId).map((item, index) => ({ ...item, sortOrder: index })); render();
     }));
     root.querySelectorAll("[data-seat-table-name]").forEach((input) => input.addEventListener("change", () => {
@@ -677,13 +677,13 @@ function initMealSeating(data, event, managerAuth) {
     }));
     root.querySelectorAll("[data-seat-table-capacity]").forEach((input) => input.addEventListener("change", () => {
       const table = tableById(input.dataset.seatTableCapacity); const capacity = Number(input.value);
-      if (!table || !Number.isInteger(capacity) || capacity < 1 || capacity > 50) return message("每桌人數上限須為 1 到 50 的整數。\n");
+      if (!table || !Number.isInteger(capacity) || capacity < 1 || capacity > 50) return message("每區人數上限須為 1 到 50 的整數。\n");
       if (capacity < tableTotal(table.id)) return message(`「${table.name}」目前已有 ${tableTotal(table.id)} 人，不能把上限設得更低。\n`);
       table.capacity = capacity; state.error = ""; render();
     }));
     root.querySelector("#meal-build-tables")?.addEventListener("click", () => {
       const count = Number(root.querySelector("#meal-table-count").value); const capacity = Number(root.querySelector("#meal-table-capacity").value);
-      if (!Number.isInteger(count) || count < 1 || count > 24 || !Number.isInteger(capacity) || capacity < 1 || capacity > 50) return message("桌數請填 1 到 24；每桌上限請填 1 到 50。\n");
+      if (!Number.isInteger(count) || count < 1 || count > 24 || !Number.isInteger(capacity) || capacity < 1 || capacity > 50) return message("安排區數量請填 1 到 24；每區上限請填 1 到 50。\n");
       if ((state.tables.length || state.assignments.length) && !confirm("重新建立桌次會清除目前尚未儲存的安排，確定繼續嗎？")) return;
       state.tables = Array.from({ length: count }, (_, index) => newMealTable(index, capacity)); state.assignments = []; state.selectedRsvpId = ""; state.error = ""; render();
     });
@@ -702,8 +702,8 @@ function initMealSeating(data, event, managerAuth) {
         });
         const fresh = await requestJson("/admin/event", managerPayload(event.id, managerAuth));
         openAdminDashboard(fresh, managerAuth);
-        showNotice(result.message || "餐桌安排已儲存");
-      } catch (error) { message(error.message || "無法儲存餐桌安排"); }
+        showNotice(result.message || "活動安排已儲存");
+      } catch (error) { message(error.message || "無法儲存活動安排"); }
       finally { button.disabled = false; }
     });
   }
@@ -738,8 +738,8 @@ function openAdminDashboard(data, managerAuth) {
           <p class="form-error" id="rsvp-error" role="alert" hidden></p>
         </section>
         <section class="admin-section meal-section">
-          <div class="admin-section-title"><div><p class="eyebrow">聚餐專用・僅管理者可見</p><h3>餐桌安排</h3></div><span>可拖曳、拆分與調整桌次</span></div>
-          <p class="form-hint">先設定桌數與每桌上限，再把家庭／同行者安排到不同桌次。人數超過單桌容量時，可分次安排到不同桌。</p>
+          <div class="admin-section-title"><div><p class="eyebrow">活動分組・僅管理者可見</p><h3>活動安排</h3></div><span>可拖曳、拆分與調整分組</span></div>
+          <p class="form-hint">聚餐可設定桌次；桌遊、滑雪等活動可把區名改成分組或集合區。設定每區上限後，再把家庭／同行者安排到不同區；人數超過上限時，可分次安排。</p>
           <div id="meal-seating-root"></div>
         </section>
         <section class="admin-section line-section">
