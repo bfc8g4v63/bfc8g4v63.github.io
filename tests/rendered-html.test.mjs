@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { normalizeLineCommand } from "../app/api/line/commands.ts";
+import { arrangementNameKey } from "../lib/arrangement.ts";
 
 test("legacy host renders the GitHub Pages handoff", async () => {
   const [page, layout] = await Promise.all([
@@ -110,6 +111,29 @@ test("activity arrangements keep allocation private and validate split family as
   assert.doesNotMatch(await readFile(new URL("../app/api/events/route.ts", import.meta.url), "utf8"), /mealTables/);
 });
 
+test("activity arrangements require unique names within an activity", async () => {
+  const [admin, schema, schemaInit, client, migration] = await Promise.all([
+    readFile(new URL("../app/api/admin/event/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
+    readFile(new URL("../db/init.ts", import.meta.url), "utf8"),
+    readFile(new URL("../docs/app.js", import.meta.url), "utf8"),
+    readFile(new URL("../drizzle/0006_ambiguous_trauma.sql", import.meta.url), "utf8"),
+  ]);
+  assert.equal(arrangementNameKey("第 5 桌"), arrangementNameKey("第5桌"));
+  assert.equal(arrangementNameKey("紅　隊"), arrangementNameKey("紅隊"));
+  assert.match(admin, /arrangementNameKey/);
+  assert.match(admin, /安排區名稱「\$\{name\}」/);
+  assert.match(schema, /nameKey: text\("name_key"\)/);
+  assert.match(schema, /meal_tables_event_name_key_unique/);
+  assert.match(schemaInit, /meal_tables_event_name_key_unique/);
+  assert.match(schemaInit, /legacy-\$\{table\.id\}/);
+  assert.match(client, /function tableNameErrors/);
+  assert.match(client, /與「\$\{name\}」名稱重複/);
+  assert.match(client, /新安排區 \$\{index\}/);
+  assert.match(migration, /name_key` text NOT NULL DEFAULT ''/);
+  assert.doesNotMatch(migration, /CREATE UNIQUE INDEX/);
+});
+
 test("LINE roster command accepts both 啟動 and 啓動", () => {
   assert.equal(normalizeLineCommand("原神啟動"), "原神啟動");
   assert.equal(normalizeLineCommand(" 原神　啓動 "), "原神啟動");
@@ -198,7 +222,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.14/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.15/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
   assert.match(styles, /grid-template-areas:"visitor" "owner" "tagline" "top"/);
 });
@@ -209,9 +233,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.14/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.14/);
-  assert.match(worker, /good-days-github-v16/);
+  assert.match(page, /\/app\.js\?v=1\.2\.15/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.15/);
+  assert.match(worker, /good-days-github-v17/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 

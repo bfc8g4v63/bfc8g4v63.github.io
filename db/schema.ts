@@ -76,12 +76,16 @@ export const mealTables = sqliteTable("meal_tables", {
   id: text("id").primaryKey(),
   eventId: text("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
+  nameKey: text("name_key").notNull(),
   capacity: integer("capacity").notNull().default(10),
   isReserve: integer("is_reserve", { mode: "boolean" }).notNull().default(false),
   note: text("note").notNull().default(""),
   sortOrder: integer("sort_order").notNull().default(0),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
-}, (table) => [uniqueIndex("meal_tables_event_sort_unique").on(table.eventId, table.sortOrder)]);
+}, (table) => [
+  uniqueIndex("meal_tables_event_sort_unique").on(table.eventId, table.sortOrder),
+  uniqueIndex("meal_tables_event_name_key_unique").on(table.eventId, table.nameKey),
+]);
 
 export const mealAssignments = sqliteTable("meal_assignments", {
   id: text("id").primaryKey(),

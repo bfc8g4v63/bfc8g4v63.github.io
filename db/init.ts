@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { arrangementNameKey } from "../lib/arrangement";
 
 let ready: Promise<void> | null = null;
 
@@ -83,6 +84,7 @@ export function ensureSchema() {
         id TEXT PRIMARY KEY NOT NULL,
         event_id TEXT NOT NULL,
         name TEXT NOT NULL,
+        name_key TEXT NOT NULL,
         capacity INTEGER NOT NULL DEFAULT 10,
         is_reserve INTEGER NOT NULL DEFAULT 0,
         note TEXT NOT NULL DEFAULT '',
@@ -90,7 +92,6 @@ export function ensureSchema() {
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
       )`),
-      database.prepare("CREATE UNIQUE INDEX IF NOT EXISTS meal_tables_event_sort_unique ON meal_tables (event_id, sort_order)"),
       database.prepare(`CREATE TABLE IF NOT EXISTS meal_assignments (
         id TEXT PRIMARY KEY NOT NULL,
         event_id TEXT NOT NULL,
@@ -146,6 +147,29 @@ export function ensureSchema() {
     if (!rsvpNames.has("viewer_token_hash")) {
       await database.prepare("ALTER TABLE rsvps ADD COLUMN viewer_token_hash TEXT NOT NULL DEFAULT ''").run();
     }
+    const mealTableColumns = await database.prepare("PRAGMA table_info(meal_tables)").all<{ name: string }>();
+    const mealTableNames = new Set((mealTableColumns.results || []).map((column) => column.name));
+    if (!mealTableNames.has("name_key")) {
+      await database.prepare("ALTER TABLE meal_tables ADD COLUMN name_key TEXT NOT NULL DEFAULT ''").run();
+    }
+    const missingTableNameKeys = await database.prepare("SELECT COUNT(*) AS count FROM meal_tables WHERE name_key = '' OR name_key IS NULL").first<{ count: number }>();
+    if (missingTableNameKeys?.count) {
+      const savedTables = await database.prepare("SELECT id, event_id, name, name_key FROM meal_tables").all<{
+        id: string; event_id: string; name: string; name_key: string;
+      }>();
+      const usedNameKeys = new Set<string>();
+      const tableNameUpdates: D1PreparedStatement[] = [];
+      for (const table of savedTables.results || []) {
+        const baseKey = arrangementNameKey(table.name) || `legacy-${table.id}`;
+        const scopeKey = `${table.event_id}:${baseKey}`;
+        const nameKey = usedNameKeys.has(scopeKey) ? `${baseKey}--legacy-${table.id}` : baseKey;
+        usedNameKeys.add(`${table.event_id}:${nameKey}`);
+        if (table.name_key !== nameKey) {
+          tableNameUpdates.push(database.prepare("UPDATE meal_tables SET name_key = ? WHERE id = ?").bind(nameKey, table.id));
+        }
+      }
+      if (tableNameUpdates.length) await database.batch(tableNameUpdates);
+    }
     const settingColumns = await database.prepare("PRAGMA table_info(line_reminder_settings)").all<{ name: string }>();
     const settingNames = new Set((settingColumns.results || []).map((column) => column.name));
     const hasLegacyRsvpDetails = settingNames.has("include_rsvp_details");
@@ -163,6 +187,10 @@ export function ensureSchema() {
     }
     await database.prepare("UPDATE events SET share_token = lower(hex(randomblob(16))) WHERE share_token = '' OR share_token IS NULL").run();
     await database.prepare("CREATE UNIQUE INDEX IF NOT EXISTS events_share_token_unique ON events (share_token)").run();
+    await database.batch([
+      database.prepare("CREATE UNIQUE INDEX IF NOT EXISTS meal_tables_event_sort_unique ON meal_tables (event_id, sort_order)"),
+      database.prepare("CREATE UNIQUE INDEX IF NOT EXISTS meal_tables_event_name_key_unique ON meal_tables (event_id, name_key)"),
+    ]);
     await database.batch([
       database.prepare("DROP TRIGGER IF EXISTS rsvps_capacity_before_insert"),
       database.prepare("DROP TRIGGER IF EXISTS rsvps_capacity_before_update"),

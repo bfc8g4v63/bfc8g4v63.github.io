@@ -492,6 +492,20 @@ function newMealTable(index, capacity = 10) {
   };
 }
 
+function arrangementNameKey(value) {
+  return String(value || "").normalize("NFKC").replace(/\s+/gu, "").toLocaleLowerCase("en-US");
+}
+
+function newAdditionalMealTable(tables, capacity = 10) {
+  const existing = new Set(tables.map((table) => arrangementNameKey(table.name)));
+  let index = tables.length + 1;
+  while (existing.has(arrangementNameKey(`新安排區 ${index}`))) index += 1;
+  return {
+    id: mealTableId(), name: `新安排區 ${index}`, capacity,
+    isReserve: false, note: "", sortOrder: tables.length,
+  };
+}
+
 function initMealSeating(data, event, managerAuth) {
   const root = document.querySelector("#meal-seating-root");
   if (!root) return;
@@ -510,6 +524,39 @@ function initMealSeating(data, event, managerAuth) {
     .filter((item) => item.rsvpId === rsvpId).reduce((sum, item) => sum + item.people, 0);
   const unassignedFor = (rsvpId) => Math.max(0, (rsvpById.get(rsvpId)?.partySize || 0) - assignedFor(rsvpId));
   const tableById = (tableId) => state.tables.find((item) => item.id === tableId);
+
+  function tableNameErrors() {
+    const errors = new Map();
+    const names = new Map();
+    for (const table of state.tables) {
+      const name = table.name.trim();
+      const key = arrangementNameKey(name);
+      if (!key) {
+        errors.set(table.id, "請輸入安排區名稱");
+        continue;
+      }
+      const first = names.get(key);
+      if (first) {
+        errors.set(first.id, `與「${name}」名稱重複`);
+        errors.set(table.id, `與「${first.name}」名稱重複`);
+      } else names.set(key, { id: table.id, name });
+    }
+    return errors;
+  }
+
+  function refreshTableNameValidation() {
+    const errors = tableNameErrors();
+    root.querySelectorAll("[data-seat-table-name]").forEach((input) => {
+      const error = errors.get(input.dataset.seatTableName) || "";
+      input.classList.toggle("input-error", Boolean(error));
+      input.setAttribute("aria-invalid", String(Boolean(error)));
+      const errorBox = root.querySelector(`[data-seat-table-name-error="${CSS.escape(input.dataset.seatTableName)}"]`);
+      if (errorBox) { errorBox.textContent = error; errorBox.hidden = !error; }
+    });
+    const save = root.querySelector("#meal-save");
+    if (save) save.disabled = Boolean(errors.size);
+    return errors;
+  }
 
   function message(text) {
     state.error = text;
@@ -584,6 +631,7 @@ function initMealSeating(data, event, managerAuth) {
     const assignedPeople = state.assignments.reduce((sum, item) => sum + item.people, 0);
     const unassignedPeople = attending.reduce((sum, item) => sum + unassignedFor(item.id), 0);
     const totalCapacity = state.tables.reduce((sum, table) => sum + table.capacity, 0);
+    const nameErrors = tableNameErrors();
     const unassignedCards = attending.map((rsvp) => ({ rsvp, people: unassignedFor(rsvp.id) }))
       .filter((item) => item.people > 0).map(({ rsvp, people }) => `
         <button class="meal-party-card ${state.selectedRsvpId === rsvp.id ? "selected" : ""}" type="button" draggable="true" data-seat-select="${esc(rsvp.id)}">
@@ -603,7 +651,7 @@ function initMealSeating(data, event, managerAuth) {
       }).join("") || '<p class="meal-empty">尚未安排</p>';
       return `<article class="meal-table-card ${status}" data-seat-drop-table="${esc(table.id)}">
         <div class="meal-table-head">
-          <label>安排區名稱<input data-seat-table-name="${esc(table.id)}" value="${esc(table.name)}" maxlength="40"></label>
+          <label class="meal-table-name">安排區名稱<input class="${nameErrors.has(table.id) ? "input-error" : ""}" data-seat-table-name="${esc(table.id)}" value="${esc(table.name)}" maxlength="40" aria-invalid="${nameErrors.has(table.id)}"><small data-seat-table-name-error="${esc(table.id)}" ${nameErrors.has(table.id) ? "" : "hidden"}>${esc(nameErrors.get(table.id) || "")}</small></label>
           <label>上限<input data-seat-table-capacity="${esc(table.id)}" type="number" min="1" max="50" inputmode="numeric" value="${table.capacity}"></label>
           <label class="meal-reserve"><input data-seat-table-reserve="${esc(table.id)}" type="checkbox" ${table.isReserve ? "checked" : ""}>預備區</label>
         </div>
@@ -624,7 +672,7 @@ function initMealSeating(data, event, managerAuth) {
         <div class="meal-setup-fields"><label>安排區數量<input id="meal-table-count" type="number" min="1" max="24" value="${state.tables.length || 6}" inputmode="numeric"></label><label>每區預設上限<input id="meal-table-capacity" type="number" min="1" max="50" value="10" inputmode="numeric"></label><button class="secondary" type="button" id="meal-build-tables">${state.tables.length ? "重新建立安排區" : "建立安排區"}</button></div>
         <p class="form-hint">重新建立會清除目前尚未儲存的安排；各區也可在下方個別調整人數與備註。</p>
       </details>
-      <div class="meal-seating-actions"><button class="secondary" type="button" id="meal-add-table">＋ 新增安排區</button><button class="primary" type="button" id="meal-save">儲存活動安排</button></div>
+      <div class="meal-seating-actions"><button class="secondary" type="button" id="meal-add-table">＋ 新增安排區</button><button class="primary" type="button" id="meal-save" ${nameErrors.size ? "disabled" : ""}>儲存活動安排</button></div>
       ${state.error ? `<p class="form-error">${esc(state.error)}</p>` : ""}
       <div class="meal-workspace"><section class="meal-unassigned"><div><p class="eyebrow">先選家庭，再點桌次</p><h4>未安排</h4></div>${unassignedCards}</section><section class="meal-table-grid">${tables}</section></div>
       <p class="form-hint">電腦可把家庭卡拖到桌次；拖到另一張家庭卡可交換桌次。手機請先選家庭，再按目標桌的「安排選取家庭」。同一筆報名超過空位時，可輸入要先安排的人數。</p>`;
@@ -666,8 +714,9 @@ function initMealSeating(data, event, managerAuth) {
       if (assignmentsFor(tableId).length) return message("請先把這個安排區的家庭移回未安排區或移到其他安排區。\n");
       state.tables = state.tables.filter((item) => item.id !== tableId).map((item, index) => ({ ...item, sortOrder: index })); render();
     }));
-    root.querySelectorAll("[data-seat-table-name]").forEach((input) => input.addEventListener("change", () => {
-      const table = tableById(input.dataset.seatTableName); if (table) table.name = input.value.trim().slice(0, 40) || table.name;
+    root.querySelectorAll("[data-seat-table-name]").forEach((input) => input.addEventListener("input", () => {
+      const table = tableById(input.dataset.seatTableName); if (table) table.name = input.value.slice(0, 40);
+      refreshTableNameValidation();
     }));
     root.querySelectorAll("[data-seat-table-note]").forEach((input) => input.addEventListener("change", () => {
       const table = tableById(input.dataset.seatTableNote); if (table) table.note = input.value.trim().slice(0, 80);
@@ -689,9 +738,10 @@ function initMealSeating(data, event, managerAuth) {
     });
     root.querySelector("#meal-add-table")?.addEventListener("click", () => {
       if (state.tables.length >= 24) return message("第一版最多可建立 24 桌。\n");
-      state.tables.push(newMealTable(state.tables.length, 10)); render();
+      state.tables.push(newAdditionalMealTable(state.tables, 10)); render();
     });
     root.querySelector("#meal-save")?.addEventListener("click", async (clickEvent) => {
+      if (tableNameErrors().size) return message("請先修正重複的安排區名稱。\n");
       const button = clickEvent.currentTarget;
       button.disabled = true;
       try {

@@ -6,6 +6,7 @@ import { json, preflight } from "../../cors";
 import { clean, requireEventManager } from "../auth";
 import { lineConfig } from "../../line/lib";
 import { rateLimit } from "../../rate-limit";
+import { arrangementNameKey } from "../../../../lib/arrangement";
 
 export function OPTIONS(request: Request) {
   return preflight(request);
@@ -29,16 +30,23 @@ async function saveMealSeating(
   if (tableInput.length > 24 || assignmentInput.length > 240) throw new Error("餐桌安排數量超過第一版上限");
 
   const tableIds = new Set<string>();
+  const tableNames = new Map<string, string>();
   const tables = tableInput.map((item, index) => {
     const input = item && typeof item === "object" ? item as Record<string, unknown> : {};
     const id = clean(input.id, 80);
     const capacity = wholeNumber(input.capacity, 1, 50);
-    if (!id || !capacity || tableIds.has(id)) throw new Error("每張餐桌都需要不同的名稱與人數上限");
+    const name = clean(input.name, 40) || `第 ${index + 1} 桌`;
+    const nameKey = arrangementNameKey(name);
+    if (!id || !capacity || tableIds.has(id)) throw new Error("安排區資料不完整或重複");
+    const duplicateName = tableNames.get(nameKey);
+    if (!nameKey || duplicateName) throw new Error(`安排區名稱「${name}」與「${duplicateName || name}」重複，請改為不同名稱`);
     tableIds.add(id);
+    tableNames.set(nameKey, name);
     return {
       id,
       eventId,
-      name: clean(input.name, 40) || `第 ${index + 1} 桌`,
+      name,
+      nameKey,
       capacity,
       isReserve: input.isReserve === true,
       note: clean(input.note, 80),
