@@ -1,1 +1,2 @@
-ALTER TABLE `meal_tables` ADD `name_key` text NOT NULL DEFAULT '';
+-- The runtime schema initializer adds name_key only when it is missing.
+-- Keeping this migration empty avoids failing older databases that already received the column.
