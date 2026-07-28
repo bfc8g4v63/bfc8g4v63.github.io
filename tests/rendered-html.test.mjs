@@ -222,7 +222,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.15/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.16/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
   assert.match(styles, /grid-template-areas:"visitor" "owner" "tagline" "top"/);
 });
@@ -233,10 +233,30 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.15/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.15/);
-  assert.match(worker, /good-days-github-v17/);
+  assert.match(page, /\/app\.js\?v=1\.2\.16/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.16/);
+  assert.match(worker, /good-days-github-v18/);
   assert.match(worker, /self\.skipWaiting\(\)/);
+});
+
+test("public pages provide crawl discovery while individual event pages remain private", async () => {
+  const [page, guide, eventPage, robots, sitemap] = await Promise.all([
+    readFile(new URL("../docs/index.html", import.meta.url), "utf8"),
+    readFile(new URL("../docs/line-bot-guide.html", import.meta.url), "utf8"),
+    readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
+    readFile(new URL("../docs/robots.txt", import.meta.url), "utf8"),
+    readFile(new URL("../docs/sitemap.xml", import.meta.url), "utf8"),
+  ]);
+  assert.match(page, /name="robots" content="index,follow,max-image-preview:large"/);
+  assert.match(page, /rel="canonical" href="https:\/\/bfc8g4v63\.github\.io\/"/);
+  assert.match(page, /WebApplication/);
+  assert.match(guide, /rel="canonical" href="https:\/\/bfc8g4v63\.github\.io\/line-bot-guide\.html"/);
+  assert.match(eventPage, /name="robots" content="noindex,nofollow"/);
+  assert.match(robots, /Allow: \//);
+  assert.match(robots, /Sitemap: https:\/\/bfc8g4v63\.github\.io\/sitemap\.xml/);
+  assert.match(sitemap, /https:\/\/bfc8g4v63\.github\.io\/<\/loc>/);
+  assert.match(sitemap, /line-bot-guide\.html/);
+  assert.doesNotMatch(sitemap, /\/e\//);
 });
 
 test("RSVP capacity is enforced atomically while existing attendees can reduce their reply", async () => {
