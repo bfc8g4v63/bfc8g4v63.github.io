@@ -130,8 +130,8 @@ test("activity arrangements require unique names within an activity", async () =
   assert.match(client, /function tableNameErrors/);
   assert.match(client, /與「\$\{name\}」名稱重複/);
   assert.match(client, /新安排區 \$\{index\}/);
-  assert.match(migration, /name_key` text NOT NULL DEFAULT ''/);
-  assert.doesNotMatch(migration, /CREATE UNIQUE INDEX/);
+  assert.match(migration, /runtime schema initializer/);
+  assert.doesNotMatch(migration, /ALTER TABLE/);
 });
 
 test("LINE roster command accepts both 啟動 and 啓動", () => {
