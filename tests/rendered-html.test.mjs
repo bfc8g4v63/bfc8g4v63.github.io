@@ -87,6 +87,9 @@ test("fairy requests are private, rate-limited, and only notify a paired LINE ac
   assert.match(page, /2026\/08\/22 \(六\) 12:00/);
   assert.match(page, /仙女誕辰/);
   assert.match(page, /2026\/09\/22 \(二\)/);
+  const questTimeline = page.match(/<ol class="quest-map">([\s\S]*?)<\/ol>/)?.[1] || "";
+  assert.ok(questTimeline.indexOf("共度午餐") < questTimeline.indexOf("羽球副本"));
+  assert.ok(questTimeline.indexOf("羽球副本") < questTimeline.indexOf("仙女誕辰"));
   assert.match(page, /南瓜馬車/);
 });
 
