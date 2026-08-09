@@ -74,6 +74,10 @@ test("fairy requests are private, rate-limited, and only notify a paired LINE ac
   assert.match(page, /提示：仙女生日/);
   assert.match(fairyClient, /accessHash/);
   assert.doesNotMatch(fairyClient, /0922/);
+  assert.match(page, /id="fairy-bgm"/);
+  assert.match(page, /assets\/fairy-warm\.mp3/);
+  assert.match(page, /預設靜音，想聽再打開就好/);
+  assert.match(fairyClient, /backgroundMusic\.play\(\)/);
   assert.match(page, /南瓜馬車/);
 });
 

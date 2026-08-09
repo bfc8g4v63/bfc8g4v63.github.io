@@ -18,6 +18,10 @@
   const mainContent = document.querySelector("#main-content");
   const accessKey = "fairy_access_v1_4";
   const accessHash = "207fd47ed6a8671043e9f79626bb8826c1d306f0ca5ac300e10d53094fe206d0";
+  const backgroundMusic = document.querySelector("#fairy-bgm");
+  const backgroundMusicToggle = document.querySelector("#bgm-toggle");
+  const backgroundMusicVolume = document.querySelector("#bgm-volume");
+  const backgroundMusicStatus = document.querySelector("#bgm-status");
 
   window.setTimeout(() => document.documentElement.classList.add("is-ready"), 1500);
 
@@ -73,6 +77,46 @@
         button.disabled = false;
       }
     });
+  }
+
+  function updateBackgroundMusicUi() {
+    if (!backgroundMusic || !backgroundMusicToggle || !backgroundMusicStatus) return;
+    const isAudible = !backgroundMusic.paused && !backgroundMusic.muted && backgroundMusic.volume > 0;
+    backgroundMusicToggle.setAttribute("aria-pressed", String(isAudible));
+    backgroundMusicToggle.setAttribute("aria-label", isAudible ? "靜音背景音樂" : "開啟背景音樂");
+    backgroundMusicStatus.textContent = isAudible
+      ? "正在播放，想低調一點可以拉小聲。"
+      : "預設靜音，想聽再打開就好。";
+  }
+
+  if (backgroundMusic && backgroundMusicToggle && backgroundMusicVolume) {
+    backgroundMusic.volume = Number(backgroundMusicVolume.value);
+    backgroundMusic.muted = true;
+    updateBackgroundMusicUi();
+
+    backgroundMusicToggle.addEventListener("click", async () => {
+      if (backgroundMusic.paused) {
+        backgroundMusic.muted = false;
+        try {
+          await backgroundMusic.play();
+        } catch {
+          backgroundMusic.muted = true;
+          if (backgroundMusicStatus) backgroundMusicStatus.textContent = "音樂還沒能出發，請再點一次喇叭。";
+          return;
+        }
+      } else {
+        backgroundMusic.muted = !backgroundMusic.muted;
+      }
+      updateBackgroundMusicUi();
+    });
+
+    backgroundMusicVolume.addEventListener("input", () => {
+      backgroundMusic.volume = Number(backgroundMusicVolume.value);
+      if (!backgroundMusic.paused && backgroundMusic.volume > 0) backgroundMusic.muted = false;
+      updateBackgroundMusicUi();
+    });
+
+    backgroundMusic.addEventListener("ended", updateBackgroundMusicUi);
   }
 
   function setRating(value, announce = false) {
