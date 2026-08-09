@@ -10,6 +10,9 @@
   const requestMessage = document.querySelector("#request-message");
   const quickReplies = [...document.querySelectorAll("[data-reply]")];
   const quickReplyMessage = document.querySelector("#quick-reply-message");
+  const demonRuleCard = document.querySelector("#demon-rule-card");
+  const demonRuleToggle = document.querySelector("#demon-rule-toggle");
+  const demonRuleDetails = document.querySelector("#demon-rule-details");
   const API = "https://good-days-family-events.x0925234139.chatgpt.site/api";
   const accessGate = document.querySelector("#access-gate");
   const accessForm = document.querySelector("#access-form");
@@ -117,6 +120,15 @@
     });
 
     backgroundMusic.addEventListener("ended", updateBackgroundMusicUi);
+  }
+
+  if (demonRuleCard && demonRuleToggle && demonRuleDetails) {
+    demonRuleToggle.addEventListener("click", () => {
+      const isOpen = demonRuleToggle.getAttribute("aria-expanded") !== "true";
+      demonRuleToggle.setAttribute("aria-expanded", String(isOpen));
+      demonRuleDetails.setAttribute("aria-hidden", String(!isOpen));
+      demonRuleCard.classList.toggle("is-open", isOpen);
+    });
   }
 
   function setRating(value, announce = false) {

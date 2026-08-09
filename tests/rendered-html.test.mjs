@@ -79,6 +79,15 @@ test("fairy requests are private, rate-limited, and only notify a paired LINE ac
   assert.match(page, /assets\/fairy-warm\.mp3/);
   assert.match(page, /預設靜音，想聽再打開就好/);
   assert.match(fairyClient, /backgroundMusic\.play\(\)/);
+  assert.match(page, /仙界補給守則/);
+  assert.match(page, /咖啡[\s\S]*?退散/);
+  assert.match(page, /茶飲[\s\S]*?准奏/);
+  assert.match(page, /F1[\s\S]*?優先通行/);
+  assert.match(page, /精緻單點[\s\S]*?仙女認證/);
+  assert.match(page, /Me Time[\s\S]*?仙界保護區/);
+  assert.match(page, /id="demon-rule-toggle"[^>]*aria-expanded="false"/);
+  assert.match(page, /香菜・芹菜・苦瓜・南瓜・茄子・大陸妹/);
+  assert.match(fairyClient, /demonRuleToggle\.addEventListener\("click"/);
   assert.match(page, /第一次聊天/);
   assert.match(page, /fairy-icon vanish-icon/);
   assert.match(page, /斷開魂結 N 年/);
