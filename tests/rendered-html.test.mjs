@@ -65,7 +65,8 @@ test("fairy requests are private, rate-limited, and only notify a paired LINE ac
   assert.match(page, /name="coffee"/);
   assert.match(page, /name="date" type="date"/);
   assert.match(page, /少卿陪聊/);
-  assert.match(page, /08\/22 約會副本/);
+  assert.match(page, /共度午餐/);
+  assert.match(page, /2026\/08\/22 \(六\) 12:00/);
   assert.match(page, /fairy-icons\.svg#coffee-cup/);
   assert.match(page, /fairy-icons\.svg#chat/);
   assert.match(page, /fairy-icons\.svg#carriage/);
@@ -78,6 +79,12 @@ test("fairy requests are private, rate-limited, and only notify a paired LINE ac
   assert.match(page, /assets\/fairy-warm\.mp3/);
   assert.match(page, /預設靜音，想聽再打開就好/);
   assert.match(fairyClient, /backgroundMusic\.play\(\)/);
+  assert.match(page, /第一次聊天/);
+  assert.match(page, /斷開魂結 N 年/);
+  assert.match(page, /2024\/05\/06 \(一\) 15:41/);
+  assert.match(page, /2026\/07\/08 \(三\) 23:43/);
+  assert.match(page, /共度午餐/);
+  assert.match(page, /2026\/08\/22 \(六\) 12:00/);
   assert.match(page, /南瓜馬車/);
 });
 
