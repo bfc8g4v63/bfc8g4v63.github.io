@@ -27,10 +27,8 @@
   const backgroundMusicVolume = document.querySelector("#bgm-volume");
   const backgroundMusicStatus = document.querySelector("#bgm-status");
 
-  window.setTimeout(() => document.documentElement.classList.add("is-ready"), 1500);
-
   function unlockStation() {
-    document.body.classList.remove("gate-locked");
+    document.body.classList.remove("gate-locked", "detector-active");
     mainContent?.removeAttribute("aria-hidden");
     if (mainContent && "inert" in mainContent) mainContent.inert = false;
     accessGate?.setAttribute("aria-hidden", "true");
@@ -48,14 +46,33 @@
   }
 
   if (mainContent && "inert" in mainContent) mainContent.inert = true;
-  try {
-    if (window.sessionStorage.getItem(accessKey) === "open") unlockStation();
-  } catch {
-    // Leave the gate visible when storage cannot be read.
+
+  function openAccessGate() {
+    document.body.classList.remove("detector-active");
+    accessGate?.removeAttribute("aria-hidden");
+    window.setTimeout(() => accessPassword?.focus(), 300);
   }
 
+  function hasStationAccess() {
+    try {
+      return window.sessionStorage.getItem(accessKey) === "open";
+    } catch {
+      return false;
+    }
+  }
+
+  // Every visit begins with the detector screen, even when this session is already verified.
+  accessGate?.setAttribute("aria-hidden", "true");
+  window.setTimeout(() => {
+    document.documentElement.classList.add("is-ready");
+    if (hasStationAccess()) {
+      unlockStation();
+    } else {
+      openAccessGate();
+    }
+  }, 1500);
+
   if (accessForm && accessPassword && accessMessage) {
-    window.setTimeout(() => accessPassword.focus(), 1600);
     accessForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       const button = accessForm.querySelector('button[type="submit"]');

@@ -118,6 +118,20 @@ test("fairy requests are private, rate-limited, and only notify a paired LINE ac
   assert.match(page, /南瓜馬車/);
 });
 
+test("fairy detector always appears before checking this session's pass", async () => {
+  const [page, fairyClient, fairyStyles] = await Promise.all([
+    readFile(new URL("../docs/fairy/index.html", import.meta.url), "utf8"),
+    readFile(new URL("../docs/fairy/fairy.js", import.meta.url), "utf8"),
+    readFile(new URL("../docs/fairy/fairy.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(page, /<body class="gate-locked detector-active">/);
+  assert.match(page, /偵測到仙女正在附近出沒/);
+  assert.match(fairyClient, /function hasStationAccess\(\)/);
+  assert.match(fairyClient, /if \(hasStationAccess\(\)\) \{[\s\S]*?unlockStation\(\)/);
+  assert.match(fairyClient, /else \{[\s\S]*?openAccessGate\(\)/);
+  assert.match(fairyStyles, /\.detector-active \.access-gate/);
+});
+
 test("privacy controls protect group broadcasts and expire operational data", async () => {
   const [webhook, lineAdmin, reminders, rsvp, guide] = await Promise.all([
     readFile(new URL("../app/api/line/webhook/route.ts", import.meta.url), "utf8"),
