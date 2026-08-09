@@ -80,6 +80,7 @@
             <label>想做什麼<select name="activity"><option value="">先保留神秘感</option><option>咖啡補給</option><option>吃飯副本</option><option>散步看夜景</option><option>羽球副本</option><option>其他小任務</option></select></label>
           </div>
         </fieldset>
+        <label class="message-field">想對少卿說的話<textarea name="note" maxlength="240" rows="3" placeholder="想說的話可以留在這裡，不寫也可以。"></textarea></label>
         <button class="send-request" type="submit">把這張小卡交給配送員 <span aria-hidden="true">✦</span></button>
         <p class="request-message" id="request-message" role="status" aria-live="polite">送出後只會私訊配送員，不會發到群組。</p>
       </form>
@@ -145,6 +146,7 @@
         <button type="button" data-rating="4" aria-label="4 星評價" aria-pressed="false">★</button>
         <button type="button" data-rating="5" aria-label="5 星評價" aria-pressed="false">★</button>
       </div>
+      <label class="rating-note-field" for="rating-note"><span>想對少卿說的話</span><textarea id="rating-note" maxlength="240" rows="3" placeholder="寫完後，選一顆星就會一起交給少卿。"></textarea></label>
       <p class="rating-message" id="rating-message" role="status" aria-live="polite">想按幾顆都可以，沒有標準答案。</p>
     </section>
 
@@ -173,11 +175,11 @@
     </section>
 
     <footer>
-      <span class="fairy-signature">© 大理寺少卿 · v1.6.0</span>
+      <span class="fairy-signature">© 大理寺少卿 · v1.7.0</span>
     </footer>
   </main>
 
   <noscript><p class="noscript-note">今日補給：星巴克補給 ×1、少卿陪聊、南瓜馬車乘車資格、今日心情 Buff +1。</p></noscript>
-  <script src="./fairy.js?v=1.6.0" defer></script>
+  <script src="./fairy.js?v=1.7.0" defer></script>
 </body>
 </html>

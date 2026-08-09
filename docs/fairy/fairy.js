@@ -6,6 +6,7 @@
   const rewardCard = document.querySelector("#reward-card");
   const ratingButtons = [...document.querySelectorAll("[data-rating]")];
   const ratingMessage = document.querySelector("#rating-message");
+  const ratingNote = document.querySelector("#rating-note");
   const requestForm = document.querySelector("#fairy-request");
   const requestMessage = document.querySelector("#request-message");
   const quickReplies = [...document.querySelectorAll("[data-reply]")];
@@ -185,7 +186,8 @@
       ratingButtons.forEach((item) => { item.disabled = true; });
       if (ratingMessage) ratingMessage.textContent = "正在交給 LINE 小幫手…";
       try {
-        await sendFairyFeedback({ type: "rating", rating: Number(rating) });
+        await sendFairyFeedback({ type: "rating", rating: Number(rating), note: ratingNote?.value.trim().slice(0, 240) || "" });
+        if (ratingNote) ratingNote.value = "";
         if (ratingMessage) ratingMessage.textContent = `${rating} 星已透過小幫手私訊回傳。`;
       } catch (error) {
         if (ratingMessage) ratingMessage.textContent = error instanceof Error ? error.message : "小幫手暫時塞車了。";
@@ -225,8 +227,9 @@
         carriageSong: String(values.get("carriageSong") || ""),
         date: String(values.get("date") || ""),
         activity: String(values.get("activity") || ""),
+        note: String(values.get("note") || ""),
       };
-      if (!payload.coffee && !payload.chat && !payload.carriageSong && !payload.date && !payload.activity) {
+      if (!payload.coffee && !payload.chat && !payload.carriageSong && !payload.date && !payload.activity && !payload.note.trim()) {
         requestMessage.textContent = "先挑一個小願望就好，空白小卡不用急著送出。";
         return;
       }

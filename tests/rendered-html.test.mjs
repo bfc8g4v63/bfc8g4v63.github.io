@@ -50,9 +50,11 @@ test("fairy requests are private, rate-limited, and only notify a paired LINE ac
     readFile(new URL("../docs/fairy/index.html", import.meta.url), "utf8"),
   ]);
   assert.match(fairyRoute, /rateLimit\(request, "fairy-note", 3, 30 \* 60 \* 1000\)/);
+  assert.match(fairyRoute, /const note = clean\(body\.note, 240\)/);
   assert.match(fairyRoute, /fairyNotificationTargets/);
   assert.match(fairyRoute, /pushText\(target\.lineUserId/);
   assert.match(fairyReactionRoute, /rateLimit\(request, "fairy-reaction", 10, 30 \* 60 \* 1000\)/);
+  assert.match(fairyReactionRoute, /const note = clean\(body\.note, 240\)/);
   assert.match(fairyReactionRoute, /quickReplies/);
   assert.match(fairyReactionRoute, /pushText\(target\.lineUserId/);
   assert.match(lineLib, /FAIRY_PAIRING_CODE/);
@@ -88,6 +90,10 @@ test("fairy requests are private, rate-limited, and only notify a paired LINE ac
   assert.match(page, /id="demon-rule-toggle"[^>]*aria-expanded="false"/);
   assert.match(page, /香菜・芹菜・苦瓜・南瓜・茄子・大陸妹/);
   assert.match(fairyClient, /demonRuleToggle\.addEventListener\("click"/);
+  assert.match(page, /name="note"/);
+  assert.match(page, /id="rating-note"/);
+  assert.match(page, /想對少卿說的話/);
+  assert.match(fairyClient, /note: ratingNote\?\.value\.trim\(\)\.slice\(0, 240\)/);
   assert.match(page, /第一次聊天/);
   assert.match(page, /fairy-icon vanish-icon/);
   assert.match(page, /斷開魂結 N 年/);

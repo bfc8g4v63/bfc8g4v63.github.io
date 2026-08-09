@@ -27,8 +27,9 @@ export async function POST(request: Request) {
     const carriageSong = clean(body.carriageSong, 80);
     const date = clean(body.date, 10);
     const activity = clean(body.activity, 40);
+    const note = clean(body.note, 240);
     const chat = body.chat === true;
-    if (!coffee && !carriageSong && !date && !activity && !chat) {
+    if (!coffee && !carriageSong && !date && !activity && !note && !chat) {
       return json(request, { error: "先挑一個小願望再送出吧" }, 400);
     }
     if (date && !validDate(date)) return json(request, { error: "日期格式看起來不太對" }, 400);
@@ -42,6 +43,7 @@ export async function POST(request: Request) {
     if (carriageSong) lines.push(`南瓜馬車乘車資格：${carriageSong}`);
     if (date || activity) lines.push(`想約的副本：${date || "日期未定"}${activity ? `｜${activity}` : ""}`);
     lines.push("（此內容由仙女補給站私訊送達，未發到任何群組。）");
+    if (note) lines.splice(Math.max(lines.length - 1, 0), 0, `想對少卿說的話：${note}`);
     await pushText(target.lineUserId, lines.join("\n"));
     return json(request, { ok: true });
   } catch (error) {
