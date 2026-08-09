@@ -85,6 +85,9 @@ test("fairy requests are private, rate-limited, and only notify a paired LINE ac
   assert.match(page, /2026\/07\/08 \(三\) 23:43/);
   assert.match(page, /空降水蜜桃/);
   assert.match(page, /2026\/07\/30 \(四\) 09:00/);
+  assert.match(page, /<li class="complete"><span aria-hidden="true"><svg class="fairy-icon"><use href="\.\/assets\/fairy-icons\.svg#chat"><\/use><\/svg><\/span><div><strong>再次相逢/);
+  assert.match(page, /<li class="complete"><span aria-hidden="true"><svg class="fairy-icon peach-icon"[\s\S]*?<strong>空降水蜜桃/);
+  assert.doesNotMatch(page, /由月光、咖啡與一點工程師執念支援營運/);
   assert.match(page, /共度午餐/);
   assert.match(page, /2026\/08\/22 \(六\) 12:00/);
   assert.match(page, /仙女誕辰/);
