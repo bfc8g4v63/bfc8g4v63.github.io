@@ -74,7 +74,7 @@ h1 { margin-bottom: 8px; color: #fff8e4; font-size: clamp(2.45rem, 12vw, 3.65rem
 .rating-stars button { width: 48px; height: 48px; padding: 0; border: 0; color: #615a8e; background: transparent; cursor: pointer; font-size: 2.15rem; line-height: 1; transition: color .16s ease, transform .16s ease; }
 .rating-stars button:hover, .rating-stars button:focus-visible, .rating-stars button.is-selected { color: #ffd778; transform: scale(1.11) rotate(-5deg); }.rating-stars button:focus-visible { outline-offset: 0; border-radius: 10px; }
 .rating-message { min-height: 1.7em; margin-bottom: 0; color: var(--lavender); font-size: .93rem; font-weight: 700; }
-footer { padding: 7px 11px 0; color: rgba(217, 208, 255, .68); font-size: .78rem; text-align: center; }
+footer { display:grid; gap:5px; padding:12px 11px 0; color:rgba(217, 208, 255, .68); font-size:.78rem; text-align:center; }.fairy-signature { justify-self:start; color:rgba(255, 229, 167, .78); font-size:.7rem; font-weight:850; letter-spacing:.08em; text-shadow:0 1px 12px rgba(255, 229, 167, .12); }.fairy-credit { display:block; }
 .noscript-note { position: relative; z-index: 2; margin: 0 18px 35px; padding: 14px; border: 1px solid var(--line); border-radius: 12px; color: var(--mist); background: var(--card); }
 
 @keyframes twinkle { 0%, 100% { opacity: .35; transform: scale(.8); } 50% { opacity: 1; transform: scale(1.25); } }
