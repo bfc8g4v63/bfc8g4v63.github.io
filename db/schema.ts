@@ -101,3 +101,9 @@ export const siteStats = sqliteTable("site_stats", {
   views: integer("views").notNull().default(0),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
+
+export const fairyNotificationTargets = sqliteTable("fairy_notification_targets", {
+  id: text("id").primaryKey(),
+  lineUserId: text("line_user_id").notNull(),
+  pairedAt: text("paired_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});

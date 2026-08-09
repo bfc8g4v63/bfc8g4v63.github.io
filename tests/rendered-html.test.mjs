@@ -39,6 +39,29 @@ test("LINE webhook verifies signatures and reminder workflow uses a secret", asy
   assert.match(workflow, /Authorization: Bearer/);
 });
 
+test("fairy requests are private, rate-limited, and only notify a paired LINE account", async () => {
+  const [fairyRoute, webhook, lineLib, schemaInit, page] = await Promise.all([
+    readFile(new URL("../app/api/fairy/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/line/webhook/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/line/lib.ts", import.meta.url), "utf8"),
+    readFile(new URL("../db/init.ts", import.meta.url), "utf8"),
+    readFile(new URL("../docs/fairy/index.html", import.meta.url), "utf8"),
+  ]);
+  assert.match(fairyRoute, /rateLimit\(request, "fairy-note", 3, 30 \* 60 \* 1000\)/);
+  assert.match(fairyRoute, /fairyNotificationTargets/);
+  assert.match(fairyRoute, /pushText\(target\.lineUserId/);
+  assert.match(lineLib, /FAIRY_PAIRING_CODE/);
+  assert.match(webhook, /fairyPairingCode/);
+  assert.match(webhook, /仙女綁定/);
+  assert.match(webhook, /senderUserId/);
+  assert.match(schemaInit, /CREATE TABLE IF NOT EXISTS fairy_notification_targets/);
+  assert.match(page, /name="robots" content="noindex,nofollow,noarchive"/);
+  assert.match(page, /name="coffee"/);
+  assert.match(page, /name="date" type="date"/);
+  assert.match(page, /少卿在線陪聊/);
+  assert.match(page, /南瓜馬車/);
+});
+
 test("privacy controls protect group broadcasts and expire operational data", async () => {
   const [webhook, lineAdmin, reminders, rsvp, guide] = await Promise.all([
     readFile(new URL("../app/api/line/webhook/route.ts", import.meta.url), "utf8"),

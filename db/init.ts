@@ -114,6 +114,11 @@ export function ensureSchema() {
         count INTEGER NOT NULL,
         reset_at INTEGER NOT NULL
       )`),
+      database.prepare(`CREATE TABLE IF NOT EXISTS fairy_notification_targets (
+        id TEXT PRIMARY KEY NOT NULL,
+        line_user_id TEXT NOT NULL,
+        paired_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`),
     ]);
     const columns = await database.prepare("PRAGMA table_info(events)").all<{ name: string }>();
     const names = new Set((columns.results || []).map((column) => column.name));

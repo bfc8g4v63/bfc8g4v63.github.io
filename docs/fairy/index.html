@@ -36,6 +36,7 @@
       <p class="eyebrow">✦ FAIRY SUPPLY STATION</p>
       <h1>仙女補給站</h1>
       <p>今夜月光充足，補給已順利送達。</p>
+      <img class="carriage-art" src="./assets/fairy-carriage.png" alt="搭著南瓜馬車送來咖啡的 Q 版配送員">
     </header>
 
     <section class="delivery-card card" aria-labelledby="delivery-title">
@@ -51,12 +52,21 @@
     <section class="reward-card card" id="reward-card" aria-labelledby="reward-title" hidden>
       <p class="eyebrow">補給明細</p>
       <h2 id="reward-title">今日份的小確幸</h2>
-      <ul class="supply-list">
-        <li><span aria-hidden="true">☕</span><strong>星巴克 × 1</strong></li>
-        <li><span aria-hidden="true">😆</span><strong>少卿幹話無限供應</strong></li>
-        <li><span aria-hidden="true">🐎</span><strong>馬車永久乘車資格</strong></li>
-        <li><span aria-hidden="true">🍽️</span><strong>0822 現實副本 × 1</strong></li>
-      </ul>
+      <form class="supply-form" id="fairy-request">
+        <label class="supply-choice"><span aria-hidden="true">☕</span><span><strong>星巴克 × 1</strong><small>想喝什麼？配送員先記下來。</small></span><input name="coffee" maxlength="80" autocomplete="off" placeholder="例如：冰美式、抹茶那提"></label>
+        <label class="supply-choice choice-toggle"><span aria-hidden="true">💬</span><span><strong>少卿在線陪聊～</strong><small>需要時再按，不用打卡報到。</small></span><input name="chat" type="checkbox" aria-label="想領取少卿在線陪聊"></label>
+        <label class="supply-choice"><span aria-hidden="true">🎃</span><span><strong>南瓜馬車歌單許願</strong><small>這台馬車不保證飛，但可以先選歌。</small></span><input name="carriageSong" maxlength="80" autocomplete="off" placeholder="想聽的歌或路上想聊的題目"></label>
+        <fieldset class="calendar-choice">
+          <legend><span aria-hidden="true">📅</span> 約個現實副本</legend>
+          <p>選一個想出沒的日子與任務；這是許願，不是出席壓力。</p>
+          <div class="calendar-fields">
+            <label>日期<input name="date" type="date"></label>
+            <label>想做什麼<select name="activity"><option value="">先保留神秘感</option><option>咖啡補給</option><option>吃飯副本</option><option>散步看夜景</option><option>羽球副本</option><option>其他小任務</option></select></label>
+          </div>
+        </fieldset>
+        <button class="send-request" type="submit">把這張小卡交給配送員 <span aria-hidden="true">✦</span></button>
+        <p class="request-message" id="request-message" role="status" aria-live="polite">送出後只會私訊配送員，不會發到群組。</p>
+      </form>
       <p class="reward-note">本券沒有使用期限，也沒有退貨服務 😂</p>
     </section>
 
@@ -91,7 +101,7 @@
     <footer>由月光、咖啡與一點工程師執念支援營運 ✦</footer>
   </main>
 
-  <noscript><p class="noscript-note">今日補給：星巴克 × 1、少卿幹話無限供應、馬車永久乘車資格、0822 現實副本 × 1。</p></noscript>
+  <noscript><p class="noscript-note">今日補給：星巴克 × 1、少卿在線陪聊～、南瓜馬車歌單許願、選一天把小願望交給配送員。</p></noscript>
   <script src="./fairy.js" defer></script>
 </body>
 </html>

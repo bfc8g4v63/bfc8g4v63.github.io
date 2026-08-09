@@ -1,14 +1,14 @@
 import { and, asc, eq } from "drizzle-orm";
 import { ensureSchema } from "../../../../db/init";
 import { getDb } from "../../../../db";
-import { events, lineBindCodes, lineBindings, lineReminderSettings, mealTables, rsvps } from "../../../../db/schema";
+import { events, fairyNotificationTargets, lineBindCodes, lineBindings, lineReminderSettings, mealTables, rsvps } from "../../../../db/schema";
 import { normalizeLineCommand } from "../commands";
-import { activityArrangementImageUrl, activityShareMessage, getGroupName, replyMessages, replyText, rsvpSummaryMessage, verifyLineSignature } from "../lib";
+import { activityArrangementImageUrl, activityShareMessage, getGroupName, lineConfig, replyMessages, replyText, rsvpSummaryMessage, verifyLineSignature } from "../lib";
 
 type LineEvent = {
   type?: string;
   replyToken?: string;
-  source?: { type?: string; groupId?: string; roomId?: string };
+  source?: { type?: string; groupId?: string; roomId?: string; userId?: string };
   message?: { type?: string; text?: string };
 };
 
@@ -24,6 +24,7 @@ export async function POST(request: Request) {
     const payload = JSON.parse(rawBody) as { events?: LineEvent[] };
     for (const event of payload.events || []) {
       const sourceType = event.source?.type || "";
+      const senderUserId = event.source?.userId || "";
       const chatId = sourceType === "group"
         ? event.source?.groupId || ""
         : sourceType === "room"
@@ -39,6 +40,24 @@ export async function POST(request: Request) {
       if (event.type !== "message" || event.message?.type !== "text") continue;
       const text = event.message.text?.trim() || "";
       const command = normalizeLineCommand(text);
+      const pairingCode = lineConfig().fairyPairingCode;
+      if (sourceType === "group" && senderUserId && pairingCode && command === `仙女綁定${normalizeLineCommand(pairingCode)}`) {
+        const db = getDb();
+        const [existingTarget] = await db.select().from(fairyNotificationTargets)
+          .where(eq(fairyNotificationTargets.id, "owner")).limit(1);
+        if (existingTarget && existingTarget.lineUserId !== senderUserId) {
+          await replyText(event.replyToken, "仙女補給站已完成私訊設定；為避免打擾，目前不開放更換通知帳號。 ");
+          continue;
+        }
+        await db.insert(fairyNotificationTargets).values({
+          id: "owner", lineUserId: senderUserId, pairedAt: new Date().toISOString(),
+        }).onConflictDoUpdate({
+          target: fairyNotificationTargets.id,
+          set: { lineUserId: senderUserId, pairedAt: new Date().toISOString() },
+        });
+        await replyText(event.replyToken, "仙女補給站已完成私訊設定。之後小卡內容只會傳給你的 LINE，不會發到群組。 ");
+        continue;
+      }
       if (command === "活動") {
         const db = getDb();
         const [binding] = await db.select().from(lineBindings)
