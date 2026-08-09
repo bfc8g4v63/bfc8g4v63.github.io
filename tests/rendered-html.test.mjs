@@ -85,6 +85,8 @@ test("fairy requests are private, rate-limited, and only notify a paired LINE ac
   assert.match(page, /2026\/07\/08 \(三\) 23:43/);
   assert.match(page, /共度午餐/);
   assert.match(page, /2026\/08\/22 \(六\) 12:00/);
+  assert.match(page, /仙女誕辰/);
+  assert.match(page, /2026\/09\/22 \(二\)/);
   assert.match(page, /南瓜馬車/);
 });
 
