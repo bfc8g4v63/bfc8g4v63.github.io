@@ -40,9 +40,10 @@ test("LINE webhook verifies signatures and reminder workflow uses a secret", asy
 });
 
 test("fairy requests are private, rate-limited, and only notify a paired LINE account", async () => {
-  const [fairyRoute, fairyReactionRoute, webhook, lineLib, schemaInit, page] = await Promise.all([
+  const [fairyRoute, fairyReactionRoute, fairyClient, webhook, lineLib, schemaInit, page] = await Promise.all([
     readFile(new URL("../app/api/fairy/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/fairy/reaction/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../docs/fairy/fairy.js", import.meta.url), "utf8"),
     readFile(new URL("../app/api/line/webhook/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/line/lib.ts", import.meta.url), "utf8"),
     readFile(new URL("../db/init.ts", import.meta.url), "utf8"),
@@ -69,6 +70,10 @@ test("fairy requests are private, rate-limited, and only notify a paired LINE ac
   assert.match(page, /fairy-icons\.svg#chat/);
   assert.match(page, /fairy-icons\.svg#carriage/);
   assert.match(page, /fairy-icons\.svg#starlight/);
+  assert.match(page, /id="access-password"/);
+  assert.match(page, /提示：仙女生日/);
+  assert.match(fairyClient, /accessHash/);
+  assert.doesNotMatch(fairyClient, /0922/);
   assert.match(page, /南瓜馬車/);
 });
 

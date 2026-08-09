@@ -11,8 +11,69 @@
   const quickReplies = [...document.querySelectorAll("[data-reply]")];
   const quickReplyMessage = document.querySelector("#quick-reply-message");
   const API = "https://good-days-family-events.x0925234139.chatgpt.site/api";
+  const accessGate = document.querySelector("#access-gate");
+  const accessForm = document.querySelector("#access-form");
+  const accessPassword = document.querySelector("#access-password");
+  const accessMessage = document.querySelector("#access-message");
+  const mainContent = document.querySelector("#main-content");
+  const accessKey = "fairy_access_v1_4";
+  const accessHash = "207fd47ed6a8671043e9f79626bb8826c1d306f0ca5ac300e10d53094fe206d0";
 
   window.setTimeout(() => document.documentElement.classList.add("is-ready"), 1500);
+
+  function unlockStation() {
+    document.body.classList.remove("gate-locked");
+    mainContent?.removeAttribute("aria-hidden");
+    if (mainContent && "inert" in mainContent) mainContent.inert = false;
+    accessGate?.setAttribute("aria-hidden", "true");
+    try {
+      window.sessionStorage.setItem(accessKey, "open");
+    } catch {
+      // The gate still works when storage is unavailable; it simply asks again after refresh.
+    }
+  }
+
+  async function hashAccessCode(value) {
+    const bytes = new TextEncoder().encode(value);
+    const digest = await crypto.subtle.digest("SHA-256", bytes);
+    return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+  }
+
+  if (mainContent && "inert" in mainContent) mainContent.inert = true;
+  try {
+    if (window.sessionStorage.getItem(accessKey) === "open") unlockStation();
+  } catch {
+    // Leave the gate visible when storage cannot be read.
+  }
+
+  if (accessForm && accessPassword && accessMessage) {
+    window.setTimeout(() => accessPassword.focus(), 1600);
+    accessForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const button = accessForm.querySelector('button[type="submit"]');
+      const code = accessPassword.value.trim();
+      if (!/^\d{4}$/.test(code)) {
+        accessMessage.textContent = "請輸入四位數通關密碼。";
+        accessPassword.focus();
+        return;
+      }
+      button.disabled = true;
+      accessMessage.textContent = "月光正在核對身分…";
+      try {
+        if (await hashAccessCode(code) !== accessHash) {
+          accessMessage.textContent = "星光對不上，再想一下。";
+          accessPassword.select();
+          return;
+        }
+        accessMessage.textContent = "仙女通過，南瓜馬車開門中…";
+        unlockStation();
+      } catch {
+        accessMessage.textContent = "鑑別暫時失靈，請重新整理後再試。";
+      } finally {
+        button.disabled = false;
+      }
+    });
+  }
 
   function setRating(value, announce = false) {
     const rating = Number(value);

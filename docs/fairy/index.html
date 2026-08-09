@@ -18,7 +18,7 @@
   <link rel="stylesheet" href="./fairy.css">
   <script>document.documentElement.classList.add("js");</script>
 </head>
-<body>
+<body class="gate-locked">
   <div class="sky" aria-hidden="true">
     <i class="star star-one"></i><i class="star star-two"></i><i class="star star-three"></i>
     <i class="star star-four"></i><i class="star star-five"></i><i class="star star-six"></i>
@@ -31,7 +31,23 @@
     <span class="detector-scan" aria-hidden="true"></span>
   </section>
 
-  <main class="supply-station" id="main-content">
+  <section class="access-gate" id="access-gate" role="dialog" aria-modal="true" aria-labelledby="access-title">
+    <div class="access-panel">
+      <span class="gate-icon" aria-hidden="true"><svg class="fairy-icon"><use href="./assets/fairy-icons.svg#starlight"></use></svg></span>
+      <p class="eyebrow">FAIRY CHECKPOINT</p>
+      <h2 id="access-title">仙女鑑別中</h2>
+      <p>輸入通關密碼，南瓜馬車才會打開車門。</p>
+      <form id="access-form" novalidate>
+        <label for="access-password">通關密碼</label>
+        <input id="access-password" name="password" type="password" inputmode="numeric" autocomplete="one-time-code" maxlength="4" pattern="[0-9]{4}" required>
+        <button type="submit">請仙女驗證 <span aria-hidden="true">→</span></button>
+        <p class="access-hint">提示：仙女生日</p>
+        <p class="access-message" id="access-message" role="status" aria-live="polite"></p>
+      </form>
+    </div>
+  </section>
+
+  <main class="supply-station" id="main-content" aria-hidden="true">
     <header class="hero">
       <p class="eyebrow">✦ FAIRY SUPPLY STATION</p>
       <h1>仙女補給站</h1>
@@ -109,12 +125,12 @@
     </section>
 
     <footer>
-      <span class="fairy-signature">© 大理寺少卿 · v1.3.2</span>
+      <span class="fairy-signature">© 大理寺少卿 · v1.4.0</span>
       <span class="fairy-credit">由月光、咖啡與一點工程師執念支援營運 ✦</span>
     </footer>
   </main>
 
   <noscript><p class="noscript-note">今日補給：星巴克補給 ×1、少卿陪聊、南瓜馬車乘車資格、今日心情 Buff +1。</p></noscript>
-  <script src="./fairy.js?v=1.2.2" defer></script>
+  <script src="./fairy.js?v=1.4.0" defer></script>
 </body>
 </html>
