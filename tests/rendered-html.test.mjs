@@ -65,7 +65,7 @@ test("fairy requests are private, rate-limited, and only notify a paired LINE ac
   assert.match(page, /name="coffee"/);
   assert.match(page, /name="date" type="date"/);
   assert.match(page, /少卿陪聊/);
-  assert.match(page, /共度午餐/);
+  assert.match(page, /走出聊天室/);
   assert.match(page, /2026\/08\/22 \(六\) 12:00/);
   assert.match(page, /fairy-icons\.svg#coffee-cup/);
   assert.match(page, /fairy-icons\.svg#chat/);
@@ -80,6 +80,7 @@ test("fairy requests are private, rate-limited, and only notify a paired LINE ac
   assert.match(page, /預設靜音，想聽再打開就好/);
   assert.match(fairyClient, /backgroundMusic\.play\(\)/);
   assert.match(page, /第一次聊天/);
+  assert.match(page, /fairy-icon vanish-icon/);
   assert.match(page, /斷開魂結 N 年/);
   assert.match(page, /2024\/05\/06 \(一\) 15:41/);
   assert.match(page, /2026\/07\/08 \(三\) 23:43/);
@@ -88,14 +89,16 @@ test("fairy requests are private, rate-limited, and only notify a paired LINE ac
   assert.match(page, /<li class="complete"><span aria-hidden="true"><svg class="fairy-icon"><use href="\.\/assets\/fairy-icons\.svg#chat"><\/use><\/svg><\/span><div><strong>再次相逢/);
   assert.match(page, /<li class="complete"><span aria-hidden="true"><svg class="fairy-icon peach-icon"[\s\S]*?<strong>空降水蜜桃/);
   assert.doesNotMatch(page, /由月光、咖啡與一點工程師執念支援營運/);
-  assert.match(page, /共度午餐/);
+  assert.match(page, /fairy-icon dining-icon/);
+  assert.match(page, /走出聊天室/);
   assert.match(page, /2026\/08\/22 \(六\) 12:00/);
   assert.match(page, /仙女誕辰/);
+  assert.match(page, /fairy-icon birthday-icon/);
   assert.match(page, /2026\/09\/22 \(二\)/);
   const questTimeline = page.match(/<ol class="quest-map">([\s\S]*?)<\/ol>/)?.[1] || "";
   assert.ok(questTimeline.indexOf("共乘馬車") < questTimeline.indexOf("空降水蜜桃"));
-  assert.ok(questTimeline.indexOf("空降水蜜桃") < questTimeline.indexOf("共度午餐"));
-  assert.ok(questTimeline.indexOf("共度午餐") < questTimeline.indexOf("羽球副本"));
+  assert.ok(questTimeline.indexOf("空降水蜜桃") < questTimeline.indexOf("走出聊天室"));
+  assert.ok(questTimeline.indexOf("走出聊天室") < questTimeline.indexOf("羽球副本"));
   assert.ok(questTimeline.indexOf("羽球副本") < questTimeline.indexOf("仙女誕辰"));
   assert.match(page, /南瓜馬車/);
 });
