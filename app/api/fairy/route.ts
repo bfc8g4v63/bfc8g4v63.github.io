@@ -37,10 +37,10 @@ export async function POST(request: Request) {
       .where(eq(fairyNotificationTargets.id, "owner")).limit(1);
     if (!target) return json(request, { error: "配送員還沒完成 LINE 私訊設定，請晚一點再試" }, 503);
     const lines = ["【仙女補給站・新小卡】"];
-    if (coffee) lines.push(`☕ 想喝：${coffee}`);
-    if (chat) lines.push("💬 少卿在線陪聊：已點選");
-    if (carriageSong) lines.push(`🎃 南瓜馬車許願：${carriageSong}`);
-    if (date || activity) lines.push(`📅 現實副本：${date || "日期未定"}${activity ? `｜${activity}` : ""}`);
+    if (coffee) lines.push(`星巴克補給：${coffee}`);
+    if (chat) lines.push("少卿陪聊：已點選");
+    if (carriageSong) lines.push(`南瓜馬車乘車資格：${carriageSong}`);
+    if (date || activity) lines.push(`想約的副本：${date || "日期未定"}${activity ? `｜${activity}` : ""}`);
     lines.push("（此內容由仙女補給站私訊送達，未發到任何群組。）");
     await pushText(target.lineUserId, lines.join("\n"));
     return json(request, { ok: true });

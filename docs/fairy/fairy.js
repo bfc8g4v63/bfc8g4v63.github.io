@@ -8,6 +8,8 @@
   const ratingMessage = document.querySelector("#rating-message");
   const requestForm = document.querySelector("#fairy-request");
   const requestMessage = document.querySelector("#request-message");
+  const quickReplies = [...document.querySelectorAll("[data-reply]")];
+  const quickReplyMessage = document.querySelector("#quick-reply-message");
   const API = "https://good-days-family-events.x0925234139.chatgpt.site/api";
 
   window.setTimeout(() => document.documentElement.classList.add("is-ready"), 1500);
@@ -53,6 +55,13 @@
       } catch {
         // Never block the little interaction because storage is disabled.
       }
+    });
+  });
+
+  quickReplies.forEach((button) => {
+    button.addEventListener("click", () => {
+      quickReplies.forEach((item) => item.classList.toggle("is-selected", item === button));
+      if (quickReplyMessage) quickReplyMessage.textContent = `已收下：「${button.dataset.reply}」。`;
     });
   });
 

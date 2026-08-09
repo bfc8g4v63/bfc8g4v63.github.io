@@ -7,13 +7,13 @@
   <meta name="description" content="有一份今日小確幸等待領取。">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <meta name="googlebot" content="noindex,nofollow,noarchive">
-  <meta property="og:title" content="仙女補給站 ✨">
+  <meta property="og:title" content="仙女補給站">
   <meta property="og:description" content="有一份今日小確幸等待領取。">
   <meta property="og:url" content="https://bfc8g4v63.github.io/fairy/">
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="仙女補給站 ✨">
+  <meta name="twitter:title" content="仙女補給站">
   <meta name="twitter:description" content="有一份今日小確幸等待領取。">
-  <title>仙女補給站 ✨</title>
+  <title>仙女補給站</title>
   <link rel="icon" href="../icon-192.png">
   <link rel="stylesheet" href="./fairy.css">
   <script>document.documentElement.classList.add("js");</script>
@@ -41,8 +41,8 @@
 
     <section class="delivery-card card" aria-labelledby="delivery-title">
       <div class="delivery-stamp" aria-hidden="true">南瓜馬車已待命</div>
-      <span class="parcel-icon" aria-hidden="true">☕</span>
-      <h2 id="delivery-title">今日份的小確幸，尚未送出 ☕</h2>
+      <span class="parcel-icon" aria-hidden="true"><svg class="fairy-icon"><use href="./assets/fairy-icons.svg#coffee-cup"></use></svg></span>
+      <h2 id="delivery-title">今日份的小確幸，尚未送出</h2>
       <p>選好想要的，再把小卡交給配送員。慢慢來，沒有截止時間。</p>
       <button class="collect-button" type="button" id="collect-supply" aria-controls="reward-card" aria-expanded="false">
         看看今日補給 <span aria-hidden="true">→</span>
@@ -53,12 +53,12 @@
       <p class="eyebrow">補給明細</p>
       <h2 id="reward-title">今日份的小確幸</h2>
       <form class="supply-form" id="fairy-request">
-        <label class="supply-choice"><span aria-hidden="true">☕</span><span><strong>星巴克 × 1</strong><small>想喝什麼？配送員先記下來。</small></span><input name="coffee" maxlength="80" autocomplete="off" placeholder="例如：冰美式、抹茶那提"></label>
-        <label class="supply-choice choice-toggle"><span aria-hidden="true">💬</span><span><strong>少卿在線陪聊～</strong><small>需要時再按，不用打卡報到。</small></span><input name="chat" type="checkbox" aria-label="想領取少卿在線陪聊"></label>
-        <label class="supply-choice"><span aria-hidden="true">🎃</span><span><strong>南瓜馬車歌單許願</strong><small>這台馬車不保證飛，但可以先選歌。</small></span><input name="carriageSong" maxlength="80" autocomplete="off" placeholder="想聽的歌或路上想聊的題目"></label>
-        <fieldset class="calendar-choice">
-          <legend><span aria-hidden="true">📅</span> 約個現實副本</legend>
-          <p>選一個想出沒的日子與任務；這是許願，不是出席壓力。</p>
+        <label class="supply-choice"><span class="icon-frame" aria-hidden="true"><svg class="fairy-icon"><use href="./assets/fairy-icons.svg#coffee-cup"></use></svg></span><span><strong>星巴克補給 ×1</strong><small>今日仙女能量補充包。</small></span><input name="coffee" maxlength="80" autocomplete="off" placeholder="例如：冰美式、抹茶那提"></label>
+        <label class="supply-choice choice-toggle"><span class="icon-frame" aria-hidden="true"><svg class="fairy-icon"><use href="./assets/fairy-icons.svg#chat"></use></svg></span><span><strong>少卿陪聊</strong><small>仙女專屬 😂</small></span><input name="chat" type="checkbox" aria-label="想領取少卿陪聊"></label>
+        <label class="supply-choice"><span class="icon-frame" aria-hidden="true"><svg class="fairy-icon"><use href="./assets/fairy-icons.svg#carriage"></use></svg></span><span><strong>南瓜馬車乘車資格</strong><small>長期有效，搭乘時間隨緣。</small></span><input name="carriageSong" maxlength="80" autocomplete="off" placeholder="想聽的歌或路上想聊的題目"></label>
+        <fieldset class="calendar-choice mood-buff">
+          <legend><span class="legend-icon" aria-hidden="true"><svg class="fairy-icon"><use href="./assets/fairy-icons.svg#starlight"></use></svg></span>今日心情 Buff +1</legend>
+          <p>若無效果，請自行忽略本功能。想挑一天心血來潮，也可以先記在這裡。</p>
           <div class="calendar-fields">
             <label>日期<input name="date" type="date"></label>
             <label>想做什麼<select name="activity"><option value="">先保留神秘感</option><option>咖啡補給</option><option>吃飯副本</option><option>散步看夜景</option><option>羽球副本</option><option>其他小任務</option></select></label>
@@ -68,6 +68,16 @@
         <p class="request-message" id="request-message" role="status" aria-live="polite">送出後只會私訊配送員，不會發到群組。</p>
       </form>
       <p class="reward-note">本券沒有使用期限，也沒有退貨服務 😂</p>
+      <section class="quick-replies" aria-labelledby="quick-replies-title">
+        <p class="eyebrow" id="quick-replies-title">仙女回傳小卡</p>
+        <div class="quick-reply-list" role="group" aria-label="快速回覆">
+          <button class="quick-reply" type="button" data-reply="補給收到"><svg class="fairy-icon" aria-hidden="true"><use href="./assets/fairy-icons.svg#coffee-cup"></use></svg><span>補給收到</span></button>
+          <button class="quick-reply" type="button" data-reply="😂 有被鬧到"><span class="reply-emoji" aria-hidden="true">😂</span><span>有被鬧到</span></button>
+          <button class="quick-reply" type="button" data-reply="馬車先停好"><svg class="fairy-icon" aria-hidden="true"><use href="./assets/fairy-icons.svg#carriage"></use></svg><span>馬車先停好</span></button>
+          <button class="quick-reply" type="button" data-reply="本仙女已閱"><svg class="fairy-icon" aria-hidden="true"><use href="./assets/fairy-icons.svg#starlight"></use></svg><span>本仙女已閱</span></button>
+        </div>
+        <p class="quick-reply-message" id="quick-reply-message" role="status" aria-live="polite">想按哪張就按哪張，不用附心得。</p>
+      </section>
     </section>
 
     <section class="quest-card card" aria-labelledby="quest-title">
@@ -75,9 +85,9 @@
       <h2 id="quest-title">目前冒險進度</h2>
       <ol class="quest-map">
         <li class="complete"><span aria-hidden="true">🌐</span><div><strong>十年網友</strong><small>已解鎖</small></div></li>
-        <li class="complete"><span aria-hidden="true">💬</span><div><strong>聊天室</strong><small>已解鎖</small></div></li>
-        <li class="complete"><span aria-hidden="true">🐎</span><div><strong>共乘馬車</strong><small>已解鎖</small></div></li>
-        <li class="upcoming"><span aria-hidden="true">🍽️</span><div><strong>08/22 現實副本</strong><small>即將解鎖</small></div></li>
+        <li class="complete"><span aria-hidden="true"><svg class="fairy-icon"><use href="./assets/fairy-icons.svg#chat"></use></svg></span><div><strong>聊天室</strong><small>已解鎖</small></div></li>
+        <li class="complete"><span aria-hidden="true"><svg class="fairy-icon"><use href="./assets/fairy-icons.svg#carriage"></use></svg></span><div><strong>共乘馬車</strong><small>已解鎖</small></div></li>
+        <li class="upcoming"><span aria-hidden="true"><svg class="fairy-icon"><use href="./assets/fairy-icons.svg#starlight"></use></svg></span><div><strong>08/22 約會副本</strong><small>即將解鎖</small></div></li>
         <li class="locked"><span aria-hidden="true">🏸</span><div><strong>羽球副本</strong><small>🔒</small></div></li>
         <li class="locked"><span aria-hidden="true">❓</span><div><strong>未知地圖</strong><small>🔒</small></div></li>
       </ol>
@@ -101,7 +111,7 @@
     <footer>由月光、咖啡與一點工程師執念支援營運 ✦</footer>
   </main>
 
-  <noscript><p class="noscript-note">今日補給：星巴克 × 1、少卿在線陪聊～、南瓜馬車歌單許願、選一天把小願望交給配送員。</p></noscript>
+  <noscript><p class="noscript-note">今日補給：星巴克補給 ×1、少卿陪聊、南瓜馬車乘車資格、今日心情 Buff +1。</p></noscript>
   <script src="./fairy.js" defer></script>
 </body>
 </html>
