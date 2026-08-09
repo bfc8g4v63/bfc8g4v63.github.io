@@ -29,6 +29,16 @@
     }
   }
 
+  async function sendFairyFeedback(payload) {
+    const response = await fetch(`${API}/fairy/reaction`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "小幫手暫時塞車了");
+  }
+
   if (collectButton && rewardCard) {
     collectButton.addEventListener("click", () => {
       rewardCard.hidden = false;
@@ -47,21 +57,41 @@
   }
 
   ratingButtons.forEach((button) => {
-    button.addEventListener("click", () => {
+    button.addEventListener("click", async () => {
       const rating = button.dataset.rating;
-      setRating(rating, true);
+      setRating(rating);
       try {
         window.localStorage.setItem(storageKey, rating);
       } catch {
         // Never block the little interaction because storage is disabled.
       }
+      ratingButtons.forEach((item) => { item.disabled = true; });
+      if (ratingMessage) ratingMessage.textContent = "正在交給 LINE 小幫手…";
+      try {
+        await sendFairyFeedback({ type: "rating", rating: Number(rating) });
+        if (ratingMessage) ratingMessage.textContent = `${rating} 星已透過小幫手私訊回傳。`;
+      } catch (error) {
+        if (ratingMessage) ratingMessage.textContent = error instanceof Error ? error.message : "小幫手暫時塞車了。";
+      } finally {
+        ratingButtons.forEach((item) => { item.disabled = false; });
+      }
     });
   });
 
   quickReplies.forEach((button) => {
-    button.addEventListener("click", () => {
-      quickReplies.forEach((item) => item.classList.toggle("is-selected", item === button));
-      if (quickReplyMessage) quickReplyMessage.textContent = `已收下：「${button.dataset.reply}」。`;
+    button.addEventListener("click", async () => {
+      const reply = button.dataset.reply || "";
+      quickReplies.forEach((item) => { item.disabled = true; });
+      if (quickReplyMessage) quickReplyMessage.textContent = "正在交給 LINE 小幫手…";
+      try {
+        await sendFairyFeedback({ type: "quick-reply", reply });
+        quickReplies.forEach((item) => item.classList.toggle("is-selected", item === button));
+        if (quickReplyMessage) quickReplyMessage.textContent = `已透過小幫手回傳：「${reply}」。`;
+      } catch (error) {
+        if (quickReplyMessage) quickReplyMessage.textContent = error instanceof Error ? error.message : "小幫手暫時塞車了。";
+      } finally {
+        quickReplies.forEach((item) => { item.disabled = false; });
+      }
     });
   });
 

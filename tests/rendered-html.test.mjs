@@ -40,8 +40,9 @@ test("LINE webhook verifies signatures and reminder workflow uses a secret", asy
 });
 
 test("fairy requests are private, rate-limited, and only notify a paired LINE account", async () => {
-  const [fairyRoute, webhook, lineLib, schemaInit, page] = await Promise.all([
+  const [fairyRoute, fairyReactionRoute, webhook, lineLib, schemaInit, page] = await Promise.all([
     readFile(new URL("../app/api/fairy/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/fairy/reaction/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/line/webhook/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/line/lib.ts", import.meta.url), "utf8"),
     readFile(new URL("../db/init.ts", import.meta.url), "utf8"),
@@ -50,6 +51,9 @@ test("fairy requests are private, rate-limited, and only notify a paired LINE ac
   assert.match(fairyRoute, /rateLimit\(request, "fairy-note", 3, 30 \* 60 \* 1000\)/);
   assert.match(fairyRoute, /fairyNotificationTargets/);
   assert.match(fairyRoute, /pushText\(target\.lineUserId/);
+  assert.match(fairyReactionRoute, /rateLimit\(request, "fairy-reaction", 10, 30 \* 60 \* 1000\)/);
+  assert.match(fairyReactionRoute, /quickReplies/);
+  assert.match(fairyReactionRoute, /pushText\(target\.lineUserId/);
   assert.match(lineLib, /FAIRY_PAIRING_CODE/);
   assert.match(webhook, /fairyPairingCode/);
   assert.match(webhook, /pushText\(senderUserId/);
