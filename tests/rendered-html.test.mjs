@@ -52,6 +52,7 @@ test("fairy requests are private, rate-limited, and only notify a paired LINE ac
   assert.match(fairyRoute, /pushText\(target\.lineUserId/);
   assert.match(lineLib, /FAIRY_PAIRING_CODE/);
   assert.match(webhook, /fairyPairingCode/);
+  assert.match(webhook, /pushText\(senderUserId/);
   assert.match(webhook, /仙女綁定/);
   assert.match(webhook, /senderUserId/);
   assert.match(schemaInit, /CREATE TABLE IF NOT EXISTS fairy_notification_targets/);

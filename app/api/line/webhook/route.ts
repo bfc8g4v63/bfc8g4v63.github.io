@@ -3,7 +3,7 @@ import { ensureSchema } from "../../../../db/init";
 import { getDb } from "../../../../db";
 import { events, fairyNotificationTargets, lineBindCodes, lineBindings, lineReminderSettings, mealTables, rsvps } from "../../../../db/schema";
 import { normalizeLineCommand } from "../commands";
-import { activityArrangementImageUrl, activityShareMessage, getGroupName, lineConfig, replyMessages, replyText, rsvpSummaryMessage, verifyLineSignature } from "../lib";
+import { activityArrangementImageUrl, activityShareMessage, getGroupName, lineConfig, pushText, replyMessages, replyText, rsvpSummaryMessage, verifyLineSignature } from "../lib";
 
 type LineEvent = {
   type?: string;
@@ -55,6 +55,11 @@ export async function POST(request: Request) {
           target: fairyNotificationTargets.id,
           set: { lineUserId: senderUserId, pairedAt: new Date().toISOString() },
         });
+        try {
+          await pushText(senderUserId, "仙女補給站私訊已連線 ✨\n之後她填的小卡會只傳到這裡，不會發到群組。\n南瓜馬車已待命，慢慢選就好。 ");
+        } catch {
+          // Group binding still succeeds if the account has not added the bot as a friend yet.
+        }
         await replyText(event.replyToken, "仙女補給站已完成私訊設定。之後小卡內容只會傳給你的 LINE，不會發到群組。 ");
         continue;
       }
