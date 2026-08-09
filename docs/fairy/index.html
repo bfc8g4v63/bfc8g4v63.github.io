@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#15132d">
+  <meta name="description" content="有一份今日小確幸等待領取。">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <meta name="googlebot" content="noindex,nofollow,noarchive">
+  <meta property="og:title" content="仙女補給站 ✨">
+  <meta property="og:description" content="有一份今日小確幸等待領取。">
+  <meta property="og:url" content="https://bfc8g4v63.github.io/fairy/">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="仙女補給站 ✨">
+  <meta name="twitter:description" content="有一份今日小確幸等待領取。">
+  <title>仙女補給站 ✨</title>
+  <link rel="icon" href="../icon-192.png">
+  <link rel="stylesheet" href="./fairy.css">
+  <script>document.documentElement.classList.add("js");</script>
+</head>
+<body>
+  <div class="sky" aria-hidden="true">
+    <i class="star star-one"></i><i class="star star-two"></i><i class="star star-three"></i>
+    <i class="star star-four"></i><i class="star star-five"></i><i class="star star-six"></i>
+    <i class="moon"></i>
+  </div>
+
+  <section class="detector" aria-live="polite" aria-label="補給站開場">
+    <p class="detector-mark">✦ FAIRY SUPPLY STATION</p>
+    <p class="detector-copy">偵測到仙女正在附近出沒……</p>
+    <span class="detector-scan" aria-hidden="true"></span>
+  </section>
+
+  <main class="supply-station" id="main-content">
+    <header class="hero">
+      <p class="eyebrow">✦ FAIRY SUPPLY STATION</p>
+      <h1>仙女補給站</h1>
+      <p>今夜月光充足，補給已順利送達。</p>
+    </header>
+
+    <section class="delivery-card card" aria-labelledby="delivery-title">
+      <div class="delivery-stamp" aria-hidden="true">已送達</div>
+      <span class="parcel-icon" aria-hidden="true">☕</span>
+      <h2 id="delivery-title">今日補給配送成功 ☕</h2>
+      <p>配送員完成任務後已撤離現場。</p>
+      <button class="collect-button" type="button" id="collect-supply" aria-controls="reward-card" aria-expanded="false">
+        領取今日小確幸 <span aria-hidden="true">→</span>
+      </button>
+    </section>
+
+    <section class="reward-card card" id="reward-card" aria-labelledby="reward-title" hidden>
+      <p class="eyebrow">補給明細</p>
+      <h2 id="reward-title">今日份的小確幸</h2>
+      <ul class="supply-list">
+        <li><span aria-hidden="true">☕</span><strong>星巴克 × 1</strong></li>
+        <li><span aria-hidden="true">😆</span><strong>少卿幹話無限供應</strong></li>
+        <li><span aria-hidden="true">🐎</span><strong>馬車永久乘車資格</strong></li>
+        <li><span aria-hidden="true">🍽️</span><strong>0822 現實副本 × 1</strong></li>
+      </ul>
+      <p class="reward-note">本券沒有使用期限，也沒有退貨服務 😂</p>
+    </section>
+
+    <section class="quest-card card" aria-labelledby="quest-title">
+      <p class="eyebrow">仙界地圖</p>
+      <h2 id="quest-title">目前冒險進度</h2>
+      <ol class="quest-map">
+        <li class="complete"><span aria-hidden="true">🌐</span><div><strong>十年網友</strong><small>已解鎖</small></div></li>
+        <li class="complete"><span aria-hidden="true">💬</span><div><strong>聊天室</strong><small>已解鎖</small></div></li>
+        <li class="complete"><span aria-hidden="true">🐎</span><div><strong>共乘馬車</strong><small>已解鎖</small></div></li>
+        <li class="upcoming"><span aria-hidden="true">🍽️</span><div><strong>08/22 現實副本</strong><small>即將解鎖</small></div></li>
+        <li class="locked"><span aria-hidden="true">🏸</span><div><strong>羽球副本</strong><small>🔒</small></div></li>
+        <li class="locked"><span aria-hidden="true">❓</span><div><strong>未知地圖</strong><small>🔒</small></div></li>
+      </ol>
+      <p class="quest-ending">其他副本，慢慢解鎖就好。</p>
+    </section>
+
+    <section class="rating-card card" aria-labelledby="rating-title">
+      <p class="eyebrow">可選任務</p>
+      <h2 id="rating-title">本次仙女補給服務評價</h2>
+      <p>本店只收星星，不收壓力。</p>
+      <div class="rating-stars" role="group" aria-label="請選擇一到五星評價">
+        <button type="button" data-rating="1" aria-label="1 星評價" aria-pressed="false">★</button>
+        <button type="button" data-rating="2" aria-label="2 星評價" aria-pressed="false">★</button>
+        <button type="button" data-rating="3" aria-label="3 星評價" aria-pressed="false">★</button>
+        <button type="button" data-rating="4" aria-label="4 星評價" aria-pressed="false">★</button>
+        <button type="button" data-rating="5" aria-label="5 星評價" aria-pressed="false">★</button>
+      </div>
+      <p class="rating-message" id="rating-message" role="status" aria-live="polite">想按幾顆都可以，沒有標準答案。</p>
+    </section>
+
+    <footer>由月光、咖啡與一點工程師執念支援營運 ✦</footer>
+  </main>
+
+  <noscript><p class="noscript-note">今日補給：星巴克 × 1、少卿幹話無限供應、馬車永久乘車資格、0822 現實副本 × 1。</p></noscript>
+  <script src="./fairy.js" defer></script>
+</body>
+</html>
