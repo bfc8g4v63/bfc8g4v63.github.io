@@ -1,5 +1,4 @@
 import { and, asc, eq } from "drizzle-orm";
-import { ensureSchema } from "../../../../db/init";
 import { getDb } from "../../../../db";
 import { events, fairyNotificationTargets, lineBindCodes, lineBindings, lineReminderSettings, mealTables, rsvps } from "../../../../db/schema";
 import { normalizeLineCommand } from "../commands";
@@ -20,7 +19,6 @@ export async function POST(request: Request) {
   }
 
   try {
-    await ensureSchema();
     const payload = JSON.parse(rawBody) as { events?: LineEvent[] };
     for (const event of payload.events || []) {
       const sourceType = event.source?.type || "";
