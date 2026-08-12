@@ -37,6 +37,10 @@ export async function POST(request: Request) {
 
       if (event.type !== "message" || event.message?.type !== "text") continue;
       const text = event.message.text?.trim() || "";
+      if (sourceType === "user" && text === "PORTFOLIO_ID") {
+        await replyText(event.replyToken, `Your Portfolio notification ID:\n${event.source?.userId || "Unavailable"}`);
+        continue;
+      }
       const command = normalizeLineCommand(text);
       const pairingCode = lineConfig().fairyPairingCode;
       if (sourceType === "group" && senderUserId && pairingCode && command === `仙女綁定${normalizeLineCommand(pairingCode)}`) {
