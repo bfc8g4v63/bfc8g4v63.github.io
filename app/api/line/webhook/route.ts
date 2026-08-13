@@ -28,7 +28,24 @@ export async function POST(request: Request) {
         : sourceType === "room"
           ? event.source?.roomId || ""
           : "";
-      if (!chatId || !event.replyToken) continue;
+      if (!event.replyToken) continue;
+
+      // Private messages do not have a groupId or roomId. Handle the temporary
+      // Portfolio lookup command before the group/room guard below.
+      if (
+        sourceType === "user"
+        && event.type === "message"
+        && event.message?.type === "text"
+        && event.message.text?.trim() === "PORTFOLIO_ID"
+      ) {
+        await replyText(
+          event.replyToken,
+          `Your Portfolio notification ID:\n${event.source?.userId || "Unavailable"}`,
+        );
+        continue;
+      }
+
+      if (!chatId) continue;
 
       if (event.type === "join") {
         await replyText(event.replyToken, "好日子機器人已加入。請由活動管理者在網站取得 6 位數綁定碼，再於群組輸入：綁定 123456");
@@ -37,10 +54,6 @@ export async function POST(request: Request) {
 
       if (event.type !== "message" || event.message?.type !== "text") continue;
       const text = event.message.text?.trim() || "";
-      if (sourceType === "user" && text === "PORTFOLIO_ID") {
-        await replyText(event.replyToken, `Your Portfolio notification ID:\n${event.source?.userId || "Unavailable"}`);
-        continue;
-      }
       const command = normalizeLineCommand(text);
       const pairingCode = lineConfig().fairyPairingCode;
       if (sourceType === "group" && senderUserId && pairingCode && command === `仙女綁定${normalizeLineCommand(pairingCode)}`) {
