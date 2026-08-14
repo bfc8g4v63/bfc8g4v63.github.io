@@ -315,9 +315,11 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.16/);
-  assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
-  assert.match(styles, /grid-template-areas:"visitor" "owner" "tagline" "top"/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.17/);
+  assert.match(page, /href="https:\/\/nelson-portfolio\.pages\.dev\/"/);
+  assert.match(styles, /footer-portfolio-link/);
+  assert.match(styles, /grid-template-areas:"visitor visitor visitor visitor visitor" "owner tagline social portfolio top"/);
+  assert.match(styles, /grid-template-areas:"visitor" "owner" "tagline" "social" "portfolio" "top"/);
 });
 
 test("the service worker replaces cached management assets when a frontend release ships", async () => {
@@ -326,9 +328,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.16/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.16/);
-  assert.match(worker, /good-days-github-v18/);
+  assert.match(page, /\/app\.js\?v=1\.2\.17/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.17/);
+  assert.match(worker, /good-days-github-v19/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.2.17 · 2026-08-14
+
+### Portfolio 入口
+
+- 好日子首頁頁尾新增 [Nelson Portfolio](https://nelson-portfolio.pages.dev/) 連結，方便查看其他作品與服務。
+
 ## v1.2.15 · 2026-07-27
 
 ### 活動安排名稱防呆
