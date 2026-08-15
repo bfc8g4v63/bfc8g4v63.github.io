@@ -315,11 +315,11 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.18/);
-  assert.match(page, /href="https:\/\/nelson-portfolio\.pages\.dev\/"/);
-  assert.match(styles, /footer-portfolio-link/);
-  assert.match(styles, /grid-template-areas:"visitor visitor visitor visitor visitor" "owner tagline social portfolio top"/);
-  assert.match(styles, /grid-template-areas:"visitor" "owner" "tagline" "social" "portfolio" "top"/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.19/);
+  assert.doesNotMatch(page, /footer-social-link/);
+  assert.doesNotMatch(page, /footer-portfolio-link/);
+  assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
+  assert.match(styles, /grid-template-areas:"visitor" "owner" "tagline" "top"/);
 });
 
 test("the service worker replaces cached management assets when a frontend release ships", async () => {
@@ -328,9 +328,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.18/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.18/);
-  assert.match(worker, /good-days-github-v20/);
+  assert.match(page, /\/app\.js\?v=1\.2\.19/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.19/);
+  assert.match(worker, /good-days-github-v21/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -412,8 +412,9 @@ test("home action buttons use the shared primary style while recovery remains av
     readFile(new URL("../docs/app.js", import.meta.url), "utf8"),
   ]);
   assert.match(page, /<nav class="project-links" aria-label="其他作品">/);
-  assert.match(page, /社交電量局 <span aria-hidden="true">↗<\/span>/);
-  assert.match(page, /Portfolio <span aria-hidden="true">↗<\/span>/);
+  assert.match(page, /class="project-card" aria-hidden="true">/);
+  assert.match(page, /找回剛剛好的社交節奏/);
+  assert.match(page, /數位整合工程作品集/);
   assert.match(page, /class="header-actions"><button class="primary small" data-recover>找回我的活動<\/button><button class="primary small" data-create>＋ 建立活動/);
   assert.match(page, /<a class="primary" href="#activities">看看近期公開活動<\/a>/);
   assert.doesNotMatch(page, /建立第一個活動/);
