@@ -315,7 +315,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.20/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.21/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -328,9 +328,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.20/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.20/);
-  assert.match(worker, /good-days-github-v22/);
+  assert.match(page, /\/app\.js\?v=1\.2\.21/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.21/);
+  assert.match(worker, /good-days-github-v23/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -413,8 +413,12 @@ test("home action buttons use the shared primary style while recovery remains av
   ]);
   assert.match(page, /<nav class="project-links" aria-label="其他作品">/);
   assert.match(page, /class="project-card" aria-hidden="true">/);
+  assert.match(page, /class="project-card-thumb project-card-thumb-social"/);
+  assert.match(page, /class="project-card-thumb project-card-thumb-portfolio"/);
+  assert.match(page, /個人作品集/);
+  assert.match(page, /互動小測驗/);
   assert.match(page, /找回剛剛好的社交節奏/);
-  assert.match(page, /數位整合工程作品集/);
+  assert.match(page, /Nelson Hsieh 的數位作品/);
   assert.match(page, /class="header-actions"><button class="primary small" data-recover>找回我的活動<\/button><button class="primary small" data-create>＋ 建立活動/);
   assert.match(page, /<a class="primary" href="#activities">看看近期公開活動<\/a>/);
   assert.doesNotMatch(page, /建立第一個活動/);
