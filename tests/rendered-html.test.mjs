@@ -315,7 +315,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.19/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.20/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -328,9 +328,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.19/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.19/);
-  assert.match(worker, /good-days-github-v21/);
+  assert.match(page, /\/app\.js\?v=1\.2\.20/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.20/);
+  assert.match(worker, /good-days-github-v22/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -421,6 +421,21 @@ test("home action buttons use the shared primary style while recovery remains av
   assert.doesNotMatch(page, /＋ 新活動/);
   assert.equal((page.match(/data-recover/g) || []).length, 1);
   assert.match(client, /get\("recover"\) === "1"/);
+});
+
+test("mobile visitors can open the other projects from compact cards", async () => {
+  const [page, styles] = await Promise.all([
+    readFile(new URL("../docs/index.html", import.meta.url), "utf8"),
+    readFile(new URL("../docs/styles.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(page, /class="mobile-project-links" aria-label="其他作品"/);
+  assert.match(page, /https:\/\/nelson-portfolio\.pages\.dev\//);
+  assert.match(page, /https:\/\/social-battery-bureau\.vercel\.app\/#top/);
+  assert.match(page, /個人作品集[\s\S]*?Nelson Portfolio/);
+  assert.match(page, /互動小測驗[\s\S]*?社交電量局/);
+  assert.match(page, /target="_blank" rel="noopener"/);
+  assert.match(styles, /@media \(max-width:900px\) \{ \.mobile-project-links/);
+  assert.match(styles, /\.mobile-project-card/);
 });
 
 test("verified creators can cancel or permanently delete a single RSVP", async () => {

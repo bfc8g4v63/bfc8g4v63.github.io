@@ -1,5 +1,12 @@
 # Changelog
 
+## v1.2.20 · 2026-08-17
+
+### 手機版其他作品入口
+
+- 手機與平板首頁現在會顯示「其他作品」小卡，可直接前往 [Nelson Portfolio](https://nelson-portfolio.pages.dev/) 與 [社交電量局](https://social-battery-bureau.vercel.app/#top)。
+- 小卡採用圓角、縮圖與清楚的雙行標示，保留桌機版上方的懸停導覽，不讓主要操作按鈕變得擁擠。
+
 ## v1.2.19 · 2026-08-15
 
 ### 其他作品卡片導覽
