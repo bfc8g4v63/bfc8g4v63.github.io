@@ -167,11 +167,20 @@ test("LINE roster broadcasts can disclose diet and notes independently", async (
 });
 
 test("calendar reminders use Taipei evening while the two-hour reminder stays relative", async () => {
-  const reminders = await readFile(new URL("../app/api/line/run-reminders/route.ts", import.meta.url), "utf8");
+  const [reminders, lineLib, adminLine] = await Promise.all([
+    readFile(new URL("../app/api/line/run-reminders/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/line/lib.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/line/route.ts", import.meta.url), "utf8"),
+  ]);
   assert.match(reminders, /T18:00:00\+08:00/);
   assert.match(reminders, /taipeiEvening\(eventDate, 7\)/);
   assert.match(reminders, /taipeiEvening\(eventDate, 1\)/);
   assert.match(reminders, /eventTime - 120 \* 60 \* 1000/);
+  assert.match(reminders, /shareToken: events\.shareToken/);
+  assert.match(lineLib, /shareToken: string/);
+  assert.match(lineLib, /https:\/\/bfc8g4v63\.github\.io\/e\/\?s=\$\{encodeURIComponent\(event\.shareToken\)\}/);
+  assert.doesNotMatch(lineLib, /github\.io\/\?event=/);
+  assert.match(adminLine, /eventMessage\(\{[\s\S]*?\.\.\.access\.event/);
 });
 
 test("activity arrangements keep allocation private and validate split family assignments", async () => {
