@@ -26,6 +26,25 @@ async function logCommand(eventId: string, command: string, outcome: string, det
   }
 }
 
+function canRetryLinePush(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return /LINE 傳送失敗（5\d\d）|fetch failed|network|timeout/i.test(message);
+}
+
+async function pushArrangement(chatId: string, messages: Parameters<typeof pushMessages>[1]) {
+  const retryKey = crypto.randomUUID();
+  try {
+    await pushMessages(chatId, messages, retryKey);
+    return "sent" as const;
+  } catch (error) {
+    if (!canRetryLinePush(error)) throw error;
+    // LINE uses the retry key to avoid duplicate delivery if the first request
+    // reached LINE but the response was interrupted in transit.
+    await pushMessages(chatId, messages, retryKey);
+    return "retried" as const;
+  }
+}
+
 export async function POST(request: Request) {
   const rawBody = await request.text();
   const signature = request.headers.get("x-line-signature") || "";
@@ -175,22 +194,23 @@ export async function POST(request: Request) {
           await logCommand(binding.eventId, "安排", "no_arrangement", "尚未建立活動安排");
           continue;
         }
-        // LINE allows at most five messages in one push. Four image pages plus
-        // the confirmation text cover the app's 24-arrangement limit.
+        // LINE allows at most five messages in one push. The app limits an
+        // activity to 24 arrangement areas, which fit into four image pages.
         const pages = Math.min(4, Math.ceil(tables.length / 6));
         const messages = await Promise.all(Array.from({ length: pages }, async (_, page) => {
           const originalContentUrl = await activityArrangementImageUrl(request.url, binding.eventId, page);
           const previewImageUrl = originalContentUrl;
           return { type: "image" as const, originalContentUrl, previewImageUrl };
         }));
-        const confirmation = `正在整理「${targetEvent.title}」的活動安排，共 ${tables.length} 個安排區。`;
         try {
-          await pushMessages(chatId, [{ type: "text", text: confirmation }, ...messages]);
-          await logCommand(binding.eventId, "安排", "sent", `已傳送 ${pages} 張安排圖卡`);
+          const result = await pushArrangement(chatId, messages);
+          await logCommand(binding.eventId, "安排", "sent", result === "retried"
+            ? `安全重試後已傳送 ${pages} 張安排圖卡`
+            : `已傳送 ${pages} 張安排圖卡`);
         } catch (error) {
           const detail = error instanceof Error ? error.message : "LINE 圖卡傳送失敗";
           try {
-            await replyText(event.replyToken, `${confirmation}\n圖卡暫時無法傳送，請稍後再輸入「安排」。`);
+            await replyText(event.replyToken, "活動安排圖卡暫時無法傳送，請稍後再輸入「安排」。");
             await logCommand(binding.eventId, "安排", "fallback_sent", "圖卡傳送失敗，已回覆文字提示");
           } catch {
             await logCommand(binding.eventId, "安排", "failed", detail);

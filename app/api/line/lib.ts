@@ -39,9 +39,10 @@ export async function pushText(to: string, text: string) {
   await pushMessages(to, [{ type: "text", text: text.slice(0, 5000) }]);
 }
 
-export async function pushMessages(to: string, messages: LineReplyMessage[]) {
+export async function pushMessages(to: string, messages: LineReplyMessage[], retryKey = "") {
   await lineRequest("/v2/bot/message/push", {
     method: "POST",
+    headers: retryKey ? { "X-Line-Retry-Key": retryKey } : undefined,
     body: JSON.stringify({ to, messages }),
   });
 }
