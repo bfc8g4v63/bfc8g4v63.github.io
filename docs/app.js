@@ -433,8 +433,54 @@ function adminRows(rsvps) {
     <td><strong>${esc(item.name)}</strong></td><td><span class="response-pill ${esc(item.response)}">${responseLabel(item.response)}</span></td>
     <td>${item.response === "attending" ? `${item.partySize} 人` : "—"}</td><td>${esc(item.diet || "—")}</td>
     <td>${esc(item.note || "—")}</td><td>${esc(new Date(item.updatedAt).toLocaleString("zh-TW"))}</td>
-    <td><div class="rsvp-row-actions">${item.response === "attending" ? `<button class="secondary" data-rsvp-cancel="${esc(item.id)}">取消參加</button>` : ""}<button class="text-danger" data-rsvp-delete="${esc(item.id)}">刪除</button></div></td>
+    <td><div class="rsvp-row-actions"><button class="secondary" data-rsvp-edit="${esc(item.id)}">修改回覆</button>${item.response === "attending" ? `<button class="secondary" data-rsvp-cancel="${esc(item.id)}">取消參加</button>` : ""}<button class="text-danger" data-rsvp-delete="${esc(item.id)}">刪除</button></div></td>
   </tr>`).join("");
+}
+
+function openManagedRsvpEditor(rsvp, event, managerAuth) {
+  modalRoot.innerHTML = `
+    <div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="managed-rsvp-title">
+      <button class="modal-close" data-close aria-label="關閉">×</button>
+      <p class="eyebrow">建立者代為處理</p><h2 id="managed-rsvp-title">修改 ${esc(rsvp.name)} 的回覆</h2>
+      <p class="form-hint">可受託修改人數、飲食需求、備註與出席狀態。若改變人數或是否參加，該筆既有活動安排會清除，避免桌次人數不一致。</p>
+      <form id="managed-rsvp-form">
+        <fieldset><legend>是否參加？</legend>
+          <label class="choice"><input type="radio" name="response" value="attending" ${rsvp.response === "attending" ? "checked" : ""}><span>✓ 參加</span></label>
+          <label class="choice"><input type="radio" name="response" value="not_attending" ${rsvp.response === "not_attending" ? "checked" : ""}><span>這次無法參加</span></label>
+        </fieldset>
+        <div id="managed-attending-fields">
+          <label>總共幾人參加？<input name="partySize" type="number" min="1" max="999" step="1" inputmode="numeric" value="${rsvp.response === "attending" ? rsvp.partySize : 1}" required></label>
+          ${field("飲食需求", "diet", rsvp.diet, 'placeholder="例如：吃素、不吃牛（可留白）"')}
+          <label>想告訴主辦人<textarea name="note" rows="2" placeholder="可留白">${esc(rsvp.note)}</textarea></label>
+        </div>
+        <p class="form-error" id="form-error" role="alert" hidden></p>
+        <div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button type="submit" class="primary">儲存回覆</button></div>
+      </form>
+    </section></div>`;
+  const form = document.querySelector("#managed-rsvp-form");
+  const syncFields = () => { document.querySelector("#managed-attending-fields").hidden = form.elements.response.value !== "attending"; };
+  form.addEventListener("change", syncFields);
+  syncFields();
+  form.addEventListener("submit", async (submitEvent) => {
+    submitEvent.preventDefault();
+    const button = form.querySelector('[type="submit"]');
+    button.disabled = true;
+    button.textContent = "儲存中…";
+    try {
+      const body = Object.fromEntries(new FormData(form));
+      body.partySize = Number(body.partySize || 1);
+      const result = await requestJson("/admin/event", {
+        action: "update_rsvp", rsvpId: rsvp.id, ...body, ...managerPayload(event.id, managerAuth),
+      });
+      const fresh = await requestJson("/admin/event", managerPayload(event.id, managerAuth));
+      openAdminDashboard(fresh, managerAuth);
+      showNotice(result.message);
+    } catch (error) {
+      showFormError(form, error.message || "無法更新這筆回覆");
+      button.disabled = false;
+      button.textContent = "儲存回覆";
+    }
+  });
 }
 
 async function manageRsvp(action, rsvp, event, managerAuth) {
@@ -783,7 +829,7 @@ function openAdminDashboard(data, managerAuth) {
         </div>
         <section class="admin-section">
           <div class="admin-section-title"><div><p class="eyebrow">僅管理者可見</p><h3>參與者名單</h3></div><span>${data.rsvps.length} 筆回覆</span></div>
-          <p class="form-hint">受託取消時，請在該列按「取消參加」，人數會立刻扣除並保留紀錄；只有誤登或重複資料才使用「刪除」。</p>
+          <p class="form-hint">要協助親友更正人數、飲食、備註或出席狀態，請按該列「修改回覆」。受託取消可按「取消參加」；只有誤登或重複資料才使用「刪除」。</p>
           <div class="table-scroll"><table><thead><tr><th>姓名</th><th>回覆</th><th>人數</th><th>飲食</th><th>備註</th><th>更新時間</th><th>管理</th></tr></thead><tbody>${adminRows(data.rsvps)}</tbody></table></div>
           <p class="form-error" id="rsvp-error" role="alert" hidden></p>
         </section>
@@ -808,6 +854,12 @@ function openAdminDashboard(data, managerAuth) {
   });
   document.querySelector("#export-rsvps").addEventListener("click", () => exportRsvps(event, data.rsvps));
   initMealSeating(data, event, managerAuth);
+  document.querySelectorAll("[data-rsvp-edit]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const rsvp = data.rsvps.find((item) => item.id === button.dataset.rsvpEdit);
+      if (rsvp) openManagedRsvpEditor(rsvp, event, managerAuth);
+    });
+  });
   document.querySelectorAll("[data-rsvp-cancel]").forEach((button) => {
     button.addEventListener("click", () => {
       const rsvp = data.rsvps.find((item) => item.id === button.dataset.rsvpCancel);

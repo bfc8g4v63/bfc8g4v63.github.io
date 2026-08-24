@@ -97,6 +97,34 @@ export async function POST(request: Request) {
       await saveMealSeating(body, access.event.id, rows);
       return json(request, { ok: true, message: "餐桌安排已儲存" });
     }
+    if (action === "update_rsvp") {
+      const rsvpId = clean(body.rsvpId, 80);
+      const response = body.response === "attending" ? "attending" : body.response === "not_attending" ? "not_attending" : "";
+      const partySize = wholeNumber(body.partySize, 1, 999);
+      if (!rsvpId || !response || (response === "attending" && !partySize)) {
+        return json(request, { error: "請確認出席狀態與參加人數" }, 400);
+      }
+      const [rsvp] = await db.select({ id: rsvps.id, name: rsvps.name, partySize: rsvps.partySize, response: rsvps.response })
+        .from(rsvps).where(and(eq(rsvps.id, rsvpId), eq(rsvps.eventId, access.event.id))).limit(1);
+      if (!rsvp) return json(request, { error: "找不到這筆回覆" }, 404);
+      const nextPartySize = response === "attending" ? partySize : 0;
+      const seatingChanged = rsvp.response !== response || rsvp.partySize !== nextPartySize;
+      if (seatingChanged) await db.delete(mealAssignments).where(eq(mealAssignments.rsvpId, rsvp.id));
+      await db.update(rsvps).set({
+        response,
+        partySize: nextPartySize,
+        diet: clean(body.diet, 120),
+        note: clean(body.note, 300),
+        ...(response === "not_attending" ? { shareName: false } : {}),
+        updatedAt: new Date().toISOString(),
+      }).where(eq(rsvps.id, rsvp.id));
+      return json(request, {
+        ok: true,
+        message: seatingChanged
+          ? `已更新「${rsvp.name}」的回覆，原本的活動安排已清除`
+          : `已更新「${rsvp.name}」的回覆`,
+      });
+    }
     if (action === "cancel_rsvp" || action === "delete_rsvp") {
       const rsvpId = clean(body.rsvpId, 80);
       if (!rsvpId) return json(request, { error: "找不到要管理的回覆" }, 400);
