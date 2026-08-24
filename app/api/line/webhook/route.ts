@@ -1,5 +1,4 @@
 import { and, asc, eq, lt } from "drizzle-orm";
-import { ensureSchema } from "../../../../db/init";
 import { getDb } from "../../../../db";
 import { events, fairyNotificationTargets, lineBindCodes, lineBindings, lineCommandLogs, lineReminderSettings, mealTables, rsvps } from "../../../../db/schema";
 import { normalizeLineCommand } from "../commands";
@@ -35,7 +34,6 @@ export async function POST(request: Request) {
   }
 
   try {
-    await ensureSchema();
     const payload = JSON.parse(rawBody) as { events?: LineEvent[] };
     for (const event of payload.events || []) {
       const sourceType = event.source?.type || "";
@@ -153,7 +151,7 @@ export async function POST(request: Request) {
         ));
         continue;
       }
-      if (command === "安排") {
+      if (command === "安排" || command === "安排測試") {
         const db = getDb();
         const [binding] = await db.select().from(lineBindings)
           .where(eq(lineBindings.groupId, chatId)).limit(1);
@@ -174,7 +172,7 @@ export async function POST(request: Request) {
         }
         if (!tables.length) {
           await replyText(event.replyToken, `「${targetEvent.title}」尚未建立活動安排，請由建立者到活動管理後台設定。`);
-          await logCommand(binding.eventId, command, "no_arrangement", "尚未建立活動安排");
+          await logCommand(binding.eventId, "安排", "no_arrangement", "尚未建立活動安排");
           continue;
         }
         // LINE allows at most five messages in one push. Four image pages plus
@@ -188,14 +186,14 @@ export async function POST(request: Request) {
         const confirmation = `正在整理「${targetEvent.title}」的活動安排，共 ${tables.length} 個安排區。`;
         try {
           await pushMessages(chatId, [{ type: "text", text: confirmation }, ...messages]);
-          await logCommand(binding.eventId, command, "sent", `已傳送 ${pages} 張安排圖卡`);
+          await logCommand(binding.eventId, "安排", "sent", `已傳送 ${pages} 張安排圖卡`);
         } catch (error) {
           const detail = error instanceof Error ? error.message : "LINE 圖卡傳送失敗";
           try {
             await replyText(event.replyToken, `${confirmation}\n圖卡暫時無法傳送，請稍後再輸入「安排」。`);
-            await logCommand(binding.eventId, command, "fallback_sent", "圖卡傳送失敗，已回覆文字提示");
+            await logCommand(binding.eventId, "安排", "fallback_sent", "圖卡傳送失敗，已回覆文字提示");
           } catch {
-            await logCommand(binding.eventId, command, "failed", detail);
+            await logCommand(binding.eventId, "安排", "failed", detail);
           }
         }
         continue;

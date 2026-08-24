@@ -241,6 +241,7 @@ test("LINE roster command accepts both 啟動 and 啓動", () => {
   assert.equal(normalizeLineCommand(" 原神　啓動 "), "原神啟動");
   assert.equal(normalizeLineCommand("「安排。」"), "安排");
   assert.equal(normalizeLineCommand("安\u200B排！"), "安排");
+  assert.equal(normalizeLineCommand("安排!測試"), "安排測試");
 });
 
 test("bound LINE groups can show a privacy-safe current activity arrangement image", async () => {
@@ -252,7 +253,7 @@ test("bound LINE groups can show a privacy-safe current activity arrangement ima
     readFile(new URL("../docs/line-bot-guide.html", import.meta.url), "utf8"),
   ]);
   assert.equal(normalizeLineCommand(" 安 排 "), "安排");
-  assert.match(webhook, /command === "安排"/);
+  assert.match(webhook, /command === "安排" \|\| command === "安排測試"/);
   assert.match(webhook, /mealTables/);
   assert.match(webhook, /activityArrangementImageUrl/);
   assert.match(webhook, /pushMessages\(chatId/);
@@ -331,7 +332,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.24/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.25/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -344,9 +345,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.24/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.24/);
-  assert.match(worker, /good-days-github-v26/);
+  assert.match(page, /\/app\.js\?v=1\.2\.25/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.25/);
+  assert.match(worker, /good-days-github-v27/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 

@@ -12,5 +12,5 @@ export function normalizeLineCommand(text: string) {
   return compact
     .replace(/^[「『]+/u, "")
     .replace(/[」』]+$/u, "")
-    .replace(/[。！!？?]+$/u, "");
+    .replace(/[。！!？?]+/gu, "");
 }
