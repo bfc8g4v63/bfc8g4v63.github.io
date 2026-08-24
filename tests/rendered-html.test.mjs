@@ -324,7 +324,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.22/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.23/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -337,9 +337,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.22/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.22/);
-  assert.match(worker, /good-days-github-v24/);
+  assert.match(page, /\/app\.js\?v=1\.2\.23/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.23/);
+  assert.match(worker, /good-days-github-v25/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -460,15 +460,25 @@ test("verified creators can cancel or permanently delete a single RSVP", async (
   assert.match(adminRoute, /action === "cancel_rsvp"/);
   assert.match(adminRoute, /action === "delete_rsvp"/);
   assert.match(adminRoute, /action === "update_rsvp"/);
+  assert.match(adminRoute, /eq\(rsvps\.name, name\)/);
+  assert.match(adminRoute, /name,/);
   assert.match(adminRoute, /seatingChanged/);
   assert.match(adminRoute, /db\.delete\(mealAssignments\)/);
   assert.match(adminRoute, /eq\(rsvps\.eventId, access\.event\.id\)/);
   assert.match(client, /data-rsvp-edit/);
   assert.match(client, /function openManagedRsvpEditor/);
+  assert.match(client, /field\("姓名", "name", rsvp\.name/);
   assert.match(client, /action: "update_rsvp"/);
   assert.match(client, /修改回覆/);
   assert.match(client, /data-rsvp-cancel/);
   assert.match(client, /data-rsvp-delete/);
   assert.match(client, /取消參加/);
   assert.match(client, /永久刪除/);
+});
+
+test("attendee tokens keep working after a creator corrects the displayed name", async () => {
+  const rsvp = await readFile(new URL("../app/api/rsvps/route.ts", import.meta.url), "utf8");
+  assert.match(rsvp, /existingByToken/);
+  assert.match(rsvp, /eq\(rsvps\.viewerTokenHash, attendeeTokenHash\)/);
+  assert.match(rsvp, /name: existingByToken\?\.name \|\| name/);
 });

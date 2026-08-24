@@ -59,12 +59,21 @@ export async function POST(request: Request) {
     if (event.accessMode === "private" && !await verifyCredential(participantCode, event.participantCodeHash)) {
       return json(request, { error: "參加碼不正確" }, 403);
     }
-    const [existing] = await db.select({
-      id: rsvps.id, viewerTokenHash: rsvps.viewerTokenHash, partySize: rsvps.partySize, response: rsvps.response,
+    const [existingByName] = await db.select({
+      id: rsvps.id, name: rsvps.name, viewerTokenHash: rsvps.viewerTokenHash, partySize: rsvps.partySize, response: rsvps.response,
     }).from(rsvps)
       .where(and(eq(rsvps.eventId, eventId), eq(rsvps.name, name))).limit(1);
+    const attendeeTokenHash = suppliedAttendeeToken ? await hashCode(suppliedAttendeeToken) : "";
+    const [existingByToken] = attendeeTokenHash
+      ? await db.select({ id: rsvps.id, name: rsvps.name, viewerTokenHash: rsvps.viewerTokenHash, partySize: rsvps.partySize, response: rsvps.response })
+        .from(rsvps).where(and(eq(rsvps.eventId, eventId), eq(rsvps.viewerTokenHash, attendeeTokenHash))).limit(1)
+      : [];
+    if (existingByName && existingByToken && existingByName.id !== existingByToken.id) {
+      return json(request, { error: "這個姓名已有其他回覆，請聯絡活動建立者協助處理" }, 409);
+    }
+    const existing = existingByToken || existingByName;
     if (existing?.viewerTokenHash) {
-      if (!suppliedAttendeeToken || await hashCode(suppliedAttendeeToken) !== existing.viewerTokenHash) {
+      if (!suppliedAttendeeToken || attendeeTokenHash !== existing.viewerTokenHash) {
         return json(request, {
           error: "為保護您的回覆，請使用原先報名的裝置，從活動連結重新開啟後再更新或取消。",
         }, 403);
@@ -79,12 +88,12 @@ export async function POST(request: Request) {
       || (event.attendanceVisibility === "opt_in" && (body.shareName === true || body.shareName === "true"))
     );
     const values = {
-      eventId, name, partySize,
+      eventId, name: existingByToken?.name || name, partySize,
       diet: clean(body.diet, 120),
       note: clean(body.note, 300),
       response,
       shareName,
-      viewerTokenHash: await hashCode(attendeeToken),
+      viewerTokenHash: attendeeTokenHash || await hashCode(attendeeToken),
       updatedAt: new Date().toISOString(),
     };
     if (existing) {
@@ -115,9 +124,14 @@ export async function DELETE(request: Request) {
     const attendeeToken = clean(body.attendeeToken, 160);
     if (!eventId || !name || !attendeeToken) return json(request, { error: "請使用原本報名的裝置與姓名" }, 400);
     const db = getDb();
-    const [existing] = await db.select({ id: rsvps.id, viewerTokenHash: rsvps.viewerTokenHash }).from(rsvps)
+    const [existingByName] = await db.select({ id: rsvps.id, viewerTokenHash: rsvps.viewerTokenHash }).from(rsvps)
       .where(and(eq(rsvps.eventId, eventId), eq(rsvps.name, name))).limit(1);
-    if (!existing || await hashCode(attendeeToken) !== existing.viewerTokenHash) return json(request, { error: "無法驗證這筆回覆" }, 403);
+    const attendeeTokenHash = await hashCode(attendeeToken);
+    const [existingByToken] = await db.select({ id: rsvps.id, viewerTokenHash: rsvps.viewerTokenHash }).from(rsvps)
+      .where(and(eq(rsvps.eventId, eventId), eq(rsvps.viewerTokenHash, attendeeTokenHash))).limit(1);
+    if (existingByName && existingByToken && existingByName.id !== existingByToken.id) return json(request, { error: "這個姓名已有其他回覆，請聯絡活動建立者協助處理" }, 409);
+    const existing = existingByToken || existingByName;
+    if (!existing || attendeeTokenHash !== existing.viewerTokenHash) return json(request, { error: "無法驗證這筆回覆" }, 403);
     await db.delete(mealAssignments).where(eq(mealAssignments.rsvpId, existing.id));
     await db.delete(rsvps).where(eq(rsvps.id, existing.id));
     return json(request, { ok: true });

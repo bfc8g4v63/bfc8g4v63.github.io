@@ -99,18 +99,24 @@ export async function POST(request: Request) {
     }
     if (action === "update_rsvp") {
       const rsvpId = clean(body.rsvpId, 80);
+      const name = clean(body.name, 60);
       const response = body.response === "attending" ? "attending" : body.response === "not_attending" ? "not_attending" : "";
       const partySize = wholeNumber(body.partySize, 1, 999);
-      if (!rsvpId || !response || (response === "attending" && !partySize)) {
-        return json(request, { error: "請確認出席狀態與參加人數" }, 400);
+      if (!rsvpId || !name || !response || (response === "attending" && !partySize)) {
+        return json(request, { error: "請確認姓名、出席狀態與參加人數" }, 400);
       }
       const [rsvp] = await db.select({ id: rsvps.id, name: rsvps.name, partySize: rsvps.partySize, response: rsvps.response })
         .from(rsvps).where(and(eq(rsvps.id, rsvpId), eq(rsvps.eventId, access.event.id))).limit(1);
       if (!rsvp) return json(request, { error: "找不到這筆回覆" }, 404);
+      const [duplicate] = await db.select({ id: rsvps.id }).from(rsvps).where(and(
+        eq(rsvps.eventId, access.event.id), eq(rsvps.name, name),
+      )).limit(1);
+      if (duplicate && duplicate.id !== rsvp.id) return json(request, { error: `「${name}」已有一筆回覆，請先確認是否為同一人` }, 409);
       const nextPartySize = response === "attending" ? partySize : 0;
       const seatingChanged = rsvp.response !== response || rsvp.partySize !== nextPartySize;
       if (seatingChanged) await db.delete(mealAssignments).where(eq(mealAssignments.rsvpId, rsvp.id));
       await db.update(rsvps).set({
+        name,
         response,
         partySize: nextPartySize,
         diet: clean(body.diet, 120),

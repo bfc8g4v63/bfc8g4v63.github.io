@@ -442,8 +442,9 @@ function openManagedRsvpEditor(rsvp, event, managerAuth) {
     <div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="managed-rsvp-title">
       <button class="modal-close" data-close aria-label="關閉">×</button>
       <p class="eyebrow">建立者代為處理</p><h2 id="managed-rsvp-title">修改 ${esc(rsvp.name)} 的回覆</h2>
-      <p class="form-hint">可受託修改人數、飲食需求、備註與出席狀態。若改變人數或是否參加，該筆既有活動安排會清除，避免桌次人數不一致。</p>
+      <p class="form-hint">可受託修改姓名、人數、飲食需求、備註與出席狀態。若改變人數或是否參加，該筆既有活動安排會清除，避免桌次人數不一致。</p>
       <form id="managed-rsvp-form">
+        ${field("姓名", "name", rsvp.name, 'required maxlength="60"')}
         <fieldset><legend>是否參加？</legend>
           <label class="choice"><input type="radio" name="response" value="attending" ${rsvp.response === "attending" ? "checked" : ""}><span>✓ 參加</span></label>
           <label class="choice"><input type="radio" name="response" value="not_attending" ${rsvp.response === "not_attending" ? "checked" : ""}><span>這次無法參加</span></label>
