@@ -289,6 +289,8 @@ test("creators can manage activities with an independent management link without
   assert.match(eventsRoute, /managerTokenHash/);
   assert.match(eventsRoute, /#token=/);
   assert.match(auth, /managerToken/);
+  assert.match(auth, /credentialIterations = 100_000/);
+  assert.doesNotMatch(auth, /210_000/);
   assert.match(lineAdmin, /body\.managerToken/);
   assert.match(client, /managerAuthFromLink/);
   assert.match(client, /現在綁定 LINE 小幫手/);
@@ -333,7 +335,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.25/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.26/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -346,9 +348,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.25/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.25/);
-  assert.match(worker, /good-days-github-v27/);
+  assert.match(page, /\/app\.js\?v=1\.2\.26/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.26/);
+  assert.match(worker, /good-days-github-v28/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 

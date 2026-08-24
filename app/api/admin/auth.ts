@@ -13,7 +13,9 @@ export async function hashCode(value: string) {
 }
 
 const credentialPrefix = "pbkdf2";
-const credentialIterations = 210_000;
+// The hosted Worker runtime caps Web Crypto PBKDF2 at 100,000 iterations.
+// Keep this deliberately slow while staying within the portable limit.
+const credentialIterations = 100_000;
 
 function bytesToBase64(bytes: Uint8Array) {
   return btoa(String.fromCharCode(...bytes));
@@ -43,7 +45,7 @@ export async function verifyCredential(value: string, stored: string) {
   const [prefix, iterationsText, saltText, digestText] = stored.split("$");
   if (prefix !== credentialPrefix || !iterationsText || !saltText || !digestText) return sameValue(await hashCode(value), stored);
   const iterations = Number(iterationsText);
-  if (!Number.isInteger(iterations) || iterations < 100_000 || iterations > 1_000_000) return false;
+  if (!Number.isInteger(iterations) || iterations < 100_000 || iterations > credentialIterations) return false;
   const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(value), "PBKDF2", false, ["deriveBits"]);
   const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: base64ToBytes(saltText), iterations }, key, 256);
   return sameValue(bytesToBase64(new Uint8Array(bits)), digestText);
