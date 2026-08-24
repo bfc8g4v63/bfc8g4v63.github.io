@@ -1,8 +1,9 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, lt } from "drizzle-orm";
+import { ensureSchema } from "../../../../db/init";
 import { getDb } from "../../../../db";
-import { events, fairyNotificationTargets, lineBindCodes, lineBindings, lineReminderSettings, mealTables, rsvps } from "../../../../db/schema";
+import { events, fairyNotificationTargets, lineBindCodes, lineBindings, lineCommandLogs, lineReminderSettings, mealTables, rsvps } from "../../../../db/schema";
 import { normalizeLineCommand } from "../commands";
-import { activityArrangementImageUrl, activityShareMessage, getGroupName, lineConfig, pushText, replyMessages, replyText, rsvpSummaryMessage, verifyLineSignature } from "../lib";
+import { activityArrangementImageUrl, activityShareMessage, getGroupName, lineConfig, pushMessages, pushText, replyMessages, replyText, rsvpSummaryMessage, verifyLineSignature } from "../lib";
 
 type LineEvent = {
   type?: string;
@@ -10,6 +11,21 @@ type LineEvent = {
   source?: { type?: string; groupId?: string; roomId?: string; userId?: string };
   message?: { type?: string; text?: string };
 };
+
+async function logCommand(eventId: string, command: string, outcome: string, detail = "") {
+  try {
+    const db = getDb();
+    await db.insert(lineCommandLogs).values({
+      id: crypto.randomUUID(), eventId, command, outcome,
+      detail: detail.slice(0, 180), createdAt: new Date().toISOString(),
+    });
+    const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    await db.delete(lineCommandLogs).where(lt(lineCommandLogs.createdAt, cutoff));
+  } catch (error) {
+    // Diagnostic logging must never prevent a family from receiving a response.
+    console.error("Unable to record LINE command status", error);
+  }
+}
 
 export async function POST(request: Request) {
   const rawBody = await request.text();
@@ -19,6 +35,7 @@ export async function POST(request: Request) {
   }
 
   try {
+    await ensureSchema();
     const payload = JSON.parse(rawBody) as { events?: LineEvent[] };
     for (const event of payload.events || []) {
       const sourceType = event.source?.type || "";
@@ -157,15 +174,30 @@ export async function POST(request: Request) {
         }
         if (!tables.length) {
           await replyText(event.replyToken, `「${targetEvent.title}」尚未建立活動安排，請由建立者到活動管理後台設定。`);
+          await logCommand(binding.eventId, command, "no_arrangement", "尚未建立活動安排");
           continue;
         }
-        const pages = Math.ceil(tables.length / 6);
+        // LINE allows at most five messages in one push. Four image pages plus
+        // the confirmation text cover the app's 24-arrangement limit.
+        const pages = Math.min(4, Math.ceil(tables.length / 6));
         const messages = await Promise.all(Array.from({ length: pages }, async (_, page) => {
           const originalContentUrl = await activityArrangementImageUrl(request.url, binding.eventId, page);
           const previewImageUrl = originalContentUrl;
           return { type: "image" as const, originalContentUrl, previewImageUrl };
         }));
-        await replyMessages(event.replyToken, messages);
+        const confirmation = `正在整理「${targetEvent.title}」的活動安排，共 ${tables.length} 個安排區。`;
+        try {
+          await pushMessages(chatId, [{ type: "text", text: confirmation }, ...messages]);
+          await logCommand(binding.eventId, command, "sent", `已傳送 ${pages} 張安排圖卡`);
+        } catch (error) {
+          const detail = error instanceof Error ? error.message : "LINE 圖卡傳送失敗";
+          try {
+            await replyText(event.replyToken, `${confirmation}\n圖卡暫時無法傳送，請稍後再輸入「安排」。`);
+            await logCommand(binding.eventId, command, "fallback_sent", "圖卡傳送失敗，已回覆文字提示");
+          } catch {
+            await logCommand(binding.eventId, command, "failed", detail);
+          }
+        }
         continue;
       }
 

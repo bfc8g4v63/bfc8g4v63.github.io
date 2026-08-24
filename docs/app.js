@@ -42,6 +42,14 @@ function formatDate(value) {
   }).format(new Date(`${value}T12:00:00`));
 }
 
+function formatDateTime(value) {
+  if (!value) return "時間不明";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "時間不明" : date.toLocaleString("zh-TW", {
+    month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false,
+  });
+}
+
 function dateParts(value) {
   if (!value) return { month: "待定", day: "—" };
   const date = new Date(`${value}T12:00:00`);
@@ -508,6 +516,14 @@ function linePanel(line) {
     <div class="line-status warning"><strong>LINE 機器人程式已完成，等待填入兩個 LINE 憑證</strong>
       <p>請依照 <a href="/line-bot-guide.html" target="_blank">LINE 機器人設定教學</a> 建立官方帳號，完成後即可產生群組綁定碼。</p></div>`;
   const binding = line.binding;
+  const commandLogs = Array.isArray(line.commandLogs) ? line.commandLogs : [];
+  const commandLogText = {
+    sent: "已傳送",
+    fallback_sent: "已文字提示",
+    failed: "傳送失敗",
+    no_arrangement: "尚未建立安排",
+  };
+  const logPanel = binding ? `<section class="line-command-log"><div><strong>小幫手最近紀錄</strong><span>只記錄指令結果，不保存聊天內容</span></div>${commandLogs.length ? `<ul>${commandLogs.map((item) => `<li><time>${esc(formatDateTime(item.createdAt))}</time><b>${esc(item.command)}</b><em class="line-log-${esc(item.outcome)}">${esc(commandLogText[item.outcome] || item.outcome)}</em><small>${esc(item.detail || "—")}</small></li>`).join("")}</ul>` : "<p>目前尚無可顯示的指令紀錄。</p>"}</section>` : "";
   return `
     <div class="line-status ${binding ? "connected" : ""}">
       <strong>${binding ? `已綁定：${esc(binding.groupName)}` : "尚未綁定 LINE 群組"}</strong>
@@ -525,7 +541,7 @@ function linePanel(line) {
       <label class="toggle"><input type="checkbox" name="includeNote" ${line.settings.includeNote ? "checked" : ""}><span>「原神啟動」包含備註</span></label>
       <p class="form-hint">群組成員都能看到廣播內容；飲食需求與備註可能包含個人資訊，請分別確認後再開啟。</p>
       <button class="secondary" id="line-settings">儲存提醒設定</button>
-    </fieldset>`;
+    </fieldset>${logPanel}`;
 }
 
 function mealTableId() {

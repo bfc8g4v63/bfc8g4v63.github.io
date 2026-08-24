@@ -1,7 +1,7 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { ensureSchema } from "../../../../db/init";
 import { getDb } from "../../../../db";
-import { lineBindings, lineReminderSettings, mealAssignments, mealTables, rsvps } from "../../../../db/schema";
+import { lineBindings, lineCommandLogs, lineReminderSettings, mealAssignments, mealTables, rsvps } from "../../../../db/schema";
 import { json, preflight } from "../../cors";
 import { clean, requireEventManager } from "../auth";
 import { lineConfig } from "../../line/lib";
@@ -152,7 +152,7 @@ export async function POST(request: Request) {
       await db.delete(rsvps).where(eq(rsvps.id, rsvp.id));
       return json(request, { ok: true, message: `已刪除「${rsvp.name}」的回覆` });
     }
-    const [responses, bindingRows, settingRows, mealTableRows, mealAssignmentRows] = await Promise.all([
+    const [responses, bindingRows, settingRows, mealTableRows, mealAssignmentRows, commandLogs] = await Promise.all([
       db.select({
         id: rsvps.id, name: rsvps.name, response: rsvps.response,
         partySize: rsvps.partySize, diet: rsvps.diet, note: rsvps.note,
@@ -162,6 +162,8 @@ export async function POST(request: Request) {
       db.select().from(lineReminderSettings).where(eq(lineReminderSettings.eventId, access.event.id)).limit(1),
       db.select().from(mealTables).where(eq(mealTables.eventId, access.event.id)).orderBy(asc(mealTables.sortOrder)),
       db.select().from(mealAssignments).where(eq(mealAssignments.eventId, access.event.id)),
+      db.select({ command: lineCommandLogs.command, outcome: lineCommandLogs.outcome, detail: lineCommandLogs.detail, createdAt: lineCommandLogs.createdAt })
+        .from(lineCommandLogs).where(eq(lineCommandLogs.eventId, access.event.id)).orderBy(sql`${lineCommandLogs.createdAt} desc`).limit(12),
     ]);
     const attending = responses.filter((item) => item.response === "attending");
     const settings = settingRows[0] || { sevenDays: true, oneDay: true, twoHours: false, includeDiet: false, includeNote: false };
@@ -189,6 +191,7 @@ export async function POST(request: Request) {
           includeDiet: Boolean(settings.includeDiet),
           includeNote: Boolean(settings.includeNote),
         },
+        commandLogs,
       },
       mealSeating: {
         tables: mealTableRows.map((table) => ({

@@ -72,6 +72,17 @@ export const lineReminderDeliveries = sqliteTable("line_reminder_deliveries", {
   table.eventId, table.reminderKey, table.eventFingerprint,
 )]);
 
+// Operational metadata only: this intentionally never stores a member's
+// original chat message, LINE user ID, or any RSVP details.
+export const lineCommandLogs = sqliteTable("line_command_logs", {
+  id: text("id").primaryKey(),
+  eventId: text("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  command: text("command").notNull(),
+  outcome: text("outcome").notNull(),
+  detail: text("detail").notNull().default(""),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
 export const mealTables = sqliteTable("meal_tables", {
   id: text("id").primaryKey(),
   eventId: text("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),

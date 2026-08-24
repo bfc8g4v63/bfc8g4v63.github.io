@@ -5,8 +5,12 @@
  * accepting both avoids silently ignoring a family member's command.
  */
 export function normalizeLineCommand(text: string) {
-  return text
+  const compact = text
     .normalize("NFKC")
-    .replace(/[\s\u3000]+/gu, "")
+    .replace(/[\s\u3000\u200B-\u200D\uFEFF]+/gu, "")
     .replaceAll("啓", "啟");
+  return compact
+    .replace(/^[「『]+/u, "")
+    .replace(/[」』]+$/u, "")
+    .replace(/[。！!？?]+$/u, "");
 }

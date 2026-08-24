@@ -36,9 +36,13 @@ async function lineRequest(path: string, init: RequestInit) {
 }
 
 export async function pushText(to: string, text: string) {
+  await pushMessages(to, [{ type: "text", text: text.slice(0, 5000) }]);
+}
+
+export async function pushMessages(to: string, messages: LineReplyMessage[]) {
   await lineRequest("/v2/bot/message/push", {
     method: "POST",
-    body: JSON.stringify({ to, messages: [{ type: "text", text: text.slice(0, 5000) }] }),
+    body: JSON.stringify({ to, messages }),
   });
 }
 
