@@ -1,8 +1,8 @@
 import { and, asc, eq, lt } from "drizzle-orm";
 import { getDb } from "../../../../db";
-import { events, fairyNotificationTargets, lineBindCodes, lineBindings, lineCommandLogs, lineReminderSettings, mealTables, rsvps } from "../../../../db/schema";
+import { events, lineBindCodes, lineBindings, lineCommandLogs, lineReminderSettings, mealTables, rsvps } from "../../../../db/schema";
 import { normalizeLineCommand } from "../commands";
-import { activityArrangementImageUrl, activityShareMessage, getGroupName, lineConfig, pushMessages, pushText, replyMessages, replyText, rsvpSummaryMessage, verifyLineSignature } from "../lib";
+import { activityArrangementImageUrl, activityShareMessage, getGroupName, pushMessages, replyMessages, replyText, rsvpSummaryMessage, verifyLineSignature } from "../lib";
 
 type LineEvent = {
   type?: string;
@@ -56,7 +56,6 @@ export async function POST(request: Request) {
     const payload = JSON.parse(rawBody) as { events?: LineEvent[] };
     for (const event of payload.events || []) {
       const sourceType = event.source?.type || "";
-      const senderUserId = event.source?.userId || "";
       const chatId = sourceType === "group"
         ? event.source?.groupId || ""
         : sourceType === "room"
@@ -89,29 +88,6 @@ export async function POST(request: Request) {
       if (event.type !== "message" || event.message?.type !== "text") continue;
       const text = event.message.text?.trim() || "";
       const command = normalizeLineCommand(text);
-      const pairingCode = lineConfig().fairyPairingCode;
-      if (sourceType === "group" && senderUserId && pairingCode && command === `仙女綁定${normalizeLineCommand(pairingCode)}`) {
-        const db = getDb();
-        const [existingTarget] = await db.select().from(fairyNotificationTargets)
-          .where(eq(fairyNotificationTargets.id, "owner")).limit(1);
-        if (existingTarget && existingTarget.lineUserId !== senderUserId) {
-          await replyText(event.replyToken, "仙女補給站已完成私訊設定；為避免打擾，目前不開放更換通知帳號。 ");
-          continue;
-        }
-        await db.insert(fairyNotificationTargets).values({
-          id: "owner", lineUserId: senderUserId, pairedAt: new Date().toISOString(),
-        }).onConflictDoUpdate({
-          target: fairyNotificationTargets.id,
-          set: { lineUserId: senderUserId, pairedAt: new Date().toISOString() },
-        });
-        try {
-          await pushText(senderUserId, "仙女補給站私訊已連線 ✨\n之後她填的小卡會只傳到這裡，不會發到群組。\n南瓜馬車已待命，慢慢選就好。 ");
-        } catch {
-          // Group binding still succeeds if the account has not added the bot as a friend yet.
-        }
-        await replyText(event.replyToken, "仙女補給站已完成私訊設定。之後小卡內容只會傳給你的 LINE，不會發到群組。 ");
-        continue;
-      }
       if (command === "活動") {
         const db = getDb();
         const [binding] = await db.select().from(lineBindings)

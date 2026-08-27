@@ -4,7 +4,6 @@ type LineBindings = {
   LINE_CHANNEL_ACCESS_TOKEN?: string;
   LINE_CHANNEL_SECRET?: string;
   REMINDER_SECRET?: string;
-  FAIRY_PAIRING_CODE?: string;
 };
 
 export function lineConfig() {
@@ -13,7 +12,6 @@ export function lineConfig() {
     token: values.LINE_CHANNEL_ACCESS_TOKEN?.trim() || "",
     channelSecret: values.LINE_CHANNEL_SECRET?.trim() || "",
     reminderSecret: values.REMINDER_SECRET?.trim() || "",
-    fairyPairingCode: values.FAIRY_PAIRING_CODE?.trim() || "",
   };
 }
 

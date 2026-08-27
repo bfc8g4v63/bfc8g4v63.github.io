@@ -39,97 +39,28 @@ test("LINE webhook verifies signatures and reminder workflow uses a secret", asy
   assert.match(workflow, /Authorization: Bearer/);
 });
 
-test("fairy requests are private, rate-limited, and only notify a paired LINE account", async () => {
-  const [fairyRoute, fairyReactionRoute, fairyClient, webhook, lineLib, schemaInit, page] = await Promise.all([
+test("fairy station is retired without deleting its legacy notification data", async () => {
+  const [fairyRoute, fairyReactionRoute, webhook, lineLib, schemaInit, page] = await Promise.all([
     readFile(new URL("../app/api/fairy/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/fairy/reaction/route.ts", import.meta.url), "utf8"),
-    readFile(new URL("../docs/fairy/fairy.js", import.meta.url), "utf8"),
     readFile(new URL("../app/api/line/webhook/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/line/lib.ts", import.meta.url), "utf8"),
     readFile(new URL("../db/init.ts", import.meta.url), "utf8"),
     readFile(new URL("../docs/fairy/index.html", import.meta.url), "utf8"),
   ]);
-  assert.match(fairyRoute, /rateLimit\(request, "fairy-note", 3, 30 \* 60 \* 1000\)/);
-  assert.match(fairyRoute, /const note = clean\(body\.note, 240\)/);
-  assert.match(fairyRoute, /fairyNotificationTargets/);
-  assert.match(fairyRoute, /pushText\(target\.lineUserId/);
-  assert.match(fairyReactionRoute, /rateLimit\(request, "fairy-reaction", 10, 30 \* 60 \* 1000\)/);
-  assert.match(fairyReactionRoute, /const note = clean\(body\.note, 240\)/);
-  assert.match(fairyReactionRoute, /quickReplies/);
-  assert.match(fairyReactionRoute, /pushText\(target\.lineUserId/);
-  assert.match(lineLib, /FAIRY_PAIRING_CODE/);
-  assert.match(webhook, /fairyPairingCode/);
-  assert.match(webhook, /pushText\(senderUserId/);
-  assert.match(webhook, /仙女綁定/);
-  assert.match(webhook, /senderUserId/);
+  assert.match(fairyRoute, /仙女補給站已結束服務/);
+  assert.match(fairyRoute, /}, 410\)/);
+  assert.match(fairyReactionRoute, /仙女補給站已結束服務/);
+  assert.match(fairyReactionRoute, /}, 410\)/);
+  assert.doesNotMatch(fairyRoute, /pushText|fairyNotificationTargets|rateLimit/);
+  assert.doesNotMatch(fairyReactionRoute, /pushText|fairyNotificationTargets|rateLimit/);
+  assert.doesNotMatch(lineLib, /FAIRY_PAIRING_CODE|fairyPairingCode/);
+  assert.doesNotMatch(webhook, /仙女綁定|fairyNotificationTargets|fairyPairingCode/);
   assert.match(schemaInit, /CREATE TABLE IF NOT EXISTS fairy_notification_targets/);
   assert.match(page, /name="robots" content="noindex,nofollow,noarchive"/);
-  assert.match(page, /name="coffee"/);
-  assert.match(page, /name="date" type="date"/);
-  assert.match(page, /少卿陪聊/);
-  assert.match(page, /走出聊天室/);
-  assert.match(page, /2026\/08\/22 \(六\) 12:00/);
-  assert.match(page, /fairy-icons\.svg#coffee-cup/);
-  assert.match(page, /fairy-icons\.svg#chat/);
-  assert.match(page, /fairy-icons\.svg#carriage/);
-  assert.match(page, /fairy-icons\.svg#starlight/);
-  assert.match(page, /id="access-password"/);
-  assert.match(page, /提示：仙女生日/);
-  assert.match(fairyClient, /accessHash/);
-  assert.doesNotMatch(fairyClient, /0922/);
-  assert.match(page, /id="fairy-bgm"/);
-  assert.match(page, /assets\/fairy-warm\.mp3/);
-  assert.match(page, /預設靜音，想聽再打開就好/);
-  assert.match(fairyClient, /backgroundMusic\.play\(\)/);
-  assert.match(page, /仙界補給守則/);
-  assert.match(page, /咖啡[\s\S]*?退散/);
-  assert.match(page, /茶飲[\s\S]*?准奏/);
-  assert.match(page, /F1[\s\S]*?優先通行/);
-  assert.match(page, /精緻單點[\s\S]*?仙女認證/);
-  assert.match(page, /Me Time[\s\S]*?仙界保護區/);
-  assert.match(page, /id="demon-rule-toggle"[^>]*aria-expanded="false"/);
-  assert.match(page, /香菜・芹菜・苦瓜・南瓜・茄子・大陸妹/);
-  assert.match(fairyClient, /demonRuleToggle\.addEventListener\("click"/);
-  assert.match(page, /name="note"/);
-  assert.match(page, /id="rating-note"/);
-  assert.match(page, /想對少卿說的話/);
-  assert.match(fairyClient, /note: ratingNote\?\.value\.trim\(\)\.slice\(0, 240\)/);
-  assert.match(page, /第一次聊天/);
-  assert.match(page, /fairy-icon vanish-icon/);
-  assert.match(page, /斷開魂結 N 年/);
-  assert.match(page, /2024\/05\/06 \(一\) 15:41/);
-  assert.match(page, /2026\/07\/08 \(三\) 23:43/);
-  assert.match(page, /空降水蜜桃/);
-  assert.match(page, /2026\/07\/30 \(四\) 09:00/);
-  assert.match(page, /<li class="complete"><span aria-hidden="true"><svg class="fairy-icon"><use href="\.\/assets\/fairy-icons\.svg#chat"><\/use><\/svg><\/span><div><strong>再次相逢/);
-  assert.match(page, /<li class="complete"><span aria-hidden="true"><svg class="fairy-icon peach-icon"[\s\S]*?<strong>空降水蜜桃/);
-  assert.doesNotMatch(page, /由月光、咖啡與一點工程師執念支援營運/);
-  assert.match(page, /fairy-icon dining-icon/);
-  assert.match(page, /走出聊天室/);
-  assert.match(page, /2026\/08\/22 \(六\) 12:00/);
-  assert.match(page, /仙女誕辰/);
-  assert.match(page, /fairy-icon birthday-icon/);
-  assert.match(page, /2026\/09\/22 \(二\)/);
-  const questTimeline = page.match(/<ol class="quest-map">([\s\S]*?)<\/ol>/)?.[1] || "";
-  assert.ok(questTimeline.indexOf("共乘馬車") < questTimeline.indexOf("空降水蜜桃"));
-  assert.ok(questTimeline.indexOf("空降水蜜桃") < questTimeline.indexOf("走出聊天室"));
-  assert.ok(questTimeline.indexOf("走出聊天室") < questTimeline.indexOf("羽球副本"));
-  assert.ok(questTimeline.indexOf("羽球副本") < questTimeline.indexOf("仙女誕辰"));
-  assert.match(page, /南瓜馬車/);
-});
-
-test("fairy detector always appears before checking this session's pass", async () => {
-  const [page, fairyClient, fairyStyles] = await Promise.all([
-    readFile(new URL("../docs/fairy/index.html", import.meta.url), "utf8"),
-    readFile(new URL("../docs/fairy/fairy.js", import.meta.url), "utf8"),
-    readFile(new URL("../docs/fairy/fairy.css", import.meta.url), "utf8"),
-  ]);
-  assert.match(page, /<body class="gate-locked detector-active">/);
-  assert.match(page, /偵測到仙女正在附近出沒/);
-  assert.match(fairyClient, /function hasStationAccess\(\)/);
-  assert.match(fairyClient, /if \(hasStationAccess\(\)\) \{[\s\S]*?unlockStation\(\)/);
-  assert.match(fairyClient, /else \{[\s\S]*?openAccessGate\(\)/);
-  assert.match(fairyStyles, /\.detector-active \.access-gate/);
+  assert.match(page, /仙女已回歸仙界/);
+  assert.match(page, /href="\/"/);
+  assert.doesNotMatch(page, /fairy\.js|fairy\.css|name="coffee"|access-password/);
 });
 
 test("privacy controls protect group broadcasts and expire operational data", async () => {
@@ -335,7 +266,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.26/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.27/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -348,9 +279,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.26/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.26/);
-  assert.match(worker, /good-days-github-v28/);
+  assert.match(page, /\/app\.js\?v=1\.2\.27/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.27/);
+  assert.match(worker, /good-days-github-v29/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 

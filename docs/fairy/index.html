@@ -3,183 +3,38 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-  <meta name="theme-color" content="#15132d">
-  <meta name="description" content="有一份今日小確幸等待領取。">
+  <meta name="theme-color" content="#fff8ec">
+  <meta name="description" content="仙女補給站已結束服務。">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <meta name="googlebot" content="noindex,nofollow,noarchive">
-  <meta property="og:title" content="仙女補給站">
-  <meta property="og:description" content="有一份今日小確幸等待領取。">
+  <meta property="og:title" content="仙女已回歸仙界">
+  <meta property="og:description" content="仙女補給站已結束服務。">
   <meta property="og:url" content="https://bfc8g4v63.github.io/fairy/">
   <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="仙女補給站">
-  <meta name="twitter:description" content="有一份今日小確幸等待領取。">
-  <title>仙女補給站</title>
+  <title>仙女已回歸仙界｜好日子</title>
   <link rel="icon" href="../icon-192.png">
-  <link rel="stylesheet" href="./fairy.css">
-  <script>document.documentElement.classList.add("js");</script>
+  <style>
+    :root { color-scheme: light; font-family: "Noto Sans TC", "Microsoft JhengHei", system-ui, sans-serif; color: #19463f; background: #fff8ec; }
+    * { box-sizing: border-box; }
+    body { min-width: 320px; min-height: 100vh; margin: 0; display: grid; place-items: center; padding: 24px; background: radial-gradient(circle at 15% 12%, rgba(244, 192, 128, .25), transparent 30rem), radial-gradient(circle at 86% 84%, rgba(158, 205, 181, .28), transparent 32rem), #fff8ec; }
+    main { width: min(100%, 520px); padding: clamp(34px, 8vw, 56px); border: 1px solid #d8c7ad; border-radius: 28px; background: rgba(255, 253, 247, .88); box-shadow: 0 20px 55px rgba(83, 57, 24, .12); text-align: center; }
+    .mark { display: grid; width: 64px; height: 64px; margin: 0 auto 20px; place-items: center; border-radius: 50%; color: #fffaf0; background: #19463f; font-size: 1.7rem; }
+    p { margin: 0; line-height: 1.75; }
+    .eyebrow { margin-bottom: 8px; color: #d95e47; font-size: .74rem; font-weight: 800; letter-spacing: .14em; }
+    h1 { margin: 0 0 13px; font-family: Georgia, "Noto Serif TC", serif; font-size: clamp(1.8rem, 6vw, 2.45rem); letter-spacing: .04em; }
+    .copy { color: #53736c; }
+    a { display: inline-flex; min-height: 48px; margin-top: 28px; padding: 0 20px; align-items: center; justify-content: center; border-radius: 14px; color: #fffaf0; background: #df654d; box-shadow: 0 4px 0 #b64835; font-weight: 800; text-decoration: none; transition: transform .18s ease, background .18s ease; }
+    a:hover, a:focus-visible { background: #c95440; transform: translateY(-2px); }
+    a:focus-visible { outline: 3px solid rgba(217, 94, 71, .3); outline-offset: 3px; }
+  </style>
 </head>
-<body class="gate-locked detector-active">
-  <div class="sky" aria-hidden="true">
-    <i class="star star-one"></i><i class="star star-two"></i><i class="star star-three"></i>
-    <i class="star star-four"></i><i class="star star-five"></i><i class="star star-six"></i>
-    <i class="moon"></i>
-  </div>
-
-  <section class="detector" aria-live="polite" aria-label="補給站開場">
-    <p class="detector-mark">✦ FAIRY SUPPLY STATION</p>
-    <p class="detector-copy">偵測到仙女正在附近出沒……</p>
-    <span class="detector-scan" aria-hidden="true"></span>
-  </section>
-
-  <section class="access-gate" id="access-gate" role="dialog" aria-modal="true" aria-labelledby="access-title">
-    <div class="access-panel">
-      <span class="gate-icon" aria-hidden="true"><svg class="fairy-icon"><use href="./assets/fairy-icons.svg#starlight"></use></svg></span>
-      <p class="eyebrow">FAIRY CHECKPOINT</p>
-      <h2 id="access-title">仙女鑑別中</h2>
-      <p>輸入通關密碼，南瓜馬車才會打開車門。</p>
-      <form id="access-form" novalidate>
-        <label for="access-password">通關密碼</label>
-        <input id="access-password" name="password" type="password" inputmode="numeric" autocomplete="one-time-code" maxlength="4" pattern="[0-9]{4}" required>
-        <button type="submit">請仙女驗證 <span aria-hidden="true">→</span></button>
-        <p class="access-hint">提示：仙女生日</p>
-        <p class="access-message" id="access-message" role="status" aria-live="polite"></p>
-      </form>
-    </div>
-  </section>
-
-  <main class="supply-station" id="main-content" aria-hidden="true">
-    <header class="hero">
-      <p class="eyebrow">✦ FAIRY SUPPLY STATION</p>
-      <h1>仙女補給站</h1>
-      <p>今夜月光充足，南瓜馬車已在月光下待命。</p>
-      <img class="carriage-art" src="./assets/fairy-carriage.png" alt="搭著南瓜馬車送來咖啡的 Q 版配送員">
-    </header>
-
-    <section class="delivery-card card" aria-labelledby="delivery-title">
-      <div class="delivery-stamp" aria-hidden="true">南瓜馬車已待命</div>
-      <span class="parcel-icon" aria-hidden="true"><svg class="fairy-icon"><use href="./assets/fairy-icons.svg#coffee-cup"></use></svg></span>
-      <h2 id="delivery-title">今日份的小確幸，尚未送出</h2>
-      <p>選好想要的，再把小卡交給配送員。慢慢來，沒有截止時間。</p>
-      <button class="collect-button" type="button" id="collect-supply" aria-controls="reward-card" aria-expanded="false">
-        看看今日補給 <span aria-hidden="true">→</span>
-      </button>
-    </section>
-
-    <section class="reward-card card" id="reward-card" aria-labelledby="reward-title" hidden>
-      <p class="eyebrow">補給明細</p>
-      <h2 id="reward-title">今日份的小確幸</h2>
-      <form class="supply-form" id="fairy-request">
-        <label class="supply-choice"><span class="icon-frame" aria-hidden="true"><svg class="fairy-icon"><use href="./assets/fairy-icons.svg#coffee-cup"></use></svg></span><span><strong>星巴克補給 ×1</strong><small>今日仙女能量補充包。</small></span><input name="coffee" maxlength="80" autocomplete="off" placeholder="例如：冰美式、抹茶那提"></label>
-        <label class="supply-choice choice-toggle"><span class="icon-frame" aria-hidden="true"><svg class="fairy-icon"><use href="./assets/fairy-icons.svg#chat"></use></svg></span><span><strong>少卿陪聊</strong><small>仙女專屬 😂</small></span><input name="chat" type="checkbox" aria-label="想領取少卿陪聊"></label>
-        <label class="supply-choice"><span class="icon-frame" aria-hidden="true"><svg class="fairy-icon"><use href="./assets/fairy-icons.svg#carriage"></use></svg></span><span><strong>南瓜馬車乘車資格</strong><small>長期有效，搭乘時間隨緣。</small></span><input name="carriageSong" maxlength="80" autocomplete="off" placeholder="想聽的歌或路上想聊的題目"></label>
-        <fieldset class="calendar-choice mood-buff">
-          <legend><span class="legend-icon" aria-hidden="true"><svg class="fairy-icon"><use href="./assets/fairy-icons.svg#starlight"></use></svg></span>今日心情 Buff +1</legend>
-          <p>若無效果，請自行忽略本功能。想挑一天心血來潮，也可以先記在這裡。</p>
-          <div class="calendar-fields">
-            <label>日期<input name="date" type="date"></label>
-            <label>想做什麼<select name="activity"><option value="">先保留神秘感</option><option>咖啡補給</option><option>吃飯副本</option><option>散步看夜景</option><option>羽球副本</option><option>其他小任務</option></select></label>
-          </div>
-        </fieldset>
-        <label class="message-field">想對少卿說的話<textarea name="note" maxlength="240" rows="3" placeholder="想說的話可以留在這裡，不寫也可以。"></textarea></label>
-        <button class="send-request" type="submit">把這張小卡交給配送員 <span aria-hidden="true">✦</span></button>
-        <p class="request-message" id="request-message" role="status" aria-live="polite">送出後只會私訊配送員，不會發到群組。</p>
-      </form>
-      <p class="reward-note">本券沒有使用期限，也沒有退貨服務 😂</p>
-      <section class="quick-replies" aria-labelledby="quick-replies-title">
-        <p class="eyebrow" id="quick-replies-title">仙女回傳小卡</p>
-        <div class="quick-reply-list" role="group" aria-label="快速回覆">
-          <button class="quick-reply" type="button" data-reply="補給收到"><svg class="fairy-icon" aria-hidden="true"><use href="./assets/fairy-icons.svg#coffee-cup"></use></svg><span>補給收到</span></button>
-          <button class="quick-reply" type="button" data-reply="😂 有被鬧到"><span class="reply-emoji" aria-hidden="true">😂</span><span>有被鬧到</span></button>
-          <button class="quick-reply" type="button" data-reply="馬車先停好"><svg class="fairy-icon" aria-hidden="true"><use href="./assets/fairy-icons.svg#carriage"></use></svg><span>馬車先停好</span></button>
-          <button class="quick-reply" type="button" data-reply="本仙女已閱"><svg class="fairy-icon" aria-hidden="true"><use href="./assets/fairy-icons.svg#starlight"></use></svg><span>本仙女已閱</span></button>
-        </div>
-        <p class="quick-reply-message" id="quick-reply-message" role="status" aria-live="polite">想按哪張就按哪張，不用附心得。</p>
-      </section>
-    </section>
-
-    <section class="supply-rules card" aria-labelledby="rules-title">
-      <p class="eyebrow">仙界備忘</p>
-      <h2 id="rules-title">仙界補給守則</h2>
-      <div class="rules-grid">
-        <div class="rule-card"><span class="rule-emoji" aria-hidden="true">☕</span><span><strong>咖啡</strong><small>退散</small></span></div>
-        <div class="rule-card"><span class="rule-emoji" aria-hidden="true">🥤</span><span><strong>茶飲</strong><small>准奏</small></span></div>
-        <div class="rule-card"><span class="rule-emoji" aria-hidden="true">🏎</span><span><strong>F1</strong><small>優先通行</small></span></div>
-        <div class="rule-card"><span class="rule-emoji" aria-hidden="true">🍽</span><span><strong>精緻單點</strong><small>仙女認證</small></span></div>
-        <div class="rule-card rule-card-demons" id="demon-rule-card">
-          <button class="rule-toggle" id="demon-rule-toggle" type="button" aria-expanded="false" aria-controls="demon-rule-details">
-            <span class="rule-emoji" aria-hidden="true">🌿</span><span><strong>六大妖物</strong><small>禁止入境</small></span>
-            <svg class="rule-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m7.5 9.5 4.5 4.5 4.5-4.5"></path></svg>
-          </button>
-          <div class="demon-rule-details" id="demon-rule-details" aria-hidden="true"><span>香菜・芹菜・苦瓜・南瓜・茄子・大陸妹</span></div>
-        </div>
-        <div class="rule-card"><span class="rule-emoji" aria-hidden="true">🌙</span><span><strong>Me Time</strong><small>仙界保護區</small></span></div>
-      </div>
-      <p class="rules-note">資料由仙女本人不定期釋出，少卿僅負責版本更新。</p>
-    </section>
-
-    <section class="quest-card card" aria-labelledby="quest-title">
-      <p class="eyebrow">仙界地圖</p>
-      <h2 id="quest-title">目前冒險進度</h2>
-      <ol class="quest-map">
-        <li class="complete"><span aria-hidden="true"><svg class="fairy-icon"><use href="./assets/fairy-icons.svg#starlight"></use></svg></span><div><strong>十年網友</strong><small>已解鎖</small></div></li>
-        <li class="complete"><span aria-hidden="true"><svg class="fairy-icon"><use href="./assets/fairy-icons.svg#chat"></use></svg></span><div><strong>第一次聊天</strong><small>已解鎖</small></div></li>
-        <li class="complete"><span aria-hidden="true"><svg class="fairy-icon vanish-icon" viewBox="0 0 40 40"><path d="M8.8 17.8c0-4.4 3.7-7.8 8.8-7.8 3.4 0 6.2 1.4 7.7 3.7" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"></path><path d="M8.9 17.9c0 4.4 3.7 7.8 8.7 7.8 1.3 0 2.5-.2 3.6-.6l3.8 1.5-.9-3.1c.7-.7 1.2-1.5 1.6-2.4" fill="currentColor" fill-opacity=".08" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"></path><path d="M27.5 13.2h.1m3.7 2.8h.1m1.8 4.3h.1m-6.8 6.2h.1" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"></path></svg></span><div><strong>斷開魂結 N 年</strong><small>已解鎖</small></div></li>
-        <li class="complete"><span aria-hidden="true"><svg class="fairy-icon"><use href="./assets/fairy-icons.svg#chat"></use></svg></span><div><strong>再次相逢</strong><small>2024/05/06 (一) 15:41</small></div></li>
-        <li class="complete"><span aria-hidden="true"><svg class="fairy-icon"><use href="./assets/fairy-icons.svg#carriage"></use></svg></span><div><strong>共乘馬車</strong><small>2026/07/08 (三) 23:43</small></div></li>
-        <li class="complete"><span aria-hidden="true"><svg class="fairy-icon peach-icon" viewBox="0 0 40 40"><path d="M20 14.4c-1.7-3.2-4.5-4.8-7.1-4.1-3.2.8-4.3 4.7-2.4 7.3 2.1-.2 6-1.3 9.5-3.2Z" fill="currentColor" fill-opacity=".22" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path><path d="M20 14.4c1.6-3.3 4.3-4.9 6.8-4.2 3.2.8 4.4 4.7 2.5 7.3-2.2-.2-5.9-1.3-9.3-3.1Z" fill="currentColor" fill-opacity=".12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path><path d="M20.1 14.4c-6.7-.1-11.4 4.7-10.5 11.3.8 5.7 5 9.1 10.4 9.1 5.5 0 9.6-3.4 10.4-9.1.9-6.6-3.8-11.4-10.3-11.3Z" fill="currentColor" fill-opacity=".17" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"></path><path d="M20.1 15.2c-1.2 4.3-1.2 10.3.1 17.7" fill="none" stroke="currentColor" stroke-width="1.55" stroke-linecap="round"></path></svg></span><div><strong>空降水蜜桃</strong><small>2026/07/30 (四) 09:00</small></div></li>
-        <li class="upcoming"><span aria-hidden="true"><svg class="fairy-icon dining-icon" viewBox="0 0 40 40"><path d="M11.4 10.1v8.3m-2.6-8.3v6.1c0 1.5 1.2 2.7 2.7 2.7s2.7-1.2 2.7-2.7v-6.1m-2.7 8.8v11.3" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"></path><path d="M29.6 10.4c-3.1 2.6-3.7 7.2-1.4 10.5l1.1 1.6v7.7m.3-19.8v10.2" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"></path><path d="M15.9 24.7c2.1-1.4 4.5-1.8 7.1-1.8s5 .4 7.1 1.8c-.8 3.5-3.3 5.3-7.1 5.3s-6.3-1.8-7.1-5.3Z" fill="currentColor" fill-opacity=".16" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"></path></svg></span><div><strong>走出聊天室</strong><small>2026/08/22 (六) 12:00・即將解鎖</small></div></li>
-        <li class="locked"><span aria-hidden="true">🏸</span><div><strong>羽球副本</strong><small>🔒</small></div></li>
-        <li class="upcoming"><span aria-hidden="true"><svg class="fairy-icon birthday-icon" viewBox="0 0 40 40"><path d="M20 7.1c1.6 2.1 1.5 4.1 0 5.7-1.5-1.6-1.6-3.6 0-5.7Z" fill="currentColor" fill-opacity=".35" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path><path d="M20 12.8v4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path><path d="M10.3 20.1c2.2-2.1 4.7-2.4 7-1.1 1.7.9 3.4.9 5.1 0 2.3-1.3 4.8-1 7 1.1v5.5H10.3Z" fill="currentColor" fill-opacity=".14" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"></path><path d="M10.3 25.6h19.1v7.1H10.3zM14.2 29.2h.1m5.7 0h.1m5.7 0h.1" fill="currentColor" fill-opacity=".12" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"></path></svg></span><div><strong>仙女誕辰</strong><small>2026/09/22 (二)・即將解鎖</small></div></li>
-        <li class="locked"><span aria-hidden="true">❓</span><div><strong>未知地圖</strong><small>🔒</small></div></li>
-      </ol>
-      <p class="quest-ending">其他副本，慢慢解鎖就好。</p>
-    </section>
-
-    <section class="rating-card card" aria-labelledby="rating-title">
-      <p class="eyebrow">可選任務</p>
-      <h2 id="rating-title">本次仙女補給服務評價</h2>
-      <p>本店只收星星，不收壓力。</p>
-      <div class="rating-stars" role="group" aria-label="請選擇一到五星評價">
-        <button type="button" data-rating="1" aria-label="1 星評價" aria-pressed="false">★</button>
-        <button type="button" data-rating="2" aria-label="2 星評價" aria-pressed="false">★</button>
-        <button type="button" data-rating="3" aria-label="3 星評價" aria-pressed="false">★</button>
-        <button type="button" data-rating="4" aria-label="4 星評價" aria-pressed="false">★</button>
-        <button type="button" data-rating="5" aria-label="5 星評價" aria-pressed="false">★</button>
-      </div>
-      <label class="rating-note-field" for="rating-note"><span>想對少卿說的話</span><textarea id="rating-note" maxlength="240" rows="3" placeholder="寫完後，選一顆星就會一起交給少卿。"></textarea></label>
-      <p class="rating-message" id="rating-message" role="status" aria-live="polite">想按幾顆都可以，沒有標準答案。</p>
-    </section>
-
-    <section class="fairy-player" aria-label="今夜背景音樂">
-      <div class="player-copy">
-        <strong>今夜 BGM・暖暖</strong>
-        <p id="bgm-status" role="status" aria-live="polite">預設靜音，想聽再打開就好。</p>
-      </div>
-      <div class="player-controls">
-        <button class="bgm-toggle" id="bgm-toggle" type="button" aria-label="開啟背景音樂" aria-pressed="false">
-          <svg class="speaker-icon" viewBox="0 0 32 32" aria-hidden="true">
-            <path class="speaker-body" d="M5.5 13.1h5l6.8-5.5v16.8l-6.8-5.5h-5z"></path>
-            <path class="speaker-wave speaker-wave-one" d="M21 12.1c1.3 1 2 2.4 2 3.9s-.7 2.9-2 3.9"></path>
-            <path class="speaker-wave speaker-wave-two" d="M24.6 9.2c2.1 1.8 3.2 4.1 3.2 6.8s-1.1 5-3.2 6.8"></path>
-            <path class="speaker-mute" d="m22 13.2 5.7 5.7m0-5.7L22 18.9"></path>
-          </svg>
-        </button>
-        <label class="volume-control" for="bgm-volume">
-          <span class="sr-only">背景音樂音量</span>
-          <input id="bgm-volume" type="range" min="0" max="1" step="0.05" value="0.42" aria-label="背景音樂音量">
-        </label>
-      </div>
-      <audio id="fairy-bgm" preload="none" loop muted>
-        <source src="./assets/fairy-warm.mp3" type="audio/mpeg">
-      </audio>
-    </section>
-
-    <footer>
-      <span class="fairy-signature">© 大理寺少卿 · v1.7.1</span>
-    </footer>
+<body>
+  <main>
+    <span class="mark" aria-hidden="true">✦</span>
+    <p class="eyebrow">FAIRY SUPPLY STATION</p>
+    <h1>仙女已回歸仙界</h1>
+    <p class="copy">補給站已結束服務。<br>願她在雲端一切安好，日子照樣慢慢發亮。</p>
+    <a href="/">回到好日子首頁</a>
   </main>
-
-  <noscript><p class="noscript-note">今日補給：星巴克補給 ×1、少卿陪聊、南瓜馬車乘車資格、今日心情 Buff +1。</p></noscript>
-  <script src="./fairy.js?v=1.7.1" defer></script>
 </body>
 </html>
