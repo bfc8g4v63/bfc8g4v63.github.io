@@ -1,9 +1,5 @@
-import { and, asc, eq, lt } from "drizzle-orm";
+import { env } from "cloudflare:workers";
 import { getRequestExecutionContext } from "vinext/shims/request-context";
-import { getDb } from "../../../../db";
-import { events, lineBindCodes, lineBindings, lineCommandLogs, lineReminderSettings, lineWebhookDeliveries, mealTables, rsvps } from "../../../../db/schema";
-import { normalizeLineCommand } from "../commands";
-import { activityArrangementImageUrl, activityShareMessage, getGroupName, pushMessages, replyMessages, replyText, rsvpSummaryMessage, verifyLineSignature } from "../lib";
 
 type LineEvent = {
   type?: string;
@@ -13,8 +9,34 @@ type LineEvent = {
   message?: { type?: string; text?: string };
 };
 
+type LineReplyMessage =
+  | { type: "text"; text: string }
+  | { type: "image"; originalContentUrl: string; previewImageUrl: string };
+
+async function verifyWebhookSignature(body: string, signature: string) {
+  const channelSecret = (env as unknown as { LINE_CHANNEL_SECRET?: string }).LINE_CHANNEL_SECRET?.trim() || "";
+  if (!channelSecret || !signature) return false;
+  const key = await crypto.subtle.importKey(
+    "raw", new TextEncoder().encode(channelSecret),
+    { name: "HMAC", hash: "SHA-256" }, false, ["sign"],
+  );
+  const signed = await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(body));
+  const expected = btoa(String.fromCharCode(...new Uint8Array(signed)));
+  if (expected.length !== signature.length) return false;
+  let difference = 0;
+  for (let index = 0; index < expected.length; index += 1) {
+    difference |= expected.charCodeAt(index) ^ signature.charCodeAt(index);
+  }
+  return difference === 0;
+}
+
 async function logCommand(eventId: string, command: string, outcome: string, detail = "") {
   try {
+    const [{ lt }, { getDb }, { lineCommandLogs, lineWebhookDeliveries }] = await Promise.all([
+      import("drizzle-orm"),
+      import("../../../../db"),
+      import("../../../../db/schema"),
+    ]);
     const db = getDb();
     await db.insert(lineCommandLogs).values({
       id: crypto.randomUUID(), eventId, command, outcome,
@@ -34,7 +56,8 @@ function canRetryLinePush(error: unknown) {
   return /LINE 傳送失敗（5\d\d）|fetch failed|network|timeout/i.test(message);
 }
 
-async function pushArrangement(chatId: string, messages: Parameters<typeof pushMessages>[1]) {
+async function pushArrangement(chatId: string, messages: LineReplyMessage[]) {
+  const { pushMessages } = await import("../lib");
   const retryKey = crypto.randomUUID();
   try {
     await pushMessages(chatId, messages, retryKey);
@@ -51,7 +74,7 @@ async function pushArrangement(chatId: string, messages: Parameters<typeof pushM
 export async function POST(request: Request) {
   const rawBody = await request.text();
   const signature = request.headers.get("x-line-signature") || "";
-  if (!await verifyLineSignature(rawBody, signature)) {
+  if (!await verifyWebhookSignature(rawBody, signature)) {
     return Response.json({ error: "Invalid LINE signature" }, { status: 401 });
   }
 
@@ -78,6 +101,10 @@ async function claimWebhookEvent(event: LineEvent) {
   // In that case, retain the original handling behaviour.
   if (!event.webhookEventId) return true;
   try {
+    const [{ getDb }, { lineWebhookDeliveries }] = await Promise.all([
+      import("../../../../db"),
+      import("../../../../db/schema"),
+    ]);
     const [claimed] = await getDb().insert(lineWebhookDeliveries).values({
       id: event.webhookEventId,
       receivedAt: new Date().toISOString(),
@@ -93,6 +120,19 @@ async function claimWebhookEvent(event: LineEvent) {
 
 async function processWebhookEvents(lineEvents: LineEvent[], requestUrl: string) {
   try {
+    const [
+      { and, asc, eq },
+      { getDb },
+      { events, lineBindCodes, lineBindings, lineReminderSettings, mealTables, rsvps },
+      { normalizeLineCommand },
+      { activityArrangementImageUrl, activityShareMessage, getGroupName, replyMessages, replyText, rsvpSummaryMessage },
+    ] = await Promise.all([
+      import("drizzle-orm"),
+      import("../../../../db"),
+      import("../../../../db/schema"),
+      import("../commands"),
+      import("../lib"),
+    ]);
     for (const event of lineEvents) {
       if (!await claimWebhookEvent(event)) continue;
       const sourceType = event.source?.type || "";

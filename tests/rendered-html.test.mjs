@@ -33,7 +33,7 @@ test("LINE webhook verifies signatures and reminder workflow uses a secret", asy
     readFile(new URL("../app/api/line/webhook/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../.github/workflows/line-reminders.yml", import.meta.url), "utf8"),
   ]);
-  assert.match(webhook, /verifyLineSignature/);
+  assert.match(webhook, /verifyWebhookSignature/);
   assert.match(webhook, /x-line-signature|signature/i);
   assert.match(webhook, /getRequestExecutionContext/);
   assert.match(webhook, /context\.waitUntil\(processing\)/);
