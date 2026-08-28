@@ -12,7 +12,9 @@ const taipeiEvening = (eventDate: string, daysBefore: number) =>
 const rules = [
   { key: "seven_days", label: "活動前 7 天提醒", setting: "sevenDays" as const, window: 90,
     sendAt: (eventTime: number, eventDate: string) => taipeiEvening(eventDate, 7) },
-  { key: "one_day", label: "活動前 1 天提醒", setting: "oneDay" as const, window: 90,
+  // Scheduled GitHub Actions runs can occasionally arrive late. The delivery
+  // table below still guarantees this reminder is sent at most once.
+  { key: "one_day", label: "活動前 1 天提醒", setting: "oneDay" as const, window: 12 * 60,
     sendAt: (eventTime: number, eventDate: string) => taipeiEvening(eventDate, 1) },
   { key: "two_hours", label: "活動前 2 小時提醒", setting: "twoHours" as const, window: 120,
     sendAt: (eventTime: number) => eventTime - 120 * 60 * 1000 },

@@ -97,15 +97,18 @@ test("LINE roster broadcasts can disclose diet and notes independently", async (
   assert.match(guide, /分別選擇是否包含/);
 });
 
-test("calendar reminders use Taipei evening while the two-hour reminder stays relative", async () => {
-  const [reminders, lineLib, adminLine] = await Promise.all([
+test("calendar reminders tolerate delayed schedules while the two-hour reminder stays relative", async () => {
+  const [reminders, lineLib, adminLine, workflow] = await Promise.all([
     readFile(new URL("../app/api/line/run-reminders/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/line/lib.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/admin/line/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../.github/workflows/line-reminders.yml", import.meta.url), "utf8"),
   ]);
   assert.match(reminders, /T18:00:00\+08:00/);
   assert.match(reminders, /taipeiEvening\(eventDate, 7\)/);
   assert.match(reminders, /taipeiEvening\(eventDate, 1\)/);
+  assert.match(reminders, /key: "one_day"[\s\S]*?window: 12 \* 60/);
+  assert.match(workflow, /cron: "\*\/5 \* \* \* \*"/);
   assert.match(reminders, /eventTime - 120 \* 60 \* 1000/);
   assert.match(reminders, /shareToken: events\.shareToken/);
   assert.match(lineLib, /shareToken: string/);
@@ -266,7 +269,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.27/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.28/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -279,9 +282,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.27/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.27/);
-  assert.match(worker, /good-days-github-v29/);
+  assert.match(page, /\/app\.js\?v=1\.2\.28/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.28/);
+  assert.match(worker, /good-days-github-v30/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
