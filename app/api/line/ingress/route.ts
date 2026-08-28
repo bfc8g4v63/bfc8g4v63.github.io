@@ -37,11 +37,13 @@ export async function POST(request: Request) {
   if (!relaySecret) return Response.json({ error: "Relay is unavailable" }, { status: 503 });
 
   const processorUrl = new URL("/api/line/webhook", request.url);
-  const processing = fetch(processorUrl, {
+  // Yield once before starting the heavier processor. This keeps its cold
+  // start out of LINE's acknowledgement path while waitUntil keeps it alive.
+  const processing = new Promise<void>((resolve) => setTimeout(resolve, 0)).then(() => fetch(processorUrl, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-goodday-line-relay": relaySecret },
     body,
-  }).then((response) => {
+  })).then((response) => {
     if (!response.ok) throw new Error(`LINE relay failed (${response.status})`);
   }).catch((error) => console.error("LINE relay failed", error));
   const context = getRequestExecutionContext();
