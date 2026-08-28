@@ -60,8 +60,6 @@ export async function replyMessages(replyToken: string, messages: LineReplyMessa
   });
 }
 
-const arrangementImageSlotMs = 60 * 60 * 1000;
-
 function timingSafeEqual(left: string, right: string) {
   if (left.length !== right.length) return false;
   let difference = 0;
@@ -85,7 +83,10 @@ async function arrangementImageSignature(eventId: string, page: number, slot: nu
 }
 
 export async function activityArrangementImageUrl(requestUrl: string, eventId: string, page: number) {
-  const slot = Math.floor(Date.now() / arrangementImageSlotMs);
+  // The slot is retained in the signed payload for URLs already sent to LINE.
+  // LINE fetches image URLs again when a conversation is reopened, often days
+  // later, so the signature itself must not expire with that cache refresh.
+  const slot = Math.floor(Date.now() / (60 * 60 * 1000));
   const signature = await arrangementImageSignature(eventId, page, slot);
   const url = new URL("/api/line/arrangement-image", requestUrl);
   url.searchParams.set("e", eventId);
@@ -97,8 +98,7 @@ export async function activityArrangementImageUrl(requestUrl: string, eventId: s
 }
 
 export async function verifyActivityArrangementImage(eventId: string, page: number, slot: number, signature: string) {
-  const currentSlot = Math.floor(Date.now() / arrangementImageSlotMs);
-  if (!signature || (slot !== currentSlot && slot !== currentSlot - 1)) return false;
+  if (!signature || !Number.isInteger(slot) || slot < 0) return false;
   return timingSafeEqual(await arrangementImageSignature(eventId, page, slot), signature);
 }
 
