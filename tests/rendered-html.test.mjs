@@ -29,11 +29,17 @@ test("public activity response is summary-only", async () => {
 });
 
 test("LINE webhook verifies signatures and reminder workflow uses a secret", async () => {
-  const [webhook, workflow] = await Promise.all([
+  const [webhook, ingress, workflow] = await Promise.all([
     readFile(new URL("../app/api/line/webhook/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/line/ingress/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../.github/workflows/line-reminders.yml", import.meta.url), "utf8"),
   ]);
   assert.match(webhook, /verifyLineSignature/);
+  assert.match(webhook, /x-goodday-line-relay/);
+  assert.match(webhook, /isTrustedRelay/);
+  assert.match(ingress, /verifyLineSignature/);
+  assert.match(ingress, /getRequestExecutionContext/);
+  assert.match(ingress, /api\/line\/webhook/);
   assert.match(webhook, /x-line-signature|signature/i);
   assert.match(webhook, /getRequestExecutionContext/);
   assert.match(webhook, /context\.waitUntil\(processing\)/);

@@ -3,7 +3,7 @@ import { getRequestExecutionContext } from "vinext/shims/request-context";
 import { getDb } from "../../../../db";
 import { events, lineBindCodes, lineBindings, lineCommandLogs, lineReminderSettings, lineWebhookDeliveries, mealTables, rsvps } from "../../../../db/schema";
 import { normalizeLineCommand } from "../commands";
-import { activityArrangementImageUrl, activityShareMessage, getGroupName, pushMessages, replyMessages, replyText, rsvpSummaryMessage, verifyLineSignature } from "../lib";
+import { activityArrangementImageUrl, activityShareMessage, getGroupName, lineConfig, pushMessages, replyMessages, replyText, rsvpSummaryMessage, verifyLineSignature } from "../lib";
 
 type LineEvent = {
   type?: string;
@@ -51,7 +51,14 @@ async function pushArrangement(chatId: string, messages: Parameters<typeof pushM
 export async function POST(request: Request) {
   const rawBody = await request.text();
   const signature = request.headers.get("x-line-signature") || "";
-  if (!await verifyLineSignature(rawBody, signature)) {
+  const relayToken = request.headers.get("x-goodday-line-relay") || "";
+  const { reminderSecret } = lineConfig();
+  let relayDifference = relayToken.length === reminderSecret.length ? 0 : 1;
+  for (let index = 0; index < Math.min(relayToken.length, reminderSecret.length); index += 1) {
+    relayDifference |= relayToken.charCodeAt(index) ^ reminderSecret.charCodeAt(index);
+  }
+  const isTrustedRelay = Boolean(reminderSecret) && relayDifference === 0;
+  if (!isTrustedRelay && !await verifyLineSignature(rawBody, signature)) {
     return Response.json({ error: "Invalid LINE signature" }, { status: 401 });
   }
 
@@ -67,6 +74,10 @@ export async function POST(request: Request) {
   // the verified delivery first and keep the actual command work alive with
   // the request execution context.
   const processing = processWebhookEvents(payload.events || [], request.url);
+  if (isTrustedRelay) {
+    await processing;
+    return Response.json({ ok: true });
+  }
   const context = getRequestExecutionContext();
   if (context) context.waitUntil(processing);
   else void processing;
