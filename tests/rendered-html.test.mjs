@@ -110,6 +110,9 @@ test("calendar reminders tolerate delayed schedules while the two-hour reminder 
   assert.match(reminders, /key: "one_day"[\s\S]*?window: 12 \* 60/);
   assert.match(workflow, /cron: "\*\/5 \* \* \* \*"/);
   assert.match(reminders, /eventTime - 120 \* 60 \* 1000/);
+  assert.match(adminLine, /body\.reminderType === "two_hours"/);
+  assert.match(adminLine, /活動前 2 小時提醒（測試）/);
+  assert.match(await readFile(new URL("../docs/app.js", import.meta.url), "utf8"), /id="line-two-hour-test"/);
   assert.match(reminders, /shareToken: events\.shareToken/);
   assert.match(lineLib, /shareToken: string/);
   assert.match(lineLib, /https:\/\/bfc8g4v63\.github\.io\/e\/\?s=\$\{encodeURIComponent\(event\.shareToken\)\}/);
@@ -269,7 +272,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.28/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.29/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -282,9 +285,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.28/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.28/);
-  assert.match(worker, /good-days-github-v30/);
+  assert.match(page, /\/app\.js\?v=1\.2\.29/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.29/);
+  assert.match(worker, /good-days-github-v31/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 

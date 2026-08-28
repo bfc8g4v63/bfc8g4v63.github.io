@@ -72,10 +72,11 @@ export async function POST(request: Request) {
       const attending = await db.select({ partySize: rsvps.partySize }).from(rsvps).where(and(
         eq(rsvps.eventId, access.event.id), eq(rsvps.response, "attending"),
       ));
+      const label = body.reminderType === "two_hours" ? "活動前 2 小時提醒（測試）" : "測試提醒";
       await pushText(binding.groupId, eventMessage({
         ...access.event,
         attendingPeople: attending.reduce((sum, item) => sum + item.partySize, 0),
-      }, "測試提醒"));
+      }, label));
       return json(request, { ok: true });
     }
 

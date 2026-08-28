@@ -530,7 +530,7 @@ function linePanel(line) {
       <p>${binding ? "自動提醒會傳送到這個群組；輸入「活動」可廣播活動連結與 QR Code，輸入「原神啟動」預設只廣播姓名與人數，輸入「安排」可收到目前活動安排圖卡。" : "先產生 6 位數綁定碼，再到家族 LINE 群組輸入。"}</p>
       <div id="binding-code-area"></div>
       <div class="inline-actions">
-        ${binding ? '<button class="secondary" id="line-test">傳送測試提醒</button><button class="text-danger" id="line-unbind">解除綁定</button>' : '<button class="line-button" id="line-code">產生群組綁定碼</button>'}
+        ${binding ? '<button class="secondary" id="line-test">傳送測試提醒</button><button class="secondary" id="line-two-hour-test">傳送 2 小時提醒測試</button><button class="text-danger" id="line-unbind">解除綁定</button>' : '<button class="line-button" id="line-code">產生群組綁定碼</button>'}
       </div>
     </div>
     <fieldset class="reminder-options"><legend>自動提醒時間</legend>
@@ -918,17 +918,19 @@ function openAdminDashboard(data, managerAuth) {
     } catch (error) { showLineError(error.message); }
     finally { button.disabled = false; }
   });
-  document.querySelector("#line-test")?.addEventListener("click", async (clickEvent) => {
+  async function sendLineTest(clickEvent, reminderType) {
     const button = clickEvent.currentTarget;
     button.disabled = true;
     try {
       await requestJson("/admin/line", {
-        action: "send_test", ...managerPayload(event.id, managerAuth),
+        action: "send_test", reminderType, ...managerPayload(event.id, managerAuth),
       });
-      showNotice("測試提醒已傳到 LINE 群組");
+      showNotice(reminderType === "two_hours" ? "2 小時提醒測試已傳到 LINE 群組" : "測試提醒已傳到 LINE 群組");
     } catch (error) { showLineError(error.message); }
     finally { button.disabled = false; }
-  });
+  }
+  document.querySelector("#line-test")?.addEventListener("click", (clickEvent) => sendLineTest(clickEvent, "general"));
+  document.querySelector("#line-two-hour-test")?.addEventListener("click", (clickEvent) => sendLineTest(clickEvent, "two_hours"));
   document.querySelector("#line-unbind")?.addEventListener("click", async () => {
     if (!confirm("確定解除這個活動的 LINE 群組綁定？")) return;
     try {
