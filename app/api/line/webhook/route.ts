@@ -1,12 +1,13 @@
 import { and, asc, eq, lt } from "drizzle-orm";
 import { getRequestExecutionContext } from "vinext/shims/request-context";
 import { getDb } from "../../../../db";
-import { events, lineBindCodes, lineBindings, lineCommandLogs, lineReminderSettings, mealTables, rsvps } from "../../../../db/schema";
+import { events, lineBindCodes, lineBindings, lineCommandLogs, lineReminderSettings, lineWebhookDeliveries, mealTables, rsvps } from "../../../../db/schema";
 import { normalizeLineCommand } from "../commands";
 import { activityArrangementImageUrl, activityShareMessage, getGroupName, pushMessages, replyMessages, replyText, rsvpSummaryMessage, verifyLineSignature } from "../lib";
 
 type LineEvent = {
   type?: string;
+  webhookEventId?: string;
   replyToken?: string;
   source?: { type?: string; groupId?: string; roomId?: string; userId?: string };
   message?: { type?: string; text?: string };
@@ -21,6 +22,7 @@ async function logCommand(eventId: string, command: string, outcome: string, det
     });
     const cutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
     await db.delete(lineCommandLogs).where(lt(lineCommandLogs.createdAt, cutoff));
+    await db.delete(lineWebhookDeliveries).where(lt(lineWebhookDeliveries.receivedAt, cutoff));
   } catch (error) {
     // Diagnostic logging must never prevent a family from receiving a response.
     console.error("Unable to record LINE command status", error);
@@ -71,9 +73,28 @@ export async function POST(request: Request) {
   return Response.json({ ok: true });
 }
 
+async function claimWebhookEvent(event: LineEvent) {
+  // Webhook verification requests and some legacy events do not include an ID.
+  // In that case, retain the original handling behaviour.
+  if (!event.webhookEventId) return true;
+  try {
+    const [claimed] = await getDb().insert(lineWebhookDeliveries).values({
+      id: event.webhookEventId,
+      receivedAt: new Date().toISOString(),
+    }).onConflictDoNothing().returning({ id: lineWebhookDeliveries.id });
+    return Boolean(claimed);
+  } catch (error) {
+    // Do not turn a diagnostics safeguard into a dropped family command.
+    // LINE will retry this delivery when it could not receive our 2xx response.
+    console.error("Unable to claim LINE webhook event", error);
+    return true;
+  }
+}
+
 async function processWebhookEvents(lineEvents: LineEvent[], requestUrl: string) {
   try {
     for (const event of lineEvents) {
+      if (!await claimWebhookEvent(event)) continue;
       const sourceType = event.source?.type || "";
       const chatId = sourceType === "group"
         ? event.source?.groupId || ""

@@ -90,6 +90,11 @@ export function ensureSchema() {
         FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
       )`),
       database.prepare("CREATE INDEX IF NOT EXISTS line_command_logs_event_created ON line_command_logs (event_id, created_at DESC)"),
+      database.prepare(`CREATE TABLE IF NOT EXISTS line_webhook_deliveries (
+        id TEXT PRIMARY KEY NOT NULL,
+        received_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`),
+      database.prepare("CREATE INDEX IF NOT EXISTS line_webhook_deliveries_received ON line_webhook_deliveries (received_at DESC)"),
       database.prepare(`CREATE TABLE IF NOT EXISTS meal_tables (
         id TEXT PRIMARY KEY NOT NULL,
         event_id TEXT NOT NULL,
@@ -206,6 +211,7 @@ export function ensureSchema() {
       database.prepare("CREATE UNIQUE INDEX IF NOT EXISTS meal_tables_event_sort_unique ON meal_tables (event_id, sort_order)"),
       database.prepare("CREATE UNIQUE INDEX IF NOT EXISTS meal_tables_event_name_key_unique ON meal_tables (event_id, name_key)"),
       database.prepare("CREATE INDEX IF NOT EXISTS line_command_logs_event_created ON line_command_logs (event_id, created_at DESC)"),
+      database.prepare("CREATE INDEX IF NOT EXISTS line_webhook_deliveries_received ON line_webhook_deliveries (received_at DESC)"),
     ]);
     await database.batch([
       database.prepare("DROP TRIGGER IF EXISTS rsvps_capacity_before_insert"),

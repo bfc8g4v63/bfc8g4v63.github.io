@@ -64,6 +64,13 @@
       "when": 1787554301732,
       "tag": "0008_first_loa",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1787920982603,
+      "tag": "0009_curly_ink",
+      "breakpoints": true
     }
   ]
 }

@@ -200,6 +200,9 @@ test("bound LINE groups can show a privacy-safe current activity arrangement ima
   assert.match(webhook, /pushArrangement\(chatId, messages\)/);
   assert.match(lineLib, /X-Line-Retry-Key/);
   assert.match(webhook, /lineCommandLogs/);
+  assert.match(webhook, /webhookEventId/);
+  assert.match(webhook, /lineWebhookDeliveries/);
+  assert.match(webhook, /claimWebhookEvent/);
   assert.match(webhook, /fallback_sent/);
   assert.match(lineLib, /export async function activityArrangementImageUrl/);
   assert.match(lineLib, /export async function pushMessages/);

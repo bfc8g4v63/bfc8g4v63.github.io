@@ -83,6 +83,14 @@ export const lineCommandLogs = sqliteTable("line_command_logs", {
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
+// LINE can redeliver a webhook when the original acknowledgement times out.
+// Store only LINE's opaque event ID so a redelivery never sends a family the
+// same reply or arrangement card twice.
+export const lineWebhookDeliveries = sqliteTable("line_webhook_deliveries", {
+  id: text("id").primaryKey(),
+  receivedAt: text("received_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
 export const mealTables = sqliteTable("meal_tables", {
   id: text("id").primaryKey(),
   eventId: text("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
