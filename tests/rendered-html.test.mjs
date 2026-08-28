@@ -35,6 +35,9 @@ test("LINE webhook verifies signatures and reminder workflow uses a secret", asy
   ]);
   assert.match(webhook, /verifyLineSignature/);
   assert.match(webhook, /x-line-signature|signature/i);
+  assert.match(webhook, /getRequestExecutionContext/);
+  assert.match(webhook, /context\.waitUntil\(processing\)/);
+  assert.match(webhook, /LINE requires a 2xx response within two seconds/);
   assert.match(workflow, /secrets\.REMINDER_SECRET/);
   assert.match(workflow, /Authorization: Bearer/);
 });
@@ -274,7 +277,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.30/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.31/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -287,9 +290,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.30/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.30/);
-  assert.match(worker, /good-days-github-v32/);
+  assert.match(page, /\/app\.js\?v=1\.2\.31/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.31/);
+  assert.match(worker, /good-days-github-v33/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 

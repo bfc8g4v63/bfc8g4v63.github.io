@@ -1,4 +1,5 @@
 import { and, asc, eq, lt } from "drizzle-orm";
+import { getRequestExecutionContext } from "vinext/shims/request-context";
 import { getDb } from "../../../../db";
 import { events, lineBindCodes, lineBindings, lineCommandLogs, lineReminderSettings, mealTables, rsvps } from "../../../../db/schema";
 import { normalizeLineCommand } from "../commands";
@@ -52,9 +53,27 @@ export async function POST(request: Request) {
     return Response.json({ error: "Invalid LINE signature" }, { status: 401 });
   }
 
+  let payload: { events?: LineEvent[] };
   try {
-    const payload = JSON.parse(rawBody) as { events?: LineEvent[] };
-    for (const event of payload.events || []) {
+    payload = JSON.parse(rawBody) as { events?: LineEvent[] };
+  } catch {
+    return Response.json({ error: "Invalid LINE payload" }, { status: 400 });
+  }
+
+  // LINE requires a 2xx response within two seconds. Database work and a
+  // reply/push call can exceed that budget on a cold Worker, so acknowledge
+  // the verified delivery first and keep the actual command work alive with
+  // the request execution context.
+  const processing = processWebhookEvents(payload.events || [], request.url);
+  const context = getRequestExecutionContext();
+  if (context) context.waitUntil(processing);
+  else void processing;
+  return Response.json({ ok: true });
+}
+
+async function processWebhookEvents(lineEvents: LineEvent[], requestUrl: string) {
+  try {
+    for (const event of lineEvents) {
       const sourceType = event.source?.type || "";
       const chatId = sourceType === "group"
         ? event.source?.groupId || ""
@@ -106,7 +125,7 @@ export async function POST(request: Request) {
           continue;
         }
         const shareUrl = `https://bfc8g4v63.github.io/e/?s=${encodeURIComponent(targetEvent.shareToken)}`;
-        const qrUrl = new URL("/api/line/qr", request.url);
+        const qrUrl = new URL("/api/line/qr", requestUrl);
         qrUrl.searchParams.set("s", targetEvent.shareToken);
         await replyMessages(event.replyToken, [
           { type: "text", text: activityShareMessage({ ...targetEvent, shareUrl }) },
@@ -174,7 +193,7 @@ export async function POST(request: Request) {
         // activity to 24 arrangement areas, which fit into four image pages.
         const pages = Math.min(4, Math.ceil(tables.length / 6));
         const messages = await Promise.all(Array.from({ length: pages }, async (_, page) => {
-          const originalContentUrl = await activityArrangementImageUrl(request.url, binding.eventId, page);
+          const originalContentUrl = await activityArrangementImageUrl(requestUrl, binding.eventId, page);
           const previewImageUrl = originalContentUrl;
           return { type: "image" as const, originalContentUrl, previewImageUrl };
         }));
@@ -225,9 +244,7 @@ export async function POST(request: Request) {
       await db.delete(lineBindCodes).where(eq(lineBindCodes.code, bindingCode.code));
       await replyText(event.replyToken, `綁定成功：${targetEvent.title}\n預設會在活動前 7 天與 1 天提醒，可回網站管理後台調整。`);
     }
-    return Response.json({ ok: true });
   } catch (error) {
     console.error("LINE webhook failed", error);
-    return Response.json({ error: "Webhook processing failed" }, { status: 500 });
   }
 }
