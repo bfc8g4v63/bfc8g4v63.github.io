@@ -20,10 +20,19 @@ const rules = [
     sendAt: (eventTime: number) => eventTime - 120 * 60 * 1000 },
 ];
 
+function matchesSecret(supplied: string, expected: string) {
+  if (!expected || supplied.length !== expected.length) return false;
+  let difference = 0;
+  for (let index = 0; index < expected.length; index += 1) {
+    difference |= supplied.charCodeAt(index) ^ expected.charCodeAt(index);
+  }
+  return difference === 0;
+}
+
 export async function POST(request: Request) {
-  const { reminderSecret } = lineConfig();
+  const { reminderSecret, schedulerSecret } = lineConfig();
   const supplied = request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") || "";
-  if (!reminderSecret || supplied !== reminderSecret) {
+  if (!matchesSecret(supplied, reminderSecret) && !matchesSecret(supplied, schedulerSecret)) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 

@@ -4,6 +4,7 @@ type LineBindings = {
   LINE_CHANNEL_ACCESS_TOKEN?: string;
   LINE_CHANNEL_SECRET?: string;
   REMINDER_SECRET?: string;
+  SCHEDULER_SECRET?: string;
 };
 
 export function lineConfig() {
@@ -12,6 +13,7 @@ export function lineConfig() {
     token: values.LINE_CHANNEL_ACCESS_TOKEN?.trim() || "",
     channelSecret: values.LINE_CHANNEL_SECRET?.trim() || "",
     reminderSecret: values.REMINDER_SECRET?.trim() || "",
+    schedulerSecret: values.SCHEDULER_SECRET?.trim() || "",
   };
 }
 

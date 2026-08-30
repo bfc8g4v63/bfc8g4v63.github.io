@@ -29,10 +29,13 @@ test("public activity response is summary-only", async () => {
 });
 
 test("LINE webhook verifies signatures and reminder workflow uses a secret", async () => {
-  const [webhook, ingress, workflow] = await Promise.all([
+  const [webhook, ingress, workflow, reminders, scheduler, lineLib] = await Promise.all([
     readFile(new URL("../app/api/line/webhook/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/line/ingress/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../.github/workflows/line-reminders.yml", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/line/run-reminders/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../scheduler-worker/src/index.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/line/lib.ts", import.meta.url), "utf8"),
   ]);
   assert.match(webhook, /verifyLineSignature/);
   assert.match(webhook, /x-goodday-line-relay/);
@@ -46,6 +49,10 @@ test("LINE webhook verifies signatures and reminder workflow uses a secret", asy
   assert.match(webhook, /LINE requires a 2xx response within two seconds/);
   assert.match(workflow, /secrets\.REMINDER_SECRET/);
   assert.match(workflow, /Authorization: Bearer/);
+  assert.match(lineLib, /SCHEDULER_SECRET/);
+  assert.match(reminders, /matchesSecret/);
+  assert.match(scheduler, /ctx\.waitUntil\(runDueReminders\(env\)\)/);
+  assert.match(scheduler, /Reminder service returned/);
 });
 
 test("fairy station is retired without deleting its legacy notification data", async () => {

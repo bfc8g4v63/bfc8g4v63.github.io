@@ -1,0 +1,10 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "good-days-reminder-scheduler",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-30",
+  "triggers": { "crons": ["*/5 * * * *"] },
+  "vars": {
+    "REMINDER_URL": "https://good-days-family-events.x0925234139.chatgpt.site/api/line/run-reminders"
+  }
+}
