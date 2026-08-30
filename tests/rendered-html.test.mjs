@@ -34,7 +34,7 @@ test("LINE webhook verifies signatures and reminder workflow uses a secret", asy
     readFile(new URL("../app/api/line/ingress/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../.github/workflows/line-reminders.yml", import.meta.url), "utf8"),
     readFile(new URL("../app/api/line/run-reminders/route.ts", import.meta.url), "utf8"),
-    readFile(new URL("../scheduler-worker/src/index.ts", import.meta.url), "utf8"),
+    readFile(new URL("../scheduler-worker/src/index.js", import.meta.url), "utf8"),
     readFile(new URL("../app/api/line/lib.ts", import.meta.url), "utf8"),
   ]);
   assert.match(webhook, /verifyLineSignature/);
@@ -113,7 +113,7 @@ test("LINE roster broadcasts can disclose diet and notes independently", async (
   assert.match(guide, /分別選擇是否包含/);
 });
 
-test("calendar reminders tolerate delayed schedules while the two-hour reminder stays relative", async () => {
+test("calendar reminders keep a small late-delivery tolerance while the two-hour reminder stays relative", async () => {
   const [reminders, lineLib, adminLine, workflow] = await Promise.all([
     readFile(new URL("../app/api/line/run-reminders/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/line/lib.ts", import.meta.url), "utf8"),
@@ -123,7 +123,10 @@ test("calendar reminders tolerate delayed schedules while the two-hour reminder 
   assert.match(reminders, /T18:00:00\+08:00/);
   assert.match(reminders, /taipeiEvening\(eventDate, 7\)/);
   assert.match(reminders, /taipeiEvening\(eventDate, 1\)/);
-  assert.match(reminders, /key: "one_day"[\s\S]*?window: 12 \* 60/);
+  assert.match(reminders, /const allowedLateMinutes = 20/);
+  assert.match(reminders, /key: "seven_days"[\s\S]*?window: allowedLateMinutes/);
+  assert.match(reminders, /key: "one_day"[\s\S]*?window: allowedLateMinutes/);
+  assert.match(reminders, /key: "two_hours"[\s\S]*?window: allowedLateMinutes/);
   assert.match(workflow, /cron: "\*\/5 \* \* \* \*"/);
   assert.match(reminders, /eventTime - 120 \* 60 \* 1000/);
   assert.match(adminLine, /body\.reminderType === "two_hours"/);

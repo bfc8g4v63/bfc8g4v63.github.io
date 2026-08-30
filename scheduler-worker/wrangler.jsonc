@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "good-days-reminder-scheduler",
-  "main": "src/index.ts",
+  "main": "src/index.js",
   "compatibility_date": "2026-08-30",
   "triggers": { "crons": ["*/5 * * * *"] },
   "vars": {

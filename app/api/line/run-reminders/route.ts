@@ -9,14 +9,16 @@ import { eventMessage, lineConfig, pushText } from "../lib";
 const taipeiEvening = (eventDate: string, daysBefore: number) =>
   Date.parse(`${eventDate}T18:00:00+08:00`) - daysBefore * 24 * 60 * 60 * 1000;
 
+// Cloudflare runs this Worker every five minutes.  Twenty minutes allows for
+// occasional platform jitter while refusing a stale reminder later that day.
+const allowedLateMinutes = 20;
+
 const rules = [
-  { key: "seven_days", label: "活動前 7 天提醒", setting: "sevenDays" as const, window: 90,
+  { key: "seven_days", label: "活動前 7 天提醒", setting: "sevenDays" as const, window: allowedLateMinutes,
     sendAt: (eventTime: number, eventDate: string) => taipeiEvening(eventDate, 7) },
-  // Scheduled GitHub Actions runs can occasionally arrive late. The delivery
-  // table below still guarantees this reminder is sent at most once.
-  { key: "one_day", label: "活動前 1 天提醒", setting: "oneDay" as const, window: 12 * 60,
+  { key: "one_day", label: "活動前 1 天提醒", setting: "oneDay" as const, window: allowedLateMinutes,
     sendAt: (eventTime: number, eventDate: string) => taipeiEvening(eventDate, 1) },
-  { key: "two_hours", label: "活動前 2 小時提醒", setting: "twoHours" as const, window: 120,
+  { key: "two_hours", label: "活動前 2 小時提醒", setting: "twoHours" as const, window: allowedLateMinutes,
     sendAt: (eventTime: number) => eventTime - 120 * 60 * 1000 },
 ];
 
