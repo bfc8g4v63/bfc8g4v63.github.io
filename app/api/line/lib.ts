@@ -5,6 +5,9 @@ type LineBindings = {
   LINE_CHANNEL_SECRET?: string;
   REMINDER_SECRET?: string;
   SCHEDULER_SECRET?: string;
+  REMINDER_TEST_SECRET?: string;
+  REMINDER_TEST_EVENT_ID?: string;
+  REMINDER_TEST_GROUP_ID?: string;
 };
 
 export function lineConfig() {
@@ -14,6 +17,9 @@ export function lineConfig() {
     channelSecret: values.LINE_CHANNEL_SECRET?.trim() || "",
     reminderSecret: values.REMINDER_SECRET?.trim() || "",
     schedulerSecret: values.SCHEDULER_SECRET?.trim() || "",
+    reminderTestSecret: values.REMINDER_TEST_SECRET?.trim() || "",
+    reminderTestEventId: values.REMINDER_TEST_EVENT_ID?.trim() || "",
+    reminderTestGroupId: values.REMINDER_TEST_GROUP_ID?.trim() || "",
   };
 }
 
