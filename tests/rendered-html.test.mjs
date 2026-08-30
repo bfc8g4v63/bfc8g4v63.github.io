@@ -129,8 +129,12 @@ test("calendar reminders keep a small late-delivery tolerance while the two-hour
   assert.match(reminders, /key: "two_hours"[\s\S]*?window: allowedLateMinutes/);
   assert.match(workflow, /cron: "\*\/5 \* \* \* \*"/);
   assert.match(reminders, /eventTime - 120 \* 60 \* 1000/);
-  assert.match(adminLine, /body\.reminderType === "two_hours"/);
+  assert.match(adminLine, /seven_days: "活動前 7 天提醒（測試）"/);
+  assert.match(adminLine, /one_day: "活動前 1 天提醒（測試）"/);
+  assert.match(adminLine, /two_hours: "活動前 2 小時提醒（測試）"/);
   assert.match(adminLine, /活動前 2 小時提醒（測試）/);
+  assert.match(await readFile(new URL("../docs/app.js", import.meta.url), "utf8"), /id="line-seven-day-test"/);
+  assert.match(await readFile(new URL("../docs/app.js", import.meta.url), "utf8"), /id="line-one-day-test"/);
   assert.match(await readFile(new URL("../docs/app.js", import.meta.url), "utf8"), /id="line-two-hour-test"/);
   assert.match(reminders, /shareToken: events\.shareToken/);
   assert.match(lineLib, /shareToken: string/);

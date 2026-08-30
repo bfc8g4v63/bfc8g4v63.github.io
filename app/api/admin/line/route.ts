@@ -72,7 +72,14 @@ export async function POST(request: Request) {
       const attending = await db.select({ partySize: rsvps.partySize }).from(rsvps).where(and(
         eq(rsvps.eventId, access.event.id), eq(rsvps.response, "attending"),
       ));
-      const label = body.reminderType === "two_hours" ? "活動前 2 小時提醒（測試）" : "測試提醒";
+      const testLabels: Record<string, string> = {
+        seven_days: "活動前 7 天提醒（測試）",
+        one_day: "活動前 1 天提醒（測試）",
+        two_hours: "活動前 2 小時提醒（測試）",
+      };
+      const reminderType = typeof body.reminderType === "string" ? body.reminderType : "";
+      const label = testLabels[reminderType];
+      if (!label) return json(request, { error: "請選擇要測試的提醒時間" }, 400);
       await pushText(binding.groupId, eventMessage({
         ...access.event,
         attendingPeople: attending.reduce((sum, item) => sum + item.partySize, 0),
