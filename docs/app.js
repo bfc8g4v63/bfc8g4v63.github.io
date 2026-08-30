@@ -896,7 +896,19 @@ function openAdminDashboard(data, managerAuth) {
       const result = await requestJson("/admin/line", {
         action: "create_binding_code", ...managerPayload(event.id, managerAuth),
       });
-      document.querySelector("#binding-code-area").innerHTML = `<div class="binding-code"><span>請在群組輸入</span><strong>綁定 ${esc(result.code)}</strong><small>15 分鐘內有效</small></div>`;
+      const bindingCommand = `綁定 ${result.code}`;
+      document.querySelector("#binding-code-area").innerHTML = `<div class="binding-code"><span>請在群組輸入</span><strong>${esc(bindingCommand)}</strong><button class="secondary binding-copy" id="copy-binding-code" type="button">複製</button><small>15 分鐘內有效</small></div>`;
+      document.querySelector("#copy-binding-code")?.addEventListener("click", async (copyEvent) => {
+        const copyButton = copyEvent.currentTarget;
+        try {
+          await navigator.clipboard.writeText(bindingCommand);
+          copyButton.textContent = "已複製";
+          showNotice("綁定指令已複製");
+          window.setTimeout(() => { copyButton.textContent = "複製"; }, 1800);
+        } catch {
+          showLineError("無法自動複製，請手動複製綁定指令");
+        }
+      });
       button.textContent = "重新產生綁定碼";
     } catch (error) {
       showLineError(error.message);

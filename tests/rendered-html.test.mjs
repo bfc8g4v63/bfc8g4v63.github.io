@@ -225,6 +225,8 @@ test("bound LINE groups can show a privacy-safe current activity arrangement ima
   assert.doesNotMatch(imageRoute, /rsvps\.diet|rsvps\.note/);
   assert.match(client, /輸入「安排」可收到目前活動安排圖卡/);
   assert.match(client, /小幫手最近紀錄/);
+  assert.match(client, /copy-binding-code/);
+  assert.match(client, /綁定指令已複製/);
   assert.match(guide, /<dt>安排<\/dt>/);
   assert.match(guide, /圖卡/);
 });
