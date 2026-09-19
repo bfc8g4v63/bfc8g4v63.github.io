@@ -302,7 +302,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.32/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.33/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -315,9 +315,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.32/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.32/);
-  assert.match(worker, /good-days-github-v34/);
+  assert.match(page, /\/app\.js\?v=1\.2\.33/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.33/);
+  assert.match(worker, /good-days-github-v35/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -459,4 +459,33 @@ test("attendee tokens keep working after a creator corrects the displayed name",
   assert.match(rsvp, /existingByToken/);
   assert.match(rsvp, /eq\(rsvps\.viewerTokenHash, attendeeTokenHash\)/);
   assert.match(rsvp, /name: existingByToken\?\.name \|\| name/);
+});
+
+test("同行卡 stays event-bound, opt-in, and never opens a direct-message channel", async () => {
+  const [route, schema, schemaInit, rsvp, eventClient, styles] = await Promise.all([
+    readFile(new URL("../app/api/companions/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
+    readFile(new URL("../db/init.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/rsvps/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../docs/e/app.js", import.meta.url), "utf8"),
+    readFile(new URL("../docs/styles.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(schema, /export const companionCards/);
+  assert.match(schema, /export const companionRequests/);
+  assert.match(schemaInit, /CREATE TABLE IF NOT EXISTS companion_cards/);
+  assert.match(schemaInit, /CREATE TABLE IF NOT EXISTS companion_requests/);
+  assert.match(route, /eq\(rsvps\.response, "attending"\)/);
+  assert.match(route, /event\.status !== "active"/);
+  assert.match(route, /rateLimit\(request, "companions", 10/);
+  assert.match(route, /每場活動最多送出 5 個同行邀請/);
+  assert.match(route, /team: "想同隊"/);
+  assert.doesNotMatch(route, /\/messages|direct_message/i);
+  assert.match(route, /containsContactDetail/);
+  assert.match(rsvp, /db\.delete\(companionCards\)/);
+  assert.match(rsvp, /db\.delete\(companionRequests\)/);
+  assert.match(eventClient, /同行卡/);
+  assert.match(eventClient, /沒有私訊、電話或 LINE ID/);
+  assert.match(eventClient, /action: "send_request"/);
+  assert.match(eventClient, /action: "respond_request"/);
+  assert.match(styles, /\.companions-section/);
 });

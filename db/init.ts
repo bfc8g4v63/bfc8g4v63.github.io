@@ -46,6 +46,36 @@ export function ensureSchema() {
         FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
       )`),
       database.prepare("CREATE UNIQUE INDEX IF NOT EXISTS rsvps_event_name_unique ON rsvps (event_id, name)"),
+      database.prepare(`CREATE TABLE IF NOT EXISTS companion_cards (
+        rsvp_id TEXT PRIMARY KEY NOT NULL,
+        event_id TEXT NOT NULL,
+        display_name TEXT NOT NULL,
+        intro TEXT NOT NULL DEFAULT '',
+        interests TEXT NOT NULL DEFAULT '[]',
+        intents TEXT NOT NULL DEFAULT '[]',
+        is_visible INTEGER NOT NULL DEFAULT 1,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (rsvp_id) REFERENCES rsvps(id) ON DELETE CASCADE,
+        FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+      )`),
+      database.prepare("CREATE INDEX IF NOT EXISTS companion_cards_event_visible_updated ON companion_cards (event_id, is_visible, updated_at)"),
+      database.prepare(`CREATE TABLE IF NOT EXISTS companion_requests (
+        id TEXT PRIMARY KEY NOT NULL,
+        event_id TEXT NOT NULL,
+        from_rsvp_id TEXT NOT NULL,
+        to_rsvp_id TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE,
+        FOREIGN KEY (from_rsvp_id) REFERENCES rsvps(id) ON DELETE CASCADE,
+        FOREIGN KEY (to_rsvp_id) REFERENCES rsvps(id) ON DELETE CASCADE
+      )`),
+      database.prepare("CREATE UNIQUE INDEX IF NOT EXISTS companion_requests_event_from_to_kind_unique ON companion_requests (event_id, from_rsvp_id, to_rsvp_id, kind)"),
+      database.prepare("CREATE INDEX IF NOT EXISTS companion_requests_event_to_status ON companion_requests (event_id, to_rsvp_id, status)"),
+      database.prepare("CREATE INDEX IF NOT EXISTS companion_requests_event_from_status ON companion_requests (event_id, from_rsvp_id, status)"),
       database.prepare(`CREATE TABLE IF NOT EXISTS line_bindings (
         event_id TEXT PRIMARY KEY NOT NULL,
         group_id TEXT NOT NULL,
@@ -95,6 +125,10 @@ export function ensureSchema() {
         received_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       )`),
       database.prepare("CREATE INDEX IF NOT EXISTS line_webhook_deliveries_received ON line_webhook_deliveries (received_at DESC)"),
+      database.prepare("CREATE INDEX IF NOT EXISTS companion_cards_event_visible_updated ON companion_cards (event_id, is_visible, updated_at)"),
+      database.prepare("CREATE UNIQUE INDEX IF NOT EXISTS companion_requests_event_from_to_kind_unique ON companion_requests (event_id, from_rsvp_id, to_rsvp_id, kind)"),
+      database.prepare("CREATE INDEX IF NOT EXISTS companion_requests_event_to_status ON companion_requests (event_id, to_rsvp_id, status)"),
+      database.prepare("CREATE INDEX IF NOT EXISTS companion_requests_event_from_status ON companion_requests (event_id, from_rsvp_id, status)"),
       database.prepare(`CREATE TABLE IF NOT EXISTS meal_tables (
         id TEXT PRIMARY KEY NOT NULL,
         event_id TEXT NOT NULL,

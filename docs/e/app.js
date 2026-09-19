@@ -5,6 +5,7 @@ const shareToken = new URLSearchParams(location.search).get("s") || "";
 let currentEvent;
 let participantCode = "";
 let attendeeToken = "";
+let companionData = null;
 
 function attendeeStorageKey() {
   return `good-days-rsvp:${shareToken}`;
@@ -84,6 +85,7 @@ function renderEvent(event) {
       <p class="attendance"><strong>${people} 人參加</strong>${event.capacity ? `<span>／上限 ${event.capacity} 人</span>` : ""}</p>
       ${event.status === "cancelled" ? '<p class="form-error">此活動已取消</p>' : `<button class="primary" id="rsvp">${isFull ? "活動已額滿" : "我要參加"}</button>${isFull ? '<p class="form-hint">目前已額滿；已報名者仍可更新內容、減少人數或改為不參加。</p>' : ""}`}
       ${rosterHtml}
+      ${event.status === "active" ? '<section id="companions-root" class="companions-section" aria-live="polite"></section>' : ""}
       ${event.contactName ? `<p class="contact">活動聯絡人：${esc(event.contactName)}</p>` : ""}
       <p class="privacy-note">電話、飲食、備註與管理資訊只會讓活動管理者看到。</p>
       <button class="text-link manage-link" id="manager">活動管理</button>
@@ -101,6 +103,7 @@ async function loadEvent() {
     const data = await post("/events/access", { shareToken, participantCode, attendeeToken });
     currentEvent = data.event;
     renderEvent(currentEvent);
+    if (currentEvent.status === "active") await loadCompanions();
   } catch (error) {
     if (error.requiresParticipantCode) showCodeGate(error.message);
     else {
@@ -127,7 +130,7 @@ function openRsvp() {
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const body = Object.fromEntries(new FormData(form));
-    body.eventId = currentEvent.id; body.shareToken = shareToken; body.participantCode = participantCode; body.partySize = Number(body.partySize || 1);
+    body.eventId = currentEvent.id; body.shareToken = shareToken; body.participantCode = participantCode; body.attendeeToken = attendeeToken; body.partySize = Number(body.partySize || 1);
     try {
       const data = await post("/rsvps", body);
       attendeeToken = data.attendeeToken || "";
@@ -149,6 +152,102 @@ function openRsvp() {
       closeModal(); await loadEvent();
     } catch (error) { const box = form.querySelector(".form-error"); box.textContent = error.message; box.hidden = false; }
   });
+}
+
+const companionIntentLabels = {
+  team: "想同隊", table: "想同桌", arrive: "想一起到場", after: "活動後繼續交流",
+};
+
+function companionRoot() { return document.querySelector("#companions-root"); }
+
+function requestFor(card) {
+  return companionData?.requests?.find((item) => (
+    (item.fromRsvpId === companionData.viewer.rsvpId && item.toRsvpId === card.rsvpId)
+    || (item.toRsvpId === companionData.viewer.rsvpId && item.fromRsvpId === card.rsvpId)
+  ));
+}
+
+async function loadCompanions() {
+  const holder = companionRoot();
+  if (!holder) return;
+  if (!attendeeToken) {
+    holder.innerHTML = `<div class="companions-empty"><div><p class="eyebrow">同行卡</p><h2>把相遇留在活動裡</h2><p>完成報名後，可自願建立一張同行卡；只有同場已報名者看得到。沒有私訊，也不會公開到活動外。</p></div><button class="secondary" id="companion-rsvp">先完成報名</button></div>`;
+    document.querySelector("#companion-rsvp")?.addEventListener("click", openRsvp);
+    return;
+  }
+  try {
+    companionData = await post("/companions", { action: "read", eventId: currentEvent.id, attendeeToken });
+    renderCompanions();
+  } catch (error) {
+    holder.innerHTML = `<div class="companions-empty"><div><p class="eyebrow">同行卡</p><h2>同場再認識一些人</h2><p>${esc(error.message)}</p></div></div>`;
+  }
+}
+
+function intentTags(intents = []) {
+  return intents.map((intent) => `<span class="companion-tag">${esc(companionIntentLabels[intent] || intent)}</span>`).join("");
+}
+
+function renderCompanions() {
+  const holder = companionRoot();
+  if (!holder || !companionData) return;
+  const own = companionData.ownCard;
+  const cards = companionData.cards || [];
+  const requests = companionData.requests || [];
+  const inbound = requests.filter((item) => item.toRsvpId === companionData.viewer.rsvpId && item.status === "pending");
+  holder.innerHTML = `<div class="companions-heading"><div><p class="eyebrow">同行卡</p><h2>同場再認識一些人</h2><p>僅同場已報名者可見。沒有私訊、電話或 LINE ID；雙方同意後，活動現場或原群組相認。</p></div>${own ? '<div class="companion-own-actions"><button class="secondary" id="edit-companion">編輯我的卡</button><button class="text-link" id="hide-companion">暫停並清除</button></div>' : '<button class="primary" id="create-companion">建立同行卡</button>'}</div>
+    ${inbound.length ? `<section class="companion-inbox"><h3>收到 ${inbound.length} 個同行邀請</h3>${inbound.map((item) => `<div class="companion-invite"><span>${esc(companionIntentLabels[item.kind] || item.kind)}</span><div><button class="secondary" data-respond-companion="accepted" data-request-id="${esc(item.id)}">願意，活動見</button><button class="text-link" data-respond-companion="declined" data-request-id="${esc(item.id)}">這次先不用</button></div></div>`).join("")}</section>` : ""}
+    ${cards.length ? `<div class="companion-grid">${cards.map((card) => {
+      const request = requestFor(card);
+      const state = request
+        ? request.fromRsvpId === companionData.viewer.rsvpId
+          ? request.status === "pending" ? "已送出同行邀請" : request.status === "accepted" ? "對方願意，活動現場相認" : "本次同行邀請未成立"
+          : request.status === "accepted" ? "你已答應，活動現場相認" : ""
+        : "";
+      const action = !request ? `<button class="secondary" data-invite-companion="${esc(card.rsvpId)}">邀請同行</button>` : `<p class="companion-status">${esc(state)}</p>`;
+      return `<article class="companion-card"><h3>${esc(card.displayName)}</h3>${card.intro ? `<p>${esc(card.intro)}</p>` : ""}${card.interests?.length ? `<p class="companion-interests">${card.interests.map(esc).join(" · ")}</p>` : ""}<div class="companion-tags">${intentTags(card.intents)}</div>${action}</article>`;
+    }).join("")}</div>` : '<p class="companions-none">目前還沒有其他同行卡。你可以先建立一張，讓同場的人有一個安全的相認方式。</p>'}`;
+  document.querySelector("#create-companion")?.addEventListener("click", () => openCompanionEditor());
+  document.querySelector("#edit-companion")?.addEventListener("click", () => openCompanionEditor(own));
+  document.querySelector("#hide-companion")?.addEventListener("click", hideCompanionCard);
+  document.querySelectorAll("[data-invite-companion]").forEach((button) => button.addEventListener("click", () => openCompanionInvite(button.dataset.inviteCompanion)));
+  document.querySelectorAll("[data-respond-companion]").forEach((button) => button.addEventListener("click", () => respondCompanion(button.dataset.requestId, button.dataset.respondCompanion)));
+}
+
+function openCompanionEditor(card = null) {
+  const selected = new Set(card?.intents || []);
+  modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="companion-title"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">同行卡</p><h2 id="companion-title">${card ? "編輯我的同行卡" : "建立我的同行卡"}</h2><p class="form-hint">只在這一場活動可見。請不要填寫電話、LINE ID 或住址。</p><form id="companion-form"><label>顯示名稱 <span>必填</span><input name="displayName" required maxlength="30" value="${esc(card?.displayName || "")}" placeholder="例如：小安／羽球新手"></label><label>一句自我介紹<textarea name="intro" rows="3" maxlength="140" placeholder="例如：喜歡輕鬆打球，也想認識同好">${esc(card?.intro || "")}</textarea></label><label>興趣標籤 <span>最多 5 個，以逗號分隔</span><input name="interests" maxlength="120" value="${esc((card?.interests || []).join("、"))}" placeholder="羽球、桌遊、唱歌"></label><fieldset><legend>願意一起做什麼？</legend>${Object.entries(companionIntentLabels).map(([key, label]) => `<label class="choice"><input type="checkbox" name="intents" value="${key}" ${selected.has(key) ? "checked" : ""}><span>${label}</span></label>`).join("")}</fieldset><p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button class="primary">儲存同行卡</button></div></form></section></div>`;
+  const form = document.querySelector("#companion-form");
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = new FormData(form);
+    const interests = String(data.get("interests") || "").split(/[、,，]/).map((item) => item.trim()).filter(Boolean);
+    const intents = data.getAll("intents");
+    try { await post("/companions", { action: "save_card", eventId: currentEvent.id, attendeeToken, displayName: data.get("displayName"), intro: data.get("intro"), interests, intents }); closeModal(); await loadCompanions(); }
+    catch (error) { const box = form.querySelector(".form-error"); box.textContent = error.message; box.hidden = false; }
+  });
+}
+
+function openCompanionInvite(rsvpId) {
+  const card = companionData.cards.find((item) => item.rsvpId === rsvpId);
+  if (!card) return;
+  modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">同行邀請</p><h2>邀請 ${esc(card.displayName)}</h2><p class="form-hint">不會開啟私訊；若對方同意，請在活動現場或原群組相認。</p><form id="companion-invite-form"><label>想一起做什麼？<select name="kind">${card.intents.map((intent) => `<option value="${esc(intent)}">${esc(companionIntentLabels[intent] || intent)}</option>`).join("")}</select></label><p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button class="primary">送出邀請</button></div></form></section></div>`;
+  const form = document.querySelector("#companion-invite-form");
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    try { await post("/companions", { action: "send_request", eventId: currentEvent.id, attendeeToken, toRsvpId: rsvpId, kind: form.elements.kind.value }); closeModal(); await loadCompanions(); }
+    catch (error) { const box = form.querySelector(".form-error"); box.textContent = error.message; box.hidden = false; }
+  });
+}
+
+async function respondCompanion(requestId, response) {
+  try { await post("/companions", { action: "respond_request", eventId: currentEvent.id, attendeeToken, requestId, response }); await loadCompanions(); }
+  catch (error) { alert(error.message); }
+}
+
+async function hideCompanionCard() {
+  if (!confirm("要暫停同行卡嗎？你的卡片與本場相關邀請都會一併清除。")) return;
+  try { await post("/companions", { action: "hide_card", eventId: currentEvent.id, attendeeToken }); await loadCompanions(); }
+  catch (error) { alert(error.message); }
 }
 
 function openManagerLogin() {

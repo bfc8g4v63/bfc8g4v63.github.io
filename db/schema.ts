@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 export const events = sqliteTable("events", {
   id: text("id").primaryKey(),
@@ -37,6 +37,36 @@ export const rsvps = sqliteTable("rsvps", {
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [uniqueIndex("rsvps_event_name_unique").on(table.eventId, table.name)]);
+
+// Event-only, opt-in companion cards. These deliberately contain neither
+// contact details nor a message thread: an accepted request means meet at the
+// activity, not a new private channel.
+export const companionCards = sqliteTable("companion_cards", {
+  rsvpId: text("rsvp_id").primaryKey().references(() => rsvps.id, { onDelete: "cascade" }),
+  eventId: text("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  displayName: text("display_name").notNull(),
+  intro: text("intro").notNull().default(""),
+  interests: text("interests").notNull().default("[]"),
+  intents: text("intents").notNull().default("[]"),
+  isVisible: integer("is_visible", { mode: "boolean" }).notNull().default(true),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [index("companion_cards_event_visible_updated").on(table.eventId, table.isVisible, table.updatedAt)]);
+
+export const companionRequests = sqliteTable("companion_requests", {
+  id: text("id").primaryKey(),
+  eventId: text("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  fromRsvpId: text("from_rsvp_id").notNull().references(() => rsvps.id, { onDelete: "cascade" }),
+  toRsvpId: text("to_rsvp_id").notNull().references(() => rsvps.id, { onDelete: "cascade" }),
+  kind: text("kind").notNull(),
+  status: text("status").notNull().default("pending"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  uniqueIndex("companion_requests_event_from_to_kind_unique").on(table.eventId, table.fromRsvpId, table.toRsvpId, table.kind),
+  index("companion_requests_event_to_status").on(table.eventId, table.toRsvpId, table.status),
+  index("companion_requests_event_from_status").on(table.eventId, table.fromRsvpId, table.status),
+]);
 
 export const lineBindings = sqliteTable("line_bindings", {
   eventId: text("event_id").primaryKey().references(() => events.id, { onDelete: "cascade" }),

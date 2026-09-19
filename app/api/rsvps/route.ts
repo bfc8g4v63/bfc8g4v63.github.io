@@ -1,7 +1,7 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, or } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { ensureSchema } from "../../../db/init";
-import { events, mealAssignments, rsvps } from "../../../db/schema";
+import { companionCards, companionRequests, events, mealAssignments, rsvps } from "../../../db/schema";
 import { hashCode, verifyCredential } from "../admin/auth";
 import { json, preflight } from "../cors";
 import { rateLimit } from "../rate-limit";
@@ -100,6 +100,13 @@ export async function POST(request: Request) {
       if (existing.partySize !== partySize || existing.response !== response) {
         await db.delete(mealAssignments).where(eq(mealAssignments.rsvpId, existing.id));
       }
+      if (response === "not_attending") {
+        await db.delete(companionCards).where(eq(companionCards.rsvpId, existing.id));
+        await db.delete(companionRequests).where(or(
+          eq(companionRequests.fromRsvpId, existing.id),
+          eq(companionRequests.toRsvpId, existing.id),
+        ));
+      }
       await db.update(rsvps).set(values).where(eq(rsvps.id, existing.id));
     }
     else await db.insert(rsvps).values({ id: crypto.randomUUID(), ...values });
@@ -133,6 +140,10 @@ export async function DELETE(request: Request) {
     const existing = existingByToken || existingByName;
     if (!existing || attendeeTokenHash !== existing.viewerTokenHash) return json(request, { error: "無法驗證這筆回覆" }, 403);
     await db.delete(mealAssignments).where(eq(mealAssignments.rsvpId, existing.id));
+    await db.delete(companionRequests).where(or(
+      eq(companionRequests.fromRsvpId, existing.id),
+      eq(companionRequests.toRsvpId, existing.id),
+    ));
     await db.delete(rsvps).where(eq(rsvps.id, existing.id));
     return json(request, { ok: true });
   } catch (error) {
