@@ -3,7 +3,7 @@ import { ensureSchema } from "../../../../db/init";
 import { getDb } from "../../../../db";
 import { lineBindings, lineCommandLogs, lineReminderSettings, mealAssignments, mealTables, rsvps } from "../../../../db/schema";
 import { json, preflight } from "../../cors";
-import { clean, requireEventManager } from "../auth";
+import { clean, hashCode, requireEventManager } from "../auth";
 import { lineConfig } from "../../line/lib";
 import { rateLimit } from "../../rate-limit";
 import { arrangementNameKey } from "../../../../lib/arrangement";
@@ -83,7 +83,7 @@ async function saveMealSeating(
 
 export async function POST(request: Request) {
   try {
-    const limit = await rateLimit(request, "admin-event", 12, 15 * 60 * 1000);
+    const limit = await rateLimit(request, "admin-event", 60, 15 * 60 * 1000);
     if (!limit.allowed) return json(request, { error: `管理操作過於頻繁，請 ${limit.retryAfterSeconds} 秒後再試` }, 429);
     await ensureSchema();
     const body = await request.json() as Record<string, unknown>;
@@ -96,6 +96,33 @@ export async function POST(request: Request) {
         .from(rsvps).where(eq(rsvps.eventId, access.event.id));
       await saveMealSeating(body, access.event.id, rows);
       return json(request, { ok: true, message: "餐桌安排已儲存" });
+    }
+    if (action === "create_rsvp") {
+      const name = clean(body.name, 60);
+      const response = body.response === "not_attending" ? "not_attending" : "attending";
+      const partySize = wholeNumber(body.partySize, 1, 999);
+      if (!name || (response === "attending" && !partySize)) {
+        return json(request, { error: "請確認姓名、出席狀態與參加人數" }, 400);
+      }
+      const [duplicate] = await db.select({ id: rsvps.id }).from(rsvps).where(and(
+        eq(rsvps.eventId, access.event.id), eq(rsvps.name, name),
+      )).limit(1);
+      if (duplicate) return json(request, { error: `「${name}」已有一筆回覆，請改用「修改回覆」` }, 409);
+      await db.insert(rsvps).values({
+        id: crypto.randomUUID(),
+        eventId: access.event.id,
+        name,
+        response,
+        partySize: response === "attending" ? partySize! : 0,
+        diet: clean(body.diet, 120),
+        note: clean(body.note, 300),
+        shareName: false,
+        // 由管理者代填的資料只可由管理後台修改，不會把更新權限交給
+        // 任一輸入同名的人。
+        viewerTokenHash: await hashCode(crypto.randomUUID()),
+        updatedAt: new Date().toISOString(),
+      });
+      return json(request, { ok: true, message: `已代為新增「${name}」的回覆` });
     }
     if (action === "update_rsvp") {
       const rsvpId = clean(body.rsvpId, 80);
@@ -204,6 +231,10 @@ export async function POST(request: Request) {
       },
     });
   } catch (error) {
-    return json(request, { error: error instanceof Error ? error.message : "無法開啟管理後台" }, 500);
+    const message = error instanceof Error ? error.message : "無法開啟管理後台";
+    if (message.includes("capacity_exceeded")) {
+      return json(request, { error: "這個活動已額滿；請先調整既有回覆的人數或取消參加。" }, 409);
+    }
+    return json(request, { error: message }, 500);
   }
 }

@@ -88,6 +88,8 @@ export async function POST(request: Request) {
       || (event.attendanceVisibility === "opt_in" && (body.shareName === true || body.shareName === "true"))
     );
     const values = {
+      // An attendee token remains valid when a creator corrects that attendee's
+      // displayed name in the management dashboard.
       eventId, name: existingByToken?.name || name, partySize,
       diet: clean(body.diet, 120),
       note: clean(body.note, 300),

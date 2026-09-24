@@ -302,7 +302,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.37/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.38/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -331,9 +331,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.37/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.37/);
-  assert.match(worker, /good-days-github-v38/);
+  assert.match(page, /\/app\.js\?v=1\.2\.38/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.38/);
+  assert.match(worker, /good-days-github-v39/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -409,6 +409,26 @@ test("only the attendee's saved token can update or cancel an existing RSVP", as
   assert.match(homepageClient, /get\("recover"\) === "1"/);
 });
 
+test("creators can add several relatives from the recovered management dashboard without sharing a browser token", async () => {
+  const [adminRoute, rsvpRoute, homepageClient, eventClient] = await Promise.all([
+    readFile(new URL("../app/api/admin/event/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/rsvps/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../docs/app.js", import.meta.url), "utf8"),
+    readFile(new URL("../docs/e/app.js", import.meta.url), "utf8"),
+  ]);
+  assert.match(adminRoute, /action === "create_rsvp"/);
+  assert.match(adminRoute, /viewerTokenHash: await hashCode\(crypto\.randomUUID\(\)\)/);
+  assert.match(adminRoute, /rateLimit\(request, "admin-event", 60/);
+  assert.match(homepageClient, /id="create-rsvp"/);
+  assert.match(homepageClient, /openManagedRsvpEditor\(null, event, managerAuth\)/);
+  assert.match(homepageClient, /action: isNew \? "create_rsvp" : "update_rsvp"/);
+  assert.match(homepageClient, /function rsvpStorageKey\(shareToken, name\)/);
+  assert.match(eventClient, /function attendeeTokenFor\(name\)/);
+  assert.match(eventClient, /body\.attendeeToken = attendeeTokenFor\(name\)/);
+  assert.match(eventClient, /good-days-rsvp:\$\{shareToken\}:active/);
+  assert.match(rsvpRoute, /name: existingByToken\?\.name \|\| name/);
+});
+
 test("home action buttons use the shared primary style while recovery remains available", async () => {
   const [page, client] = await Promise.all([
     readFile(new URL("../docs/index.html", import.meta.url), "utf8"),
@@ -461,8 +481,8 @@ test("verified creators can cancel or permanently delete a single RSVP", async (
   assert.match(adminRoute, /eq\(rsvps\.eventId, access\.event\.id\)/);
   assert.match(client, /data-rsvp-edit/);
   assert.match(client, /function openManagedRsvpEditor/);
-  assert.match(client, /field\("姓名", "name", rsvp\.name/);
-  assert.match(client, /action: "update_rsvp"/);
+  assert.match(client, /field\("姓名", "name", initial\.name/);
+  assert.match(client, /action: isNew \? "create_rsvp" : "update_rsvp"/);
   assert.match(client, /修改回覆/);
   assert.match(client, /data-rsvp-cancel/);
   assert.match(client, /data-rsvp-delete/);

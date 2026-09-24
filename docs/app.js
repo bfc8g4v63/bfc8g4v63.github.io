@@ -36,6 +36,11 @@ const esc = (value = "") => String(value).replace(/[&<>"']/g, (char) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
 })[char]);
 
+function rsvpStorageKey(shareToken, name) {
+  const safeName = String(name || "").trim();
+  return shareToken && safeName ? `good-days-rsvp:${shareToken}:${encodeURIComponent(safeName)}` : "";
+}
+
 function formatDate(value) {
   if (!value) return "日期未定";
   return new Intl.DateTimeFormat("zh-TW", {
@@ -278,7 +283,7 @@ function openRsvpForm(event) {
             ${event.attendanceVisibility === "opt_in" ? '<label class="toggle"><input name="shareName" type="checkbox" value="true"><span>公開我的顯示名稱給同場參加者</span></label>' : ""}
             ${event.attendanceVisibility === "all" ? '<p class="form-hint">此活動設定為全部名單，完成報名後您的顯示名稱會提供給已報名的同場參加者查看。</p>' : ""}
           </div>
-          <p class="form-hint">要取消自己的報名，請用原先報名的裝置再次輸入相同姓名，並選擇「這次無法參加」。資料僅活動管理者可查看。</p>
+          <p class="form-hint">一支手機可以代填多位親友；要更新某人的回覆，請用原先報名的裝置再次輸入相同姓名。資料僅活動管理者可查看。</p>
           <p class="form-error" id="form-error" role="alert" hidden></p>
           <div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button type="submit" class="primary">確認送出</button></div>
         </form>
@@ -297,14 +302,14 @@ function openRsvpForm(event) {
       const shareToken = new URL(event.shareUrl).searchParams.get("s");
       if (shareToken) {
         body.shareToken = shareToken;
-        body.attendeeToken = localStorage.getItem(`good-days-rsvp:${shareToken}`) || "";
+        body.attendeeToken = localStorage.getItem(rsvpStorageKey(shareToken, body.name)) || "";
       }
     } catch {}
     const data = await save(`${API}/rsvps`, "POST", body, "已收到回覆，期待見面！", form);
     if (data?.attendeeToken && event.shareUrl) {
       try {
         const shareToken = new URL(event.shareUrl).searchParams.get("s");
-        if (shareToken) localStorage.setItem(`good-days-rsvp:${shareToken}`, data.attendeeToken);
+        if (shareToken) localStorage.setItem(rsvpStorageKey(shareToken, body.name), data.attendeeToken);
       } catch {}
     }
   });
@@ -456,24 +461,26 @@ function adminRows(rsvps) {
 }
 
 function openManagedRsvpEditor(rsvp, event, managerAuth) {
+  const isNew = !rsvp;
+  const initial = rsvp || { name: "", response: "attending", partySize: 1, diet: "", note: "" };
   modalRoot.innerHTML = `
     <div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="managed-rsvp-title">
       <button class="modal-close" data-close aria-label="關閉">×</button>
-      <p class="eyebrow">建立者代為處理</p><h2 id="managed-rsvp-title">修改 ${esc(rsvp.name)} 的回覆</h2>
-      <p class="form-hint">可受託修改姓名、人數、飲食需求、備註與出席狀態。若改變人數或是否參加，該筆既有活動安排會清除，避免桌次人數不一致。</p>
+      <p class="eyebrow">建立者代為處理</p><h2 id="managed-rsvp-title">${isNew ? "代為新增報名" : `修改 ${esc(initial.name)} 的回覆`}</h2>
+      <p class="form-hint">${isNew ? "可直接替親友登記，不必離開管理後台或複製活動連結。" : "可受託修改姓名、人數、飲食需求、備註與出席狀態。若改變人數或是否參加，該筆既有活動安排會清除，避免桌次人數不一致。"}</p>
       <form id="managed-rsvp-form">
-        ${field("姓名", "name", rsvp.name, 'required maxlength="60"')}
+        ${field("姓名", "name", initial.name, 'required maxlength="60" autofocus placeholder="例如：豆豆"')}
         <fieldset><legend>是否參加？</legend>
-          <label class="choice"><input type="radio" name="response" value="attending" ${rsvp.response === "attending" ? "checked" : ""}><span>✓ 參加</span></label>
-          <label class="choice"><input type="radio" name="response" value="not_attending" ${rsvp.response === "not_attending" ? "checked" : ""}><span>這次無法參加</span></label>
+          <label class="choice"><input type="radio" name="response" value="attending" ${initial.response === "attending" ? "checked" : ""}><span>✓ 參加</span></label>
+          <label class="choice"><input type="radio" name="response" value="not_attending" ${initial.response === "not_attending" ? "checked" : ""}><span>這次無法參加</span></label>
         </fieldset>
         <div id="managed-attending-fields">
-          <label>總共幾人參加？<input name="partySize" type="number" min="1" max="999" step="1" inputmode="numeric" value="${rsvp.response === "attending" ? rsvp.partySize : 1}" required></label>
-          ${field("飲食需求", "diet", rsvp.diet, 'placeholder="例如：吃素、不吃牛（可留白）"')}
-          <label>想告訴主辦人<textarea name="note" rows="2" placeholder="可留白">${esc(rsvp.note)}</textarea></label>
+          <label>總共幾人參加？<input name="partySize" type="number" min="1" max="999" step="1" inputmode="numeric" value="${initial.response === "attending" ? initial.partySize : 1}" required></label>
+          ${field("飲食需求", "diet", initial.diet, 'placeholder="例如：吃素、不吃牛（可留白）"')}
+          <label>想告訴主辦人<textarea name="note" rows="2" placeholder="可留白">${esc(initial.note)}</textarea></label>
         </div>
         <p class="form-error" id="form-error" role="alert" hidden></p>
-        <div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button type="submit" class="primary">儲存回覆</button></div>
+        <div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button type="submit" class="primary">${isNew ? "新增報名" : "儲存回覆"}</button></div>
       </form>
     </section></div>`;
   const form = document.querySelector("#managed-rsvp-form");
@@ -489,7 +496,7 @@ function openManagedRsvpEditor(rsvp, event, managerAuth) {
       const body = Object.fromEntries(new FormData(form));
       body.partySize = Number(body.partySize || 1);
       const result = await requestJson("/admin/event", {
-        action: "update_rsvp", rsvpId: rsvp.id, ...body, ...managerPayload(event.id, managerAuth),
+        action: isNew ? "create_rsvp" : "update_rsvp", ...(isNew ? {} : { rsvpId: initial.id }), ...body, ...managerPayload(event.id, managerAuth),
       });
       const fresh = await requestJson("/admin/event", managerPayload(event.id, managerAuth));
       openAdminDashboard(fresh, managerAuth);
@@ -497,7 +504,7 @@ function openManagedRsvpEditor(rsvp, event, managerAuth) {
     } catch (error) {
       showFormError(form, error.message || "無法更新這筆回覆");
       button.disabled = false;
-      button.textContent = "儲存回覆";
+      button.textContent = isNew ? "新增報名" : "儲存回覆";
     }
   });
 }
@@ -856,7 +863,8 @@ function openAdminDashboard(data, managerAuth) {
         </div>
         <section class="admin-section">
           <div class="admin-section-title"><div><p class="eyebrow">僅管理者可見</p><h3>參與者名單</h3></div><span>${data.rsvps.length} 筆回覆</span></div>
-          <p class="form-hint">要協助親友更正人數、飲食、備註或出席狀態，請按該列「修改回覆」。受託取消可按「取消參加」；只有誤登或重複資料才使用「刪除」。</p>
+          <div class="admin-toolbar"><button class="primary" id="create-rsvp">＋ 代為新增報名</button></div>
+          <p class="form-hint">可直接按「代為新增報名」替多位親友登記；要更正既有回覆時，請按該列「修改回覆」。受託取消可按「取消參加」；只有誤登或重複資料才使用「刪除」。</p>
           <div class="table-scroll"><table><thead><tr><th>姓名</th><th>回覆</th><th>人數</th><th>飲食</th><th>備註</th><th>更新時間</th><th>管理</th></tr></thead><tbody>${adminRows(data.rsvps)}</tbody></table></div>
           <p class="form-error" id="rsvp-error" role="alert" hidden></p>
         </section>
@@ -880,6 +888,7 @@ function openAdminDashboard(data, managerAuth) {
     showNotice("建立者管理連結已複製，請勿分享給參加者");
   });
   document.querySelector("#export-rsvps").addEventListener("click", () => exportRsvps(event, data.rsvps));
+  document.querySelector("#create-rsvp").addEventListener("click", () => openManagedRsvpEditor(null, event, managerAuth));
   initMealSeating(data, event, managerAuth);
   document.querySelectorAll("[data-rsvp-edit]").forEach((button) => {
     button.addEventListener("click", () => {
