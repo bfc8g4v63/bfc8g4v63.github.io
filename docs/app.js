@@ -147,6 +147,41 @@ function field(label, name, value = "", attrs = "") {
   return `<label>${label}<input name="${name}" value="${esc(value)}" ${attrs}></label>`;
 }
 
+function localToday() {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+}
+
+function timeParts(value) {
+  const match = /^(\d{2}):(\d{2})$/.exec(value || "");
+  if (!match) return { period: "", hour: "", minute: "" };
+  const hour24 = Number(match[1]);
+  const minute = Number(match[2]);
+  if (hour24 > 23 || minute > 59) return { period: "", hour: "", minute: "" };
+  return { period: hour24 < 12 ? "am" : "pm", hour: String(hour24 % 12 || 12), minute: String(minute).padStart(2, "0") };
+}
+
+function timePicker(value = "") {
+  const selected = timeParts(value);
+  const hours = Array.from({ length: 12 }, (_, index) => index + 1);
+  const minutes = Array.from({ length: 60 }, (_, index) => String(index).padStart(2, "0"));
+  return `<fieldset class="time-picker"><legend>時間 <span>必填</span></legend>
+    <label><span class="sr-only">上午或下午</span><select name="timePeriod" data-time-part required><option value="" ${selected.period ? "" : "selected"} disabled>上午／下午</option><option value="am" ${selected.period === "am" ? "selected" : ""}>上午</option><option value="pm" ${selected.period === "pm" ? "selected" : ""}>下午</option></select></label>
+    <label><span class="sr-only">小時</span><select name="timeHour" data-time-part required><option value="" ${selected.hour ? "" : "selected"} disabled>時</option>${hours.map((hour) => `<option value="${hour}" ${selected.hour === String(hour) ? "selected" : ""}>${hour} 時</option>`).join("")}</select></label>
+    <label><span class="sr-only">分鐘</span><select name="timeMinute" data-time-part required><option value="" ${selected.minute ? "" : "selected"} disabled>分</option>${minutes.map((minute) => `<option value="${minute}" ${selected.minute === minute ? "selected" : ""}>${minute} 分</option>`).join("")}</select></label>
+    <input type="hidden" name="startTime" value="${esc(value)}">
+  </fieldset>`;
+}
+
+function selectedStartTime(form) {
+  const period = form.elements.timePeriod.value;
+  const hour = Number(form.elements.timeHour.value);
+  const minute = Number(form.elements.timeMinute.value);
+  if (!period || !Number.isInteger(hour) || hour < 1 || hour > 12 || !Number.isInteger(minute) || minute < 0 || minute > 59) return "";
+  const hour24 = period === "pm" ? (hour % 12) + 12 : hour === 12 ? 0 : hour;
+  return `${String(hour24).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
 async function requestJson(path, body) {
   const response = await fetch(`${API}${path}`, {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
@@ -171,8 +206,8 @@ function openEventForm(event, managerAuth = null) {
           ${field('活動名稱 <span>必填</span>', "title", event?.title, 'required placeholder="例如：阿嬤生日午餐"')}
           ${field('建立者姓名 <span>必填；僅用於遺失連結後找回活動</span>', "creatorName", event?.creatorName, 'required placeholder="例如：王小明"')}
           <div class="form-row">
-            ${field('日期 <span>必填</span>', "eventDate", event?.eventDate, 'required type="date"')}
-            ${field('時間 <span>必填</span>', "startTime", event?.startTime, 'required type="time"')}
+            ${field('日期 <span>必填</span>', "eventDate", event?.eventDate || localToday(), 'required type="date"')}
+            ${timePicker(event?.startTime)}
           </div>
           ${field('地點 <span>必填</span>', "location", event?.location, 'required placeholder="餐廳名稱或地址"')}
           <label>活動說明<textarea name="description" rows="3" placeholder="要帶什麼？在哪裡集合？">${esc(event?.description)}</textarea></label>
@@ -215,6 +250,9 @@ function openEventForm(event, managerAuth = null) {
   const form = document.querySelector("#event-form");
   const participantCodeField = form.querySelector("#participant-code-field");
   const feePerPersonField = form.querySelector("#fee-per-person-field");
+  const syncStartTime = () => { form.elements.startTime.value = selectedStartTime(form); };
+  form.querySelectorAll("[data-time-part]").forEach((input) => input.addEventListener("change", syncStartTime));
+  syncStartTime();
   const syncParticipantCode = () => {
     const privateMode = form.elements.accessMode.value === "private";
     participantCodeField.hidden = !privateMode;
@@ -246,6 +284,10 @@ function openEventForm(event, managerAuth = null) {
     const original = button.textContent;
     button.textContent = "儲存中…";
     const body = Object.fromEntries(new FormData(form));
+    body.startTime = selectedStartTime(form);
+    delete body.timePeriod;
+    delete body.timeHour;
+    delete body.timeMinute;
     body.capacity = body.capacity ? Number(body.capacity) : null;
     body.feePerPerson = body.feeMode === "paid" ? Number(body.feePerPerson || 0) : 0;
     delete body.feeMode;
