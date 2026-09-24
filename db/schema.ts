@@ -151,6 +151,11 @@ export const siteStats = sqliteTable("site_stats", {
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
+export const siteVisitWindows = sqliteTable("site_visit_windows", {
+  fingerprint: text("fingerprint").primaryKey(),
+  expiresAt: integer("expires_at").notNull(),
+}, (table) => [index("site_visit_windows_expires_at").on(table.expiresAt)]);
+
 export const fairyNotificationTargets = sqliteTable("fairy_notification_targets", {
   id: text("id").primaryKey(),
   lineUserId: text("line_user_id").notNull(),

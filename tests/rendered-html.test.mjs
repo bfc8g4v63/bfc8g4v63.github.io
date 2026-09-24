@@ -309,6 +309,22 @@ test("visitor count has its own footer row", async () => {
   assert.match(styles, /grid-template-areas:"visitor" "owner" "tagline" "top"/);
 });
 
+test("visitor count retains its baseline and counts each anonymized IP once per rolling day", async () => {
+  const [route, schema, migration] = await Promise.all([
+    readFile(new URL("../app/api/site-stats/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
+    readFile(new URL("../drizzle/0011_chubby_nemesis.sql", import.meta.url), "utf8"),
+  ]);
+  assert.match(route, /24 \* 60 \* 60 \* 1000/);
+  assert.match(route, /HMAC/);
+  assert.match(route, /INSERT OR IGNORE INTO site_visit_windows/);
+  assert.match(route, /DELETE FROM site_visit_windows WHERE expires_at <= \?/);
+  assert.match(schema, /siteVisitWindows/);
+  assert.doesNotMatch(schema, /ip_address|client_ip/i);
+  assert.match(migration, /site_visit_windows_increment_homepage_views/);
+  assert.match(migration, /views` = `views` \+ 1/);
+});
+
 test("the service worker replaces cached management assets when a frontend release ships", async () => {
   const [page, eventPage, worker] = await Promise.all([
     readFile(new URL("../docs/index.html", import.meta.url), "utf8"),
