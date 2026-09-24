@@ -75,11 +75,22 @@ export const lineBindings = sqliteTable("line_bindings", {
   groupId: text("group_id").notNull(),
   groupName: text("group_name").notNull().default("LINE 群組"),
   boundAt: text("bound_at").notNull().default(sql`CURRENT_TIMESTAMP`),
-}, (table) => [uniqueIndex("line_bindings_group_unique").on(table.groupId)]);
+}, (table) => [index("line_bindings_group_event").on(table.groupId, table.eventId)]);
+
+// A group is registered once, then an owner can attach several future events
+// to it. The credential hash keeps the saved group list private to its owner.
+export const lineGroups = sqliteTable("line_groups", {
+  groupId: text("group_id").primaryKey(),
+  groupName: text("group_name").notNull().default("LINE 群組"),
+  ownerCredentialHash: text("owner_credential_hash").notNull().default(""),
+  boundAt: text("bound_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
 
 export const lineBindCodes = sqliteTable("line_bind_codes", {
   code: text("code").primaryKey(),
   eventId: text("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  ownerCredentialHash: text("owner_credential_hash").notNull().default(""),
   expiresAt: text("expires_at").notNull(),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });

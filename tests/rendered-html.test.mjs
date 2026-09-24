@@ -245,7 +245,7 @@ test("bound LINE groups can show a privacy-safe current activity arrangement ima
     readFile(new URL("../docs/line-bot-guide.html", import.meta.url), "utf8"),
   ]);
   assert.equal(normalizeLineCommand(" 安 排 "), "安排");
-  assert.match(webhook, /command === "安排" \|\| command === "安排測試"/);
+  assert.match(webhook, /command\.startsWith\("安排"\)/);
   assert.match(webhook, /mealTables/);
   assert.match(webhook, /activityArrangementImageUrl/);
   assert.match(webhook, /pushMessages\(chatId/);
@@ -272,7 +272,7 @@ test("bound LINE groups can show a privacy-safe current activity arrangement ima
   assert.match(imageRoute, /boxSizing: "border-box"/);
   assert.match(imageRoute, /\+ 80/);
   assert.doesNotMatch(imageRoute, /rsvps\.diet|rsvps\.note/);
-  assert.match(client, /輸入「安排」可收到目前活動安排圖卡/);
+  assert.match(client, /「安排」會直接顯示近期活動的安排圖卡/);
   assert.match(client, /小幫手最近紀錄/);
   assert.match(client, /copy-binding-code/);
   assert.match(client, /綁定指令已複製/);
@@ -337,7 +337,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.41/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.42/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -366,9 +366,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.41/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.41/);
-  assert.match(worker, /good-days-github-v41/);
+  assert.match(page, /\/app\.js\?v=1\.2\.42/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.42/);
+  assert.match(worker, /good-days-github-v42/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -572,4 +572,36 @@ test("同行卡 stays event-bound, opt-in, and never opens a direct-message chan
   assert.match(eventClient, /action: "send_request"/);
   assert.match(eventClient, /action: "respond_request"/);
   assert.match(styles, /\.companions-section/);
+});
+
+test("one LINE group can serve several upcoming activities without sending ended activity data", async () => {
+  const [schema, schemaInit, migration, adminLine, webhook, client, guide] = await Promise.all([
+    readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
+    readFile(new URL("../db/init.ts", import.meta.url), "utf8"),
+    readFile(new URL("../drizzle/0013_loud_shotgun.sql", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/line/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/line/webhook/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../docs/app.js", import.meta.url), "utf8"),
+    readFile(new URL("../docs/line-bot-guide.html", import.meta.url), "utf8"),
+  ]);
+  assert.match(schema, /export const lineGroups/);
+  assert.match(schema, /ownerCredentialHash/);
+  assert.match(schema, /line_bindings_group_event/);
+  assert.doesNotMatch(schema, /line_bindings_group_unique/);
+  assert.match(schemaInit, /CREATE TABLE IF NOT EXISTS line_groups/);
+  assert.match(schemaInit, /DROP INDEX IF EXISTS line_bindings_group_unique/);
+  assert.match(migration, /DROP INDEX `line_bindings_group_unique`/);
+  assert.match(migration, /owner_credential_hash/);
+  assert.match(adminLine, /action === "list_groups"/);
+  assert.match(adminLine, /action === "use_existing_group"/);
+  assert.match(adminLine, /action === "publish_events"/);
+  assert.match(adminLine, /只能發布尚未開始的活動/);
+  assert.match(webhook, /upcomingGroupEvents/);
+  assert.match(webhook, /eventStartsAt\(event\) > now/);
+  assert.match(webhook, /totalPages > 5/);
+  assert.match(webhook, /安排 20260930/);
+  assert.match(client, /使用既有通知群組/);
+  assert.match(client, /合併發布近期活動/);
+  assert.match(guide, /不必重新綁定/);
+  assert.match(guide, /安排 20260930/);
 });

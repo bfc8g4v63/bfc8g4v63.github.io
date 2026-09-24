@@ -597,11 +597,11 @@ function linePanel(line) {
   const logPanel = binding ? `<section class="line-command-log"><div><strong>小幫手最近紀錄</strong><span>只記錄指令結果，不保存聊天內容</span></div>${commandLogs.length ? `<ul>${commandLogs.map((item) => `<li><time>${esc(formatDateTime(item.createdAt))}</time><b>${esc(item.command)}</b><em class="line-log-${esc(item.outcome)}">${esc(commandLogText[item.outcome] || item.outcome)}</em><small>${esc(item.detail || "—")}</small></li>`).join("")}</ul>` : "<p>目前尚無可顯示的指令紀錄。</p>"}</section>` : "";
   return `
     <div class="line-status ${binding ? "connected" : ""}">
-      <strong>${binding ? `已綁定：${esc(binding.groupName)}` : "尚未綁定 LINE 群組"}</strong>
-      <p>${binding ? "自動提醒會傳送到這個群組；輸入「活動」可廣播活動連結與 QR Code，輸入「原神啟動」預設只廣播姓名與人數，輸入「安排」可收到目前活動安排圖卡。" : "先產生 6 位數綁定碼，再到家族 LINE 群組輸入。"}</p>
+      <strong>${binding ? `通知群組：${esc(binding.groupName)}` : "尚未選擇通知群組"}</strong>
+      <p>${binding ? "這個群組可重複用於多場未來活動；「活動」會列出近期活動，「安排」會直接顯示近期活動的安排圖卡。" : "小幫手已在既有群組時，只要選取群組，不必再邀請或重新輸入綁定碼。"}</p>
       <div id="binding-code-area"></div>
       <div class="inline-actions">
-        ${binding ? '<button class="secondary" id="line-seven-day-test">測試 7 天提醒</button><button class="secondary" id="line-one-day-test">測試 1 天提醒</button><button class="secondary" id="line-two-hour-test">測試 2 小時提醒</button><button class="text-danger" id="line-unbind">解除綁定</button>' : '<button class="line-button" id="line-code">產生群組綁定碼</button>'}
+        ${binding ? '<button class="secondary" id="line-existing">改選既有群組</button><button class="secondary" id="line-publish">合併發布近期活動</button><button class="secondary" id="line-seven-day-test">測試 7 天提醒</button><button class="secondary" id="line-one-day-test">測試 1 天提醒</button><button class="secondary" id="line-two-hour-test">測試 2 小時提醒</button><button class="text-danger" id="line-unbind">移除此活動</button>' : '<button class="secondary" id="line-existing">使用既有通知群組</button><button class="line-button" id="line-code">綁定新群組</button>'}
       </div>
     </div>
     <fieldset class="reminder-options"><legend>自動提醒時間</legend>
@@ -613,6 +613,46 @@ function linePanel(line) {
       <p class="form-hint">群組成員都能看到廣播內容；飲食需求與備註可能包含個人資訊，請分別確認後再開啟。</p>
       <button class="secondary" id="line-settings">儲存提醒設定</button>
     </fieldset>${logPanel}`;
+}
+
+function lineEventLabel(event) {
+  return `${event.eventDate} ${event.startTime}｜${event.title}`;
+}
+
+async function openLineGroupPicker(event, managerAuth) {
+  try {
+    const result = await requestJson("/admin/line", { action: "list_groups", ...managerPayload(event.id, managerAuth) });
+    const groups = result.groups || [];
+    modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="line-groups-title"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">通知群組</p><h2 id="line-groups-title">選擇既有 LINE 群組</h2>${groups.length ? `<p>小幫手已在下列群組，不需要重新邀請。</p><div class="line-group-picker">${groups.map((group) => `<button class="secondary" data-line-group="${esc(group.groupId)}"><strong>${esc(group.groupName)}</strong><span>用作這場活動的通知群組</span></button>`).join("")}</div>` : '<p class="form-hint">目前沒有可使用的既有群組。請先在新群組加入小幫手，再回來產生綁定碼。</p>'}</section></div>`;
+    document.querySelectorAll("[data-line-group]").forEach((button) => button.addEventListener("click", async () => {
+      button.disabled = true;
+      try {
+        await requestJson("/admin/line", { action: "use_existing_group", groupId: button.dataset.lineGroup, ...managerPayload(event.id, managerAuth) });
+        const fresh = await requestJson("/admin/event", managerPayload(event.id, managerAuth));
+        openAdminDashboard(fresh, managerAuth);
+        showNotice("已選擇通知群組；之後不必再綁定一次");
+      } catch (error) { button.disabled = false; showLineError(error.message); }
+    }));
+  } catch (error) { showLineError(error.message); }
+}
+
+async function openLinePublish(event, managerAuth) {
+  try {
+    const result = await requestJson("/admin/line", { action: "list_publishable", ...managerPayload(event.id, managerAuth) });
+    const upcoming = result.events || [];
+    modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="line-publish-title"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">合併發布</p><h2 id="line-publish-title">發布近期活動</h2><p>選擇後會發出一則合併公告，並把這些活動都設定為同一個通知群組。</p><form id="line-publish-form"><fieldset>${upcoming.length ? upcoming.map((item) => `<label class="choice"><input type="checkbox" name="eventIds" value="${esc(item.id)}" ${item.id === event.id ? "checked" : ""}><span><strong>${esc(item.title)}</strong><small>${esc(lineEventLabel(item))}<br>${esc(item.location)}</small></span></label>`).join("") : '<p class="form-hint">目前沒有可合併發布的未來活動。</p>'}</fieldset><p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" data-close>返回</button>${upcoming.length ? '<button class="primary">發布到 LINE 群組</button>' : ""}</div></form></section></div>`;
+    const form = document.querySelector("#line-publish-form");
+    form?.addEventListener("submit", async (submitEvent) => {
+      submitEvent.preventDefault();
+      const eventIds = new FormData(form).getAll("eventIds");
+      try {
+        const response = await requestJson("/admin/line", { action: "publish_events", eventIds, ...managerPayload(event.id, managerAuth) });
+        const fresh = await requestJson("/admin/event", managerPayload(event.id, managerAuth));
+        openAdminDashboard(fresh, managerAuth);
+        showNotice(`已發布 ${response.count} 場近期活動`);
+      } catch (error) { const box = form.querySelector(".form-error"); box.textContent = error.message; box.hidden = false; }
+    });
+  } catch (error) { showLineError(error.message); }
 }
 
 function mealTableId() {
@@ -956,6 +996,8 @@ function openAdminDashboard(data, managerAuth) {
   });
   document.querySelector("#export-rsvps").addEventListener("click", () => exportRsvps(event, data.rsvps));
   document.querySelector("#create-rsvp").addEventListener("click", () => openManagedRsvpEditor(null, event, managerAuth));
+  document.querySelector("#line-existing")?.addEventListener("click", () => void openLineGroupPicker(event, managerAuth));
+  document.querySelector("#line-publish")?.addEventListener("click", () => void openLinePublish(event, managerAuth));
   initMealSeating(data, event, managerAuth);
   document.querySelectorAll("[data-rsvp-edit]").forEach((button) => {
     button.addEventListener("click", () => {
@@ -1038,12 +1080,12 @@ function openAdminDashboard(data, managerAuth) {
   document.querySelector("#line-one-day-test")?.addEventListener("click", (clickEvent) => sendLineTest(clickEvent, "one_day"));
   document.querySelector("#line-two-hour-test")?.addEventListener("click", (clickEvent) => sendLineTest(clickEvent, "two_hours"));
   document.querySelector("#line-unbind")?.addEventListener("click", async () => {
-    if (!confirm("確定解除這個活動的 LINE 群組綁定？")) return;
+    if (!confirm("確定將這場活動移出通知群組？群組本身與其他活動不會受影響。")) return;
     try {
       await requestJson("/admin/line", { action: "unbind", ...managerPayload(event.id, managerAuth) });
       const fresh = await requestJson("/admin/event", managerPayload(event.id, managerAuth));
       openAdminDashboard(fresh, managerAuth);
-      showNotice("已解除 LINE 群組綁定");
+      showNotice("這場活動已移出通知群組");
     } catch (error) { showLineError(error.message); }
   });
 }

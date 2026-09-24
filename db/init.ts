@@ -85,10 +85,18 @@ export function ensureSchema() {
         bound_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
       )`),
-      database.prepare("CREATE UNIQUE INDEX IF NOT EXISTS line_bindings_group_unique ON line_bindings (group_id)"),
+      database.prepare("CREATE INDEX IF NOT EXISTS line_bindings_group_event ON line_bindings (group_id, event_id)"),
+      database.prepare(`CREATE TABLE IF NOT EXISTS line_groups (
+        group_id TEXT PRIMARY KEY NOT NULL,
+        group_name TEXT NOT NULL DEFAULT 'LINE 群組',
+        owner_credential_hash TEXT NOT NULL DEFAULT '',
+        bound_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`),
       database.prepare(`CREATE TABLE IF NOT EXISTS line_bind_codes (
         code TEXT PRIMARY KEY NOT NULL,
         event_id TEXT NOT NULL,
+        owner_credential_hash TEXT NOT NULL DEFAULT '',
         expires_at TEXT NOT NULL,
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
@@ -206,6 +214,11 @@ export function ensureSchema() {
     if (!rsvpNames.has("viewer_token_hash")) {
       await database.prepare("ALTER TABLE rsvps ADD COLUMN viewer_token_hash TEXT NOT NULL DEFAULT ''").run();
     }
+    const bindCodeColumns = await database.prepare("PRAGMA table_info(line_bind_codes)").all<{ name: string }>();
+    const bindCodeNames = new Set((bindCodeColumns.results || []).map((column) => column.name));
+    if (!bindCodeNames.has("owner_credential_hash")) {
+      await database.prepare("ALTER TABLE line_bind_codes ADD COLUMN owner_credential_hash TEXT NOT NULL DEFAULT ''").run();
+    }
     if (!rsvpNames.has("payment_status")) {
       await database.prepare("ALTER TABLE rsvps ADD COLUMN payment_status TEXT NOT NULL DEFAULT 'not_applicable'").run();
     }
@@ -250,6 +263,8 @@ export function ensureSchema() {
     await database.prepare("UPDATE events SET share_token = lower(hex(randomblob(16))) WHERE share_token = '' OR share_token IS NULL").run();
     await database.prepare("CREATE UNIQUE INDEX IF NOT EXISTS events_share_token_unique ON events (share_token)").run();
     await database.batch([
+      database.prepare("DROP INDEX IF EXISTS line_bindings_group_unique"),
+      database.prepare("CREATE INDEX IF NOT EXISTS line_bindings_group_event ON line_bindings (group_id, event_id)"),
       database.prepare("CREATE UNIQUE INDEX IF NOT EXISTS meal_tables_event_sort_unique ON meal_tables (event_id, sort_order)"),
       database.prepare("CREATE UNIQUE INDEX IF NOT EXISTS meal_tables_event_name_key_unique ON meal_tables (event_id, name_key)"),
       database.prepare("CREATE INDEX IF NOT EXISTS line_command_logs_event_created ON line_command_logs (event_id, created_at DESC)"),
