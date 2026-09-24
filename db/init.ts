@@ -20,6 +20,7 @@ export function ensureSchema() {
         contact_name TEXT NOT NULL DEFAULT '',
         contact_phone TEXT NOT NULL DEFAULT '',
         capacity INTEGER,
+        fee_per_person INTEGER NOT NULL DEFAULT 0,
         status TEXT NOT NULL DEFAULT 'active',
         access_mode TEXT NOT NULL DEFAULT 'unlisted',
         attendance_visibility TEXT NOT NULL DEFAULT 'count',
@@ -39,6 +40,7 @@ export function ensureSchema() {
         diet TEXT NOT NULL DEFAULT '',
         note TEXT NOT NULL DEFAULT '',
         response TEXT NOT NULL DEFAULT 'attending',
+        payment_status TEXT NOT NULL DEFAULT 'not_applicable',
         share_name INTEGER NOT NULL DEFAULT 0,
         viewer_token_hash TEXT NOT NULL DEFAULT '',
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -193,6 +195,9 @@ export function ensureSchema() {
     if (!names.has("cancelled_at")) {
       await database.prepare("ALTER TABLE events ADD COLUMN cancelled_at TEXT").run();
     }
+    if (!names.has("fee_per_person")) {
+      await database.prepare("ALTER TABLE events ADD COLUMN fee_per_person INTEGER NOT NULL DEFAULT 0").run();
+    }
     const rsvpColumns = await database.prepare("PRAGMA table_info(rsvps)").all<{ name: string }>();
     const rsvpNames = new Set((rsvpColumns.results || []).map((column) => column.name));
     if (!rsvpNames.has("share_name")) {
@@ -200,6 +205,9 @@ export function ensureSchema() {
     }
     if (!rsvpNames.has("viewer_token_hash")) {
       await database.prepare("ALTER TABLE rsvps ADD COLUMN viewer_token_hash TEXT NOT NULL DEFAULT ''").run();
+    }
+    if (!rsvpNames.has("payment_status")) {
+      await database.prepare("ALTER TABLE rsvps ADD COLUMN payment_status TEXT NOT NULL DEFAULT 'not_applicable'").run();
     }
     const mealTableColumns = await database.prepare("PRAGMA table_info(meal_tables)").all<{ name: string }>();
     const mealTableNames = new Set((mealTableColumns.results || []).map((column) => column.name));

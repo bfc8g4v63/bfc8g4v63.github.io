@@ -36,6 +36,10 @@ const esc = (value = "") => String(value).replace(/[&<>"']/g, (char) => ({
   "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
 })[char]);
 
+function formatMoney(value) {
+  return `NT$${new Intl.NumberFormat("zh-TW").format(Math.max(0, Number(value) || 0))}`;
+}
+
 function rsvpStorageKey(shareToken, name) {
   const safeName = String(name || "").trim();
   return shareToken && safeName ? `good-days-rsvp:${shareToken}:${encodeURIComponent(safeName)}` : "";
@@ -100,6 +104,7 @@ function eventCard(event) {
         <p class="event-meta"><span aria-hidden="true">⌖</span>${esc(event.location || "地點未定")}</p>
         ${event.description ? `<p class="event-description">${esc(event.description)}</p>` : ""}
         <div class="attendance"><strong>${people} 人參加</strong><span>${event.capacity ? `／上限 ${event.capacity} 人` : "歡迎全家一起來"}</span></div>
+        ${event.feePerPerson > 0 ? `<p class="fee-note">活動費用：每人 ${formatMoney(event.feePerPerson)}</p>` : ""}
         <p class="privacy-note">聯絡電話、姓名與飲食備註僅活動管理者可查看</p>
         <div class="card-actions">
           <button class="primary" data-action="rsvp" data-id="${esc(event.id)}" ${event.status === "cancelled" ? "disabled" : ""}>${isFull ? "活動已額滿" : "我要參加"}</button>
@@ -189,6 +194,11 @@ function openEventForm(event, managerAuth = null) {
             ${field("聯絡電話（僅管理者可見）", "contactPhone", event?.contactPhone, 'inputmode="tel" placeholder="0912 345 678"')}
           </div>
           ${field("人數上限", "capacity", event?.capacity || "", 'type="number" min="1" max="999" placeholder="不限可留白"')}
+          <fieldset class="access-options" id="fee-options"><legend>活動費用</legend>
+            <label class="choice"><input type="radio" name="feeMode" value="free" ${!event?.feePerPerson ? "checked" : ""}><span><strong>免費活動</strong><small>不記錄收款資訊。</small></span></label>
+            <label class="choice"><input type="radio" name="feeMode" value="paid" ${event?.feePerPerson > 0 ? "checked" : ""}><span><strong>每人固定收費</strong><small>報名人數會自動換算每戶應收金額。</small></span></label>
+            <label id="fee-per-person-field" hidden>每人費用（新台幣）<input name="feePerPerson" type="number" min="1" max="1000000" step="1" inputmode="numeric" value="${event?.feePerPerson || ""}" placeholder="例如：500"><small>管理後台可標記每筆報名為待收、已收或免收。</small></label>
+          </fieldset>
           ${managerField}
           ${editing ? "" : '<p class="form-hint">系統同時建立專屬管理連結。管理碼可用於遺失管理連結後找回活動；兩者皆可修改、取消、永久刪除與設定 LINE 提醒。</p>'}
           <p class="form-error" id="form-error" role="alert" hidden></p>
@@ -204,6 +214,7 @@ function openEventForm(event, managerAuth = null) {
 
   const form = document.querySelector("#event-form");
   const participantCodeField = form.querySelector("#participant-code-field");
+  const feePerPersonField = form.querySelector("#fee-per-person-field");
   const syncParticipantCode = () => {
     const privateMode = form.elements.accessMode.value === "private";
     participantCodeField.hidden = !privateMode;
@@ -212,6 +223,13 @@ function openEventForm(event, managerAuth = null) {
   };
   form.addEventListener("change", syncParticipantCode);
   syncParticipantCode();
+  const syncFee = () => {
+    const paid = form.elements.feeMode.value === "paid";
+    feePerPersonField.hidden = !paid;
+    feePerPersonField.querySelector("input").required = paid;
+  };
+  form.addEventListener("change", syncFee);
+  syncFee();
   const initialFormState = JSON.stringify([...new FormData(form).entries()]);
   activeModalClose = () => {
     const currentFormState = JSON.stringify([...new FormData(form).entries()]);
@@ -229,6 +247,8 @@ function openEventForm(event, managerAuth = null) {
     button.textContent = "儲存中…";
     const body = Object.fromEntries(new FormData(form));
     body.capacity = body.capacity ? Number(body.capacity) : null;
+    body.feePerPerson = body.feeMode === "paid" ? Number(body.feePerPerson || 0) : 0;
+    delete body.feeMode;
     if (editing) Object.assign(body, eventManagerPayload(event.id, managerAuth));
     const data = await save(`${API}/events`, editing ? "PATCH" : "POST", body, editing ? "活動內容已更新" : "活動已建立", form);
     if (!data) {
@@ -278,6 +298,7 @@ function openRsvpForm(event) {
           </fieldset>
           <div id="attending-fields">
             <label>總共幾人參加？<input name="partySize" type="number" min="1" step="1" inputmode="numeric" value="1" required></label>
+            ${event.feePerPerson > 0 ? `<p class="fee-note" id="rsvp-fee-total">本戶應收：${formatMoney(event.feePerPerson)}（每人 ${formatMoney(event.feePerPerson)}）</p>` : ""}
             ${field("飲食需求", "diet", "", 'placeholder="例如：吃素、不吃牛（可留白）"')}
             <label>想告訴主辦人<textarea name="note" rows="2" placeholder="可留白"></textarea></label>
             ${event.attendanceVisibility === "opt_in" ? '<label class="toggle"><input name="shareName" type="checkbox" value="true"><span>公開我的顯示名稱給同場參加者</span></label>' : ""}
@@ -290,9 +311,15 @@ function openRsvpForm(event) {
       </section>
     </div>`;
   const form = document.querySelector("#rsvp-form");
-  form.addEventListener("change", () => {
-    document.querySelector("#attending-fields").hidden = form.elements.response.value !== "attending";
-  });
+  const syncRsvpFields = () => {
+    const attending = form.elements.response.value === "attending";
+    document.querySelector("#attending-fields").hidden = !attending;
+    const total = document.querySelector("#rsvp-fee-total");
+    if (total) total.textContent = `本戶應收：${formatMoney((attending ? Number(form.elements.partySize.value || 0) : 0) * event.feePerPerson)}（每人 ${formatMoney(event.feePerPerson)}）`;
+  };
+  form.addEventListener("change", syncRsvpFields);
+  form.addEventListener("input", syncRsvpFields);
+  syncRsvpFields();
   form.addEventListener("submit", async (submitEvent) => {
     submitEvent.preventDefault();
     const body = Object.fromEntries(new FormData(form));
@@ -450,12 +477,18 @@ function responseLabel(value) {
   return value === "attending" ? "參加" : "不參加";
 }
 
-function adminRows(rsvps) {
-  if (!rsvps.length) return '<tr><td colspan="7" class="empty-cell">尚未收到回覆</td></tr>';
+function paymentLabel(value) {
+  return value === "paid" ? "已收" : value === "waived" ? "免收" : "待收";
+}
+
+function adminRows(rsvps, feePerPerson) {
+  const hasFee = feePerPerson > 0;
+  if (!rsvps.length) return `<tr><td colspan="${hasFee ? 9 : 7}" class="empty-cell">尚未收到回覆</td></tr>`;
   return rsvps.map((item) => `<tr>
     <td><strong>${esc(item.name)}</strong></td><td><span class="response-pill ${esc(item.response)}">${responseLabel(item.response)}</span></td>
     <td>${item.response === "attending" ? `${item.partySize} 人` : "—"}</td><td>${esc(item.diet || "—")}</td>
     <td>${esc(item.note || "—")}</td><td>${esc(new Date(item.updatedAt).toLocaleString("zh-TW"))}</td>
+    ${hasFee ? `<td>${item.response === "attending" ? formatMoney(item.partySize * feePerPerson) : "—"}</td><td>${item.response === "attending" ? `<select class="payment-status" data-rsvp-payment="${esc(item.id)}" aria-label="${esc(item.name)} 的收款狀態"><option value="unpaid" ${(item.paymentStatus || "unpaid") === "unpaid" || item.paymentStatus === "not_applicable" ? "selected" : ""}>待收</option><option value="paid" ${item.paymentStatus === "paid" ? "selected" : ""}>已收</option><option value="waived" ${item.paymentStatus === "waived" ? "selected" : ""}>免收</option></select>` : "—"}</td>` : ""}
     <td><div class="rsvp-row-actions"><button class="secondary" data-rsvp-edit="${esc(item.id)}">修改回覆</button>${item.response === "attending" ? `<button class="secondary" data-rsvp-cancel="${esc(item.id)}">取消參加</button>` : ""}<button class="text-danger" data-rsvp-delete="${esc(item.id)}">刪除</button></div></td>
   </tr>`).join("");
 }
@@ -476,6 +509,7 @@ function openManagedRsvpEditor(rsvp, event, managerAuth) {
         </fieldset>
         <div id="managed-attending-fields">
           <label>總共幾人參加？<input name="partySize" type="number" min="1" max="999" step="1" inputmode="numeric" value="${initial.response === "attending" ? initial.partySize : 1}" required></label>
+          ${event.feePerPerson > 0 ? `<p class="fee-note" id="managed-fee-total">本戶應收：${formatMoney((initial.response === "attending" ? initial.partySize : 0) * event.feePerPerson)}（每人 ${formatMoney(event.feePerPerson)}）</p>` : ""}
           ${field("飲食需求", "diet", initial.diet, 'placeholder="例如：吃素、不吃牛（可留白）"')}
           <label>想告訴主辦人<textarea name="note" rows="2" placeholder="可留白">${esc(initial.note)}</textarea></label>
         </div>
@@ -484,8 +518,14 @@ function openManagedRsvpEditor(rsvp, event, managerAuth) {
       </form>
     </section></div>`;
   const form = document.querySelector("#managed-rsvp-form");
-  const syncFields = () => { document.querySelector("#managed-attending-fields").hidden = form.elements.response.value !== "attending"; };
+  const syncFields = () => {
+    const attending = form.elements.response.value === "attending";
+    document.querySelector("#managed-attending-fields").hidden = !attending;
+    const total = document.querySelector("#managed-fee-total");
+    if (total) total.textContent = `本戶應收：${formatMoney((attending ? Number(form.elements.partySize.value || 0) : 0) * event.feePerPerson)}（每人 ${formatMoney(event.feePerPerson)}）`;
+  };
   form.addEventListener("change", syncFields);
+  form.addEventListener("input", syncFields);
   syncFields();
   form.addEventListener("submit", async (submitEvent) => {
     submitEvent.preventDefault();
@@ -525,6 +565,20 @@ async function manageRsvp(action, rsvp, event, managerAuth) {
   } catch (error) {
     const box = document.querySelector("#rsvp-error");
     if (box) { box.textContent = error.message || "無法管理這筆回覆"; box.hidden = false; }
+  }
+}
+
+async function updateRsvpPayment(rsvp, nextPaymentStatus, event, managerAuth) {
+  try {
+    const result = await requestJson("/admin/event", {
+      action: "update_payment", rsvpId: rsvp.id, paymentStatus: nextPaymentStatus, ...managerPayload(event.id, managerAuth),
+    });
+    const fresh = await requestJson("/admin/event", managerPayload(event.id, managerAuth));
+    openAdminDashboard(fresh, managerAuth);
+    showNotice(result.message);
+  } catch (error) {
+    const box = document.querySelector("#rsvp-error");
+    if (box) { box.textContent = error.message || "無法更新收款狀態"; box.hidden = false; }
   }
 }
 
@@ -843,6 +897,18 @@ function initMealSeating(data, event, managerAuth) {
 function openAdminDashboard(data, managerAuth) {
   const event = data.event;
   const remaining = event.capacity ? Math.max(0, event.capacity - data.summary.attendingPeople) : null;
+  const fee = data.summary.fee || { feePerPerson: 0, grossAmount: 0, paidAmount: 0, unpaidAmount: 0, waivedAmount: 0 };
+  const paymentOverview = fee.feePerPerson > 0 ? `
+        <section class="admin-section fee-section">
+          <div class="admin-section-title"><div><p class="eyebrow">僅管理者可見</p><h3>收款管理</h3></div><span>每人 ${formatMoney(fee.feePerPerson)}</span></div>
+          <p class="form-hint">應收金額會依各戶目前報名人數自動計算；在人名列可標記待收、已收或免收。</p>
+          <div class="payment-summary">
+            <div><strong>${formatMoney(fee.grossAmount)}</strong><span>報名總額</span></div>
+            <div><strong>${formatMoney(fee.paidAmount)}</strong><span>已收</span></div>
+            <div><strong>${formatMoney(fee.unpaidAmount)}</strong><span>待收</span></div>
+            ${fee.waivedAmount ? `<div><strong>${formatMoney(fee.waivedAmount)}</strong><span>免收</span></div>` : ""}
+          </div>
+        </section>` : "";
   modalRoot.innerHTML = `
     <div class="modal-backdrop admin-backdrop">
       <section class="modal admin-modal" role="dialog" aria-modal="true" aria-labelledby="admin-title">
@@ -861,11 +927,12 @@ function openAdminDashboard(data, managerAuth) {
           ${managerAuth.type === "token" ? '<button class="secondary" id="show-manager-link">複製建立者管理連結</button>' : ""}
           <button class="secondary" id="export-rsvps">下載 CSV 名單</button>
         </div>
+        ${paymentOverview}
         <section class="admin-section">
           <div class="admin-section-title"><div><p class="eyebrow">僅管理者可見</p><h3>參與者名單</h3></div><span>${data.rsvps.length} 筆回覆</span></div>
           <div class="admin-toolbar"><button class="primary" id="create-rsvp">＋ 代為新增報名</button></div>
           <p class="form-hint">可直接按「代為新增報名」替多位親友登記；要更正既有回覆時，請按該列「修改回覆」。受託取消可按「取消參加」；只有誤登或重複資料才使用「刪除」。</p>
-          <div class="table-scroll"><table><thead><tr><th>姓名</th><th>回覆</th><th>人數</th><th>飲食</th><th>備註</th><th>更新時間</th><th>管理</th></tr></thead><tbody>${adminRows(data.rsvps)}</tbody></table></div>
+          <div class="table-scroll"><table><thead><tr><th>姓名</th><th>回覆</th><th>人數</th><th>飲食</th><th>備註</th><th>更新時間</th>${fee.feePerPerson > 0 ? "<th>應收</th><th>收款狀態</th>" : ""}<th>管理</th></tr></thead><tbody>${adminRows(data.rsvps, fee.feePerPerson)}</tbody></table></div>
           <p class="form-error" id="rsvp-error" role="alert" hidden></p>
         </section>
         <section class="admin-section meal-section">
@@ -906,6 +973,12 @@ function openAdminDashboard(data, managerAuth) {
     button.addEventListener("click", () => {
       const rsvp = data.rsvps.find((item) => item.id === button.dataset.rsvpDelete);
       if (rsvp) void manageRsvp("delete_rsvp", rsvp, event, managerAuth);
+    });
+  });
+  document.querySelectorAll("[data-rsvp-payment]").forEach((select) => {
+    select.addEventListener("change", () => {
+      const rsvp = data.rsvps.find((item) => item.id === select.dataset.rsvpPayment);
+      if (rsvp) void updateRsvpPayment(rsvp, select.value, event, managerAuth);
     });
   });
   document.querySelector("#line-code")?.addEventListener("click", async (clickEvent) => {
@@ -989,9 +1062,14 @@ function csvCell(value) {
 }
 
 function exportRsvps(event, rsvps) {
+  const hasFee = event.feePerPerson > 0;
   const rows = [
-    ["姓名", "回覆", "參加人數", "飲食需求", "備註", "更新時間"],
-    ...rsvps.map((item) => [item.name, responseLabel(item.response), item.response === "attending" ? item.partySize : 0, item.diet, item.note, item.updatedAt]),
+    ["姓名", "回覆", "參加人數", "飲食需求", "備註", ...(hasFee ? ["每人費用", "應收金額", "收款狀態"] : []), "更新時間"],
+    ...rsvps.map((item) => [
+      item.name, responseLabel(item.response), item.response === "attending" ? item.partySize : 0, item.diet, item.note,
+      ...(hasFee ? [event.feePerPerson, item.response === "attending" ? item.partySize * event.feePerPerson : 0, item.response === "attending" ? paymentLabel(item.paymentStatus) : "—"] : []),
+      item.updatedAt,
+    ]),
   ];
   const blob = new Blob(["\ufeff", rows.map((row) => row.map(csvCell).join(",")).join("\r\n")], { type: "text/csv;charset=utf-8" });
   const link = document.createElement("a");
