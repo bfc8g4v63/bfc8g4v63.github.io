@@ -6,6 +6,7 @@ const loading = document.querySelector("#loading");
 const errorBox = document.querySelector("#error");
 const noticeBox = document.querySelector("#notice");
 const modalRoot = document.querySelector("#modal-root");
+let activeModalClose = null;
 
 function managerAuthFromLink() {
   const eventId = new URLSearchParams(location.search).get("manage") || "";
@@ -189,7 +190,7 @@ function openEventForm(event, managerAuth = null) {
           <div class="form-actions">
             ${editing ? `<button type="button" class="danger" id="toggle-event">${event.status === "cancelled" ? "恢復活動" : "取消活動"}</button>` : ""}
             ${editing ? '<button type="button" class="text-danger" id="delete-event">永久刪除</button>' : ""}
-            <button type="button" class="secondary" data-close>返回</button>
+            <button type="button" class="secondary" data-close>取消</button>
             <button type="submit" class="primary">${editing ? "儲存修改" : "建立活動"}</button>
           </div>
         </form>
@@ -206,6 +207,15 @@ function openEventForm(event, managerAuth = null) {
   };
   form.addEventListener("change", syncParticipantCode);
   syncParticipantCode();
+  const initialFormState = JSON.stringify([...new FormData(form).entries()]);
+  activeModalClose = () => {
+    const currentFormState = JSON.stringify([...new FormData(form).entries()]);
+    if (currentFormState === initialFormState) return closeModal();
+    const message = editing
+      ? "尚未儲存修改，離開後變更內容會遺失。"
+      : "尚未建立活動，離開後填寫內容會遺失。";
+    openDiscardConfirmation(message);
+  };
   form.addEventListener("submit", async (submitEvent) => {
     submitEvent.preventDefault();
     const button = form.querySelector('[type="submit"]');
@@ -1006,7 +1016,36 @@ async function save(url, method, body, successMessage, form) {
   }
 }
 
-function closeModal() { modalRoot.innerHTML = ""; }
+function openDiscardConfirmation(message) {
+  if (modalRoot.querySelector(".discard-confirm-backdrop")) return;
+  modalRoot.insertAdjacentHTML("beforeend", `
+    <div class="discard-confirm-backdrop">
+      <section class="discard-confirm" role="alertdialog" aria-modal="true" aria-labelledby="discard-confirm-title">
+        <p class="eyebrow">請確認</p>
+        <h2 id="discard-confirm-title">要放棄這次填寫嗎？</h2>
+        <p>${esc(message)}</p>
+        <div class="form-actions">
+          <button type="button" class="secondary" id="keep-event-form">繼續填寫</button>
+          <button type="button" class="danger" id="discard-event-form">放棄內容</button>
+        </div>
+      </section>
+    </div>`);
+  document.querySelector("#keep-event-form")?.addEventListener("click", () => {
+    modalRoot.querySelector(".discard-confirm-backdrop")?.remove();
+  });
+  document.querySelector("#discard-event-form")?.addEventListener("click", closeModal);
+  document.querySelector("#keep-event-form")?.focus();
+}
+
+function requestModalClose() {
+  if (activeModalClose && modalRoot.querySelector("#event-form")) return activeModalClose();
+  closeModal();
+}
+
+function closeModal() {
+  activeModalClose = null;
+  modalRoot.innerHTML = "";
+}
 
 async function shareEvent(event) {
   const url = event.shareUrl || `${location.origin}/?event=${encodeURIComponent(event.id)}`;
@@ -1056,7 +1095,11 @@ document.addEventListener("click", (clickEvent) => {
   if (create) return openEventForm();
   if (clickEvent.target.closest("[data-recover]")) return openCreatorRecovery();
   const close = clickEvent.target.closest("[data-close]");
-  if (close || clickEvent.target.classList.contains("modal-backdrop")) return closeModal();
+  if (close) return requestModalClose();
+  if (clickEvent.target.classList.contains("modal-backdrop")) {
+    if (modalRoot.querySelector("#event-form")) return;
+    return closeModal();
+  }
   if (clickEvent.target.id === "retry") return loadEvents();
   const action = clickEvent.target.closest("[data-action]");
   if (!action) return;
@@ -1065,6 +1108,12 @@ document.addEventListener("click", (clickEvent) => {
   if (action.dataset.action === "rsvp") openRsvpForm(event);
   if (action.dataset.action === "admin") openAdminLogin(event);
   if (action.dataset.action === "share") shareEvent(event);
+});
+
+document.addEventListener("keydown", (keyEvent) => {
+  if (keyEvent.key !== "Escape" || !modalRoot.querySelector(".modal")) return;
+  keyEvent.preventDefault();
+  requestModalClose();
 });
 
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => undefined);
