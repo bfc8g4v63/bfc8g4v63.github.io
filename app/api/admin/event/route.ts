@@ -28,6 +28,7 @@ function paymentStatus(value: unknown) {
 async function saveMealSeating(
   body: Record<string, unknown>,
   eventId: string,
+  eventCapacity: number | null,
   rows: Array<{ id: string; partySize: number; response: string }>,
 ) {
   const tableInput = Array.isArray(body.tables) ? body.tables : null;
@@ -60,6 +61,10 @@ async function saveMealSeating(
       updatedAt: new Date().toISOString(),
     };
   });
+  const totalTableCapacity = tables.reduce((sum, table) => sum + table.capacity, 0);
+  if (eventCapacity && totalTableCapacity > eventCapacity) {
+    throw new Error(`活動人數上限為 ${eventCapacity} 人，安排區總容量不可超過此人數`);
+  }
 
   const attending = new Map(rows.filter((row) => row.response === "attending").map((row) => [row.id, row.partySize]));
   const peopleByRsvp = new Map<string, number>();
@@ -100,7 +105,7 @@ export async function POST(request: Request) {
     if (action === "save_meal_seating") {
       const rows = await db.select({ id: rsvps.id, partySize: rsvps.partySize, response: rsvps.response })
         .from(rsvps).where(eq(rsvps.eventId, access.event.id));
-      await saveMealSeating(body, access.event.id, rows);
+      await saveMealSeating(body, access.event.id, access.event.capacity, rows);
       return json(request, { ok: true, message: "餐桌安排已儲存" });
     }
     if (action === "create_rsvp") {

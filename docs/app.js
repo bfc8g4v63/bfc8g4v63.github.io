@@ -691,6 +691,7 @@ function initMealSeating(data, event, managerAuth) {
     selectedRsvpId: "",
     error: "",
   };
+  const eventCapacity = Number.isInteger(event.capacity) && event.capacity > 0 ? event.capacity : null;
 
   const assignmentsFor = (tableId) => state.assignments.filter((item) => item.tableId === tableId);
   const tableTotal = (tableId) => assignmentsFor(tableId).reduce((sum, item) => sum + item.people, 0);
@@ -698,6 +699,8 @@ function initMealSeating(data, event, managerAuth) {
     .filter((item) => item.rsvpId === rsvpId).reduce((sum, item) => sum + item.people, 0);
   const unassignedFor = (rsvpId) => Math.max(0, (rsvpById.get(rsvpId)?.partySize || 0) - assignedFor(rsvpId));
   const tableById = (tableId) => state.tables.find((item) => item.id === tableId);
+  const totalTableCapacity = () => state.tables.reduce((sum, table) => sum + table.capacity, 0);
+  const remainingTableCapacity = () => eventCapacity === null ? Infinity : Math.max(0, eventCapacity - totalTableCapacity());
 
   function tableNameErrors() {
     const errors = new Map();
@@ -804,7 +807,8 @@ function initMealSeating(data, event, managerAuth) {
   function render() {
     const assignedPeople = state.assignments.reduce((sum, item) => sum + item.people, 0);
     const unassignedPeople = attending.reduce((sum, item) => sum + unassignedFor(item.id), 0);
-    const totalCapacity = state.tables.reduce((sum, table) => sum + table.capacity, 0);
+    const totalCapacity = totalTableCapacity();
+    const arrangementLimitReached = eventCapacity !== null && totalCapacity >= eventCapacity;
     const nameErrors = tableNameErrors();
     const unassignedCards = attending.map((rsvp) => ({ rsvp, people: unassignedFor(rsvp.id) }))
       .filter((item) => item.people > 0).map(({ rsvp, people }) => `
@@ -826,7 +830,7 @@ function initMealSeating(data, event, managerAuth) {
       return `<article class="meal-table-card ${status}" data-seat-drop-table="${esc(table.id)}">
         <div class="meal-table-head">
           <label class="meal-table-name">安排區名稱<input class="${nameErrors.has(table.id) ? "input-error" : ""}" data-seat-table-name="${esc(table.id)}" value="${esc(table.name)}" maxlength="40" aria-invalid="${nameErrors.has(table.id)}"><small data-seat-table-name-error="${esc(table.id)}" ${nameErrors.has(table.id) ? "" : "hidden"}>${esc(nameErrors.get(table.id) || "")}</small></label>
-          <label>上限<input data-seat-table-capacity="${esc(table.id)}" type="number" min="1" max="50" inputmode="numeric" value="${table.capacity}"></label>
+          <label>上限<input data-seat-table-capacity="${esc(table.id)}" type="number" min="1" max="${eventCapacity || 50}" inputmode="numeric" value="${table.capacity}"></label>
           <label class="meal-reserve"><input data-seat-table-reserve="${esc(table.id)}" type="checkbox" ${table.isReserve ? "checked" : ""}>預備區</label>
         </div>
         <div class="meal-table-count"><strong>${total} / ${table.capacity}</strong><span>${total >= table.capacity ? "已滿" : `尚有 ${table.capacity - total} 位`}</span></div>
@@ -840,13 +844,13 @@ function initMealSeating(data, event, managerAuth) {
         <div><strong>${attending.reduce((sum, item) => sum + item.partySize, 0)}</strong><span>參加人數</span></div>
         <div><strong>${assignedPeople}</strong><span>已安排</span></div>
         <div><strong>${unassignedPeople}</strong><span>未安排</span></div>
-        <div><strong>${totalCapacity || "—"}</strong><span>桌次總容量</span></div>
+        <div><strong>${eventCapacity || "不限"}</strong><span>活動總人數</span></div>
       </div>
       <details class="meal-setup" ${state.tables.length ? "" : "open"}><summary>設定安排區與人數上限</summary>
-        <div class="meal-setup-fields"><label>安排區數量<input id="meal-table-count" type="number" min="1" max="24" value="${state.tables.length || 6}" inputmode="numeric"></label><label>每區預設上限<input id="meal-table-capacity" type="number" min="1" max="50" value="10" inputmode="numeric"></label><button class="secondary" type="button" id="meal-build-tables">${state.tables.length ? "重新建立安排區" : "建立安排區"}</button></div>
-        <p class="form-hint">重新建立會清除目前尚未儲存的安排；各區也可在下方個別調整人數與備註。</p>
+        <div class="meal-setup-fields"><label>安排區數量<input id="meal-table-count" type="number" min="1" max="${eventCapacity || 24}" value="${state.tables.length || 1}" inputmode="numeric"></label><label>每區預設上限<input id="meal-table-capacity" type="number" min="1" max="${eventCapacity || 50}" value="${eventCapacity || 10}" inputmode="numeric"></label><button class="secondary" type="button" id="meal-build-tables">${state.tables.length ? "重新建立安排區" : "建立安排區"}</button></div>
+        <p class="form-hint">${eventCapacity ? `活動人數上限為 ${eventCapacity} 人；所有安排區的容量合計不可超過 ${eventCapacity} 人。` : "重新建立會清除目前尚未儲存的安排；各區也可在下方個別調整人數與備註。"}</p>
       </details>
-      <div class="meal-seating-actions"><button class="secondary" type="button" id="meal-add-table">＋ 新增安排區</button><button class="primary" type="button" id="meal-save" ${nameErrors.size ? "disabled" : ""}>儲存活動安排</button></div>
+      <div class="meal-seating-actions"><button class="secondary" type="button" id="meal-add-table" ${arrangementLimitReached ? "disabled" : ""}>${arrangementLimitReached ? "已達活動總人數" : "＋ 新增安排區"}</button><button class="primary" type="button" id="meal-save" ${nameErrors.size ? "disabled" : ""}>儲存活動安排</button></div>
       ${state.error ? `<p class="form-error">${esc(state.error)}</p>` : ""}
       <div class="meal-workspace"><section class="meal-unassigned"><div><p class="eyebrow">先選家庭，再點桌次</p><h4>未安排</h4></div>${unassignedCards}</section><section class="meal-table-grid">${tables}</section></div>
       <p class="form-hint">電腦可把家庭卡拖到桌次；拖到另一張家庭卡可交換桌次。手機請先選家庭，再按目標桌的「安排選取家庭」。同一筆報名超過空位時，可輸入要先安排的人數。</p>`;
@@ -900,19 +904,26 @@ function initMealSeating(data, event, managerAuth) {
     }));
     root.querySelectorAll("[data-seat-table-capacity]").forEach((input) => input.addEventListener("change", () => {
       const table = tableById(input.dataset.seatTableCapacity); const capacity = Number(input.value);
-      if (!table || !Number.isInteger(capacity) || capacity < 1 || capacity > 50) return message("每區人數上限須為 1 到 50 的整數。\n");
+      const maximum = eventCapacity || 50;
+      if (!table || !Number.isInteger(capacity) || capacity < 1 || capacity > maximum) return message(`每區人數上限須為 1 到 ${maximum} 的整數。\n`);
       if (capacity < tableTotal(table.id)) return message(`「${table.name}」目前已有 ${tableTotal(table.id)} 人，不能把上限設得更低。\n`);
+      if (eventCapacity && totalTableCapacity() - table.capacity + capacity > eventCapacity) return message(`活動人數上限為 ${eventCapacity} 人，安排區總容量不可超過此人數。\n`);
       table.capacity = capacity; state.error = ""; render();
     }));
     root.querySelector("#meal-build-tables")?.addEventListener("click", () => {
       const count = Number(root.querySelector("#meal-table-count").value); const capacity = Number(root.querySelector("#meal-table-capacity").value);
-      if (!Number.isInteger(count) || count < 1 || count > 24 || !Number.isInteger(capacity) || capacity < 1 || capacity > 50) return message("安排區數量請填 1 到 24；每區上限請填 1 到 50。\n");
+      const maximum = eventCapacity || 50;
+      const maxTables = eventCapacity || 24;
+      if (!Number.isInteger(count) || count < 1 || count > maxTables || !Number.isInteger(capacity) || capacity < 1 || capacity > maximum) return message(`安排區數量請填 1 到 ${maxTables}；每區上限請填 1 到 ${maximum}。\n`);
+      if (eventCapacity && count * capacity > eventCapacity) return message(`活動人數上限為 ${eventCapacity} 人，安排區總容量不可超過此人數。\n`);
       if ((state.tables.length || state.assignments.length) && !confirm("重新建立桌次會清除目前尚未儲存的安排，確定繼續嗎？")) return;
       state.tables = Array.from({ length: count }, (_, index) => newMealTable(index, capacity)); state.assignments = []; state.selectedRsvpId = ""; state.error = ""; render();
     });
     root.querySelector("#meal-add-table")?.addEventListener("click", () => {
       if (state.tables.length >= 24) return message("第一版最多可建立 24 桌。\n");
-      state.tables.push(newAdditionalMealTable(state.tables, 10)); render();
+      const remaining = remainingTableCapacity();
+      if (remaining < 1) return message(`活動人數上限為 ${eventCapacity} 人，不能再新增安排區。\n`);
+      state.tables.push(newAdditionalMealTable(state.tables, Math.min(10, remaining))); render();
     });
     root.querySelector("#meal-save")?.addEventListener("click", async (clickEvent) => {
       if (tableNameErrors().size) return message("請先修正重複的安排區名稱。\n");

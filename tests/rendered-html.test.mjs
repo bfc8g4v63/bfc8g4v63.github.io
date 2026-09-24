@@ -162,9 +162,13 @@ test("activity arrangements keep allocation private and validate split family as
   assert.match(admin, /action === "save_meal_seating"/);
   assert.match(admin, /totalForRsvp > \(attending\.get\(rsvpId\) \|\| 0\)/);
   assert.match(admin, /totalForTable > table\.capacity/);
+  assert.match(admin, /totalTableCapacity > eventCapacity/);
   assert.match(admin, /mealSeating:/);
   assert.match(rsvp, /db\.delete\(mealAssignments\)/);
   assert.match(client, /function initMealSeating/);
+  assert.match(client, /活動總人數/);
+  assert.match(client, /安排區總容量不可超過此人數/);
+  assert.match(client, /已達活動總人數/);
   assert.match(client, /swapAllocations/);
   assert.match(client, /<h3>活動安排<\/h3>/);
   assert.match(client, /桌遊、滑雪等活動/);
