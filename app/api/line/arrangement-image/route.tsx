@@ -6,6 +6,12 @@ import { events, mealAssignments, mealTables, rsvps } from "../../../../db/schem
 import { verifyActivityArrangementImage } from "../lib";
 
 const PAGE_SIZE = 6;
+// Keep the generated LINE card taller than its actual stacked content. ImageResponse
+// font metrics can vary slightly from browser metrics, especially for CJK names.
+const CARD_BASE_HEIGHT = 270;
+const CARD_ENTRY_HEIGHT = 52;
+const CARD_TABLE_NOTE_HEIGHT = 42;
+const CARD_OVERFLOW_NOTE_HEIGHT = 38;
 const FONT_URL = "https://raw.githubusercontent.com/notofonts/noto-cjk/main/Sans/SubsetOTF/TC/NotoSansTC-Regular.otf";
 let fontData: Promise<ArrayBuffer> | undefined;
 
@@ -96,7 +102,12 @@ export async function GET(request: Request) {
     const pageCards = arrangement.cards.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
     const rowHeights = Array.from({ length: Math.ceil(pageCards.length / 2) }, (_, row) => {
       const cards = pageCards.slice(row * 2, row * 2 + 2);
-      return Math.max(...cards.map((card) => 230 + Math.min(card.entries.length, 6) * 48 + (card.entries.length > 6 ? 34 : 0)));
+      return Math.max(...cards.map((card) => (
+        CARD_BASE_HEIGHT
+        + Math.min(card.entries.length, 6) * CARD_ENTRY_HEIGHT
+        + (card.table.note ? CARD_TABLE_NOTE_HEIGHT : 0)
+        + (card.entries.length > 6 ? CARD_OVERFLOW_NOTE_HEIGHT : 0)
+      )));
     });
     const height = 230 + rowHeights.reduce((sum, rowHeight) => sum + rowHeight, 0) + Math.max(0, rowHeights.length - 1) * 22 + 80;
     const font = await loadFont();

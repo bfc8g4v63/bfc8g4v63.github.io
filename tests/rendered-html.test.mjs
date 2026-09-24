@@ -234,6 +234,9 @@ test("bound LINE groups can show a privacy-safe current activity arrangement ima
   assert.match(imageRoute, /Content-Type|Cache-Control/);
   assert.match(imageRoute, /NotoSansTC-Regular\.otf/);
   assert.match(imageRoute, /PAGE_SIZE = 6/);
+  assert.match(imageRoute, /CARD_BASE_HEIGHT = 270/);
+  assert.match(imageRoute, /CARD_ENTRY_HEIGHT = 52/);
+  assert.match(imageRoute, /card\.table\.note \? CARD_TABLE_NOTE_HEIGHT/);
   assert.match(imageRoute, /boxSizing: "border-box"/);
   assert.match(imageRoute, /\+ 80/);
   assert.doesNotMatch(imageRoute, /rsvps\.diet|rsvps\.note/);
