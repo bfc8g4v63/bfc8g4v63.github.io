@@ -1,0 +1,1 @@
+import{r as e}from"./rolldown-runtime-S-ySWqyJ.js";import{i as t}from"./framework-DjPHiq1u.js";var n=e(t(),1);function r(){return(0,n.useEffect)(()=>{`serviceWorker`in navigator&&navigator.serviceWorker.register(`/sw.js`).catch(()=>void 0)},[]),null}export{r as RegisterSW};
