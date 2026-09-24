@@ -24,6 +24,7 @@ function eventView(
     description: event.description,
     contactName: event.contactName,
     capacity: event.capacity,
+    feePerPerson: event.feePerPerson,
     status: event.status,
     accessMode: event.accessMode,
     attendanceVisibility: event.attendanceVisibility,

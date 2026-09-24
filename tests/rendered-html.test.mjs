@@ -196,6 +196,38 @@ test("activity arrangements require unique names within an activity", async () =
   assert.doesNotMatch(migration, /ALTER TABLE/);
 });
 
+test("paid activities calculate fixed per-person fees without exposing payment records publicly", async () => {
+  const [eventsRoute, accessRoute, rsvpRoute, adminRoute, schema, schemaInit, migration, homeClient, eventClient] = await Promise.all([
+    readFile(new URL("../app/api/events/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/events/access/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/rsvps/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/event/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
+    readFile(new URL("../db/init.ts", import.meta.url), "utf8"),
+    readFile(new URL("../drizzle/0012_brown_tyger_tiger.sql", import.meta.url), "utf8"),
+    readFile(new URL("../docs/app.js", import.meta.url), "utf8"),
+    readFile(new URL("../docs/e/app.js", import.meta.url), "utf8"),
+  ]);
+  assert.match(schema, /feePerPerson: integer\("fee_per_person"\)/);
+  assert.match(schema, /paymentStatus: text\("payment_status"\)/);
+  assert.match(schemaInit, /fee_per_person INTEGER NOT NULL DEFAULT 0/);
+  assert.match(schemaInit, /payment_status TEXT NOT NULL DEFAULT 'not_applicable'/);
+  assert.match(migration, /ADD `fee_per_person`/);
+  assert.match(migration, /ADD `payment_status`/);
+  assert.match(eventsRoute, /MAX_FEE_PER_PERSON/);
+  assert.match(eventsRoute, /feePerPerson: fee/);
+  assert.match(accessRoute, /feePerPerson: event\.feePerPerson/);
+  assert.match(rsvpRoute, /paymentStatus = response !== "attending"/);
+  assert.match(adminRoute, /action === "update_payment"/);
+  assert.match(adminRoute, /paidAmount/);
+  assert.match(homeClient, /name="feeMode" value="paid"/);
+  assert.match(homeClient, /收款管理/);
+  assert.match(homeClient, /data-rsvp-payment/);
+  assert.match(homeClient, /下載 CSV 名單/);
+  assert.match(eventClient, /本戶應收：/);
+  assert.doesNotMatch(accessRoute, /paymentStatus/);
+});
+
 test("LINE roster command accepts both 啟動 and 啓動", () => {
   assert.equal(normalizeLineCommand("原神啟動"), "原神啟動");
   assert.equal(normalizeLineCommand(" 原神　啓動 "), "原神啟動");
@@ -305,7 +337,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.39/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.41/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -334,9 +366,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.39/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.39/);
-  assert.match(worker, /good-days-github-v40/);
+  assert.match(page, /\/app\.js\?v=1\.2\.41/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.41/);
+  assert.match(worker, /good-days-github-v41/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 

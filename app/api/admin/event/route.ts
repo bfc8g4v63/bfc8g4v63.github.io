@@ -19,6 +19,12 @@ function wholeNumber(value: unknown, minimum: number, maximum: number) {
     : null;
 }
 
+const paymentStatuses = new Set(["unpaid", "paid", "waived"]);
+
+function paymentStatus(value: unknown) {
+  return typeof value === "string" && paymentStatuses.has(value) ? value : "";
+}
+
 async function saveMealSeating(
   body: Record<string, unknown>,
   eventId: string,
@@ -114,6 +120,7 @@ export async function POST(request: Request) {
         name,
         response,
         partySize: response === "attending" ? partySize! : 0,
+        paymentStatus: response === "attending" && access.event.feePerPerson > 0 ? "unpaid" : "not_applicable",
         diet: clean(body.diet, 120),
         note: clean(body.note, 300),
         shareName: false,
@@ -132,7 +139,7 @@ export async function POST(request: Request) {
       if (!rsvpId || !name || !response || (response === "attending" && !partySize)) {
         return json(request, { error: "請確認姓名、出席狀態與參加人數" }, 400);
       }
-      const [rsvp] = await db.select({ id: rsvps.id, name: rsvps.name, partySize: rsvps.partySize, response: rsvps.response })
+      const [rsvp] = await db.select({ id: rsvps.id, name: rsvps.name, partySize: rsvps.partySize, response: rsvps.response, paymentStatus: rsvps.paymentStatus })
         .from(rsvps).where(and(eq(rsvps.id, rsvpId), eq(rsvps.eventId, access.event.id))).limit(1);
       if (!rsvp) return json(request, { error: "找不到這筆回覆" }, 404);
       const [duplicate] = await db.select({ id: rsvps.id }).from(rsvps).where(and(
@@ -141,22 +148,42 @@ export async function POST(request: Request) {
       if (duplicate && duplicate.id !== rsvp.id) return json(request, { error: `「${name}」已有一筆回覆，請先確認是否為同一人` }, 409);
       const nextPartySize = response === "attending" ? partySize : 0;
       const seatingChanged = rsvp.response !== response || rsvp.partySize !== nextPartySize;
+      const nextPaymentStatus = response !== "attending" || access.event.feePerPerson <= 0
+        ? "not_applicable"
+        : seatingChanged || !["paid", "waived"].includes(rsvp.paymentStatus)
+          ? "unpaid"
+          : rsvp.paymentStatus;
       if (seatingChanged) await db.delete(mealAssignments).where(eq(mealAssignments.rsvpId, rsvp.id));
       await db.update(rsvps).set({
         name,
         response,
+        paymentStatus: nextPaymentStatus,
         partySize: nextPartySize,
         diet: clean(body.diet, 120),
         note: clean(body.note, 300),
         ...(response === "not_attending" ? { shareName: false } : {}),
         updatedAt: new Date().toISOString(),
       }).where(eq(rsvps.id, rsvp.id));
+      const paymentReset = seatingChanged && response === "attending" && access.event.feePerPerson > 0;
       return json(request, {
         ok: true,
         message: seatingChanged
-          ? `已更新「${rsvp.name}」的回覆，原本的活動安排已清除`
+          ? `已更新「${rsvp.name}」的回覆，原本的活動安排已清除${paymentReset ? "，收款狀態已改為待收" : ""}`
           : `已更新「${rsvp.name}」的回覆`,
       });
+    }
+    if (action === "update_payment") {
+      const rsvpId = clean(body.rsvpId, 80);
+      const nextPaymentStatus = paymentStatus(body.paymentStatus);
+      if (!rsvpId || !nextPaymentStatus) return json(request, { error: "請選擇有效的收款狀態" }, 400);
+      if (access.event.feePerPerson <= 0) return json(request, { error: "此活動未設定收費" }, 400);
+      const [rsvp] = await db.select({ id: rsvps.id, name: rsvps.name, response: rsvps.response })
+        .from(rsvps).where(and(eq(rsvps.id, rsvpId), eq(rsvps.eventId, access.event.id))).limit(1);
+      if (!rsvp) return json(request, { error: "找不到這筆回覆" }, 404);
+      if (rsvp.response !== "attending") return json(request, { error: "未參加者不需要收款" }, 400);
+      await db.update(rsvps).set({ paymentStatus: nextPaymentStatus, updatedAt: new Date().toISOString() })
+        .where(eq(rsvps.id, rsvp.id));
+      return json(request, { ok: true, message: `已更新「${rsvp.name}」的收款狀態` });
     }
     if (action === "cancel_rsvp" || action === "delete_rsvp") {
       const rsvpId = clean(body.rsvpId, 80);
@@ -170,6 +197,7 @@ export async function POST(request: Request) {
         await db.delete(mealAssignments).where(eq(mealAssignments.rsvpId, rsvp.id));
         await db.update(rsvps).set({
           response: "not_attending",
+          paymentStatus: "not_applicable",
           shareName: false,
           updatedAt: new Date().toISOString(),
         }).where(eq(rsvps.id, rsvp.id));
@@ -182,7 +210,7 @@ export async function POST(request: Request) {
     const [responses, bindingRows, settingRows, mealTableRows, mealAssignmentRows, commandLogs] = await Promise.all([
       db.select({
         id: rsvps.id, name: rsvps.name, response: rsvps.response,
-        partySize: rsvps.partySize, diet: rsvps.diet, note: rsvps.note,
+        partySize: rsvps.partySize, diet: rsvps.diet, note: rsvps.note, paymentStatus: rsvps.paymentStatus,
         createdAt: rsvps.createdAt, updatedAt: rsvps.updatedAt,
       }).from(rsvps).where(eq(rsvps.eventId, access.event.id)),
       db.select().from(lineBindings).where(eq(lineBindings.eventId, access.event.id)).limit(1),
@@ -193,6 +221,15 @@ export async function POST(request: Request) {
         .from(lineCommandLogs).where(eq(lineCommandLogs.eventId, access.event.id)).orderBy(sql`${lineCommandLogs.createdAt} desc`).limit(12),
     ]);
     const attending = responses.filter((item) => item.response === "attending");
+    const feePerPerson = Math.max(0, access.event.feePerPerson || 0);
+    const feeSummary = attending.reduce((summary, item) => {
+      const amount = item.partySize * feePerPerson;
+      summary.grossAmount += amount;
+      if (item.paymentStatus === "paid") summary.paidAmount += amount;
+      else if (item.paymentStatus === "waived") summary.waivedAmount += amount;
+      else summary.unpaidAmount += amount;
+      return summary;
+    }, { feePerPerson, grossAmount: 0, paidAmount: 0, unpaidAmount: 0, waivedAmount: 0 });
     const settings = settingRows[0] || { sevenDays: true, oneDay: true, twoHours: false, includeDiet: false, includeNote: false };
     return json(request, {
       event: {
@@ -207,6 +244,7 @@ export async function POST(request: Request) {
         attendingPeople: attending.reduce((sum, item) => sum + item.partySize, 0),
         attendingReplies: attending.length,
         notAttendingReplies: responses.filter((item) => item.response === "not_attending").length,
+        fee: feeSummary,
       },
       line: {
         configured: Boolean(lineConfig().token && lineConfig().channelSecret),

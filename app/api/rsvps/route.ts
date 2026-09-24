@@ -49,6 +49,7 @@ export async function POST(request: Request) {
     const [event] = await db.select({
       id: events.id, status: events.status, accessMode: events.accessMode,
       attendanceVisibility: events.attendanceVisibility,
+      feePerPerson: events.feePerPerson,
       shareToken: events.shareToken, participantCodeHash: events.participantCodeHash,
     }).from(events).where(eq(events.id, eventId)).limit(1);
     if (!event) return json(request, { error: "找不到活動" }, 404);
@@ -60,12 +61,12 @@ export async function POST(request: Request) {
       return json(request, { error: "參加碼不正確" }, 403);
     }
     const [existingByName] = await db.select({
-      id: rsvps.id, name: rsvps.name, viewerTokenHash: rsvps.viewerTokenHash, partySize: rsvps.partySize, response: rsvps.response,
+      id: rsvps.id, name: rsvps.name, viewerTokenHash: rsvps.viewerTokenHash, partySize: rsvps.partySize, response: rsvps.response, paymentStatus: rsvps.paymentStatus,
     }).from(rsvps)
       .where(and(eq(rsvps.eventId, eventId), eq(rsvps.name, name))).limit(1);
     const attendeeTokenHash = suppliedAttendeeToken ? await hashCode(suppliedAttendeeToken) : "";
     const [existingByToken] = attendeeTokenHash
-      ? await db.select({ id: rsvps.id, name: rsvps.name, viewerTokenHash: rsvps.viewerTokenHash, partySize: rsvps.partySize, response: rsvps.response })
+      ? await db.select({ id: rsvps.id, name: rsvps.name, viewerTokenHash: rsvps.viewerTokenHash, partySize: rsvps.partySize, response: rsvps.response, paymentStatus: rsvps.paymentStatus })
         .from(rsvps).where(and(eq(rsvps.eventId, eventId), eq(rsvps.viewerTokenHash, attendeeTokenHash))).limit(1)
       : [];
     if (existingByName && existingByToken && existingByName.id !== existingByToken.id) {
@@ -87,6 +88,12 @@ export async function POST(request: Request) {
       event.attendanceVisibility === "all"
       || (event.attendanceVisibility === "opt_in" && (body.shareName === true || body.shareName === "true"))
     );
+    const attendanceChanged = existing?.partySize !== partySize || existing?.response !== response;
+    const paymentStatus = response !== "attending" || event.feePerPerson <= 0
+      ? "not_applicable"
+      : attendanceChanged || !existing || !["paid", "waived"].includes(existing.paymentStatus)
+        ? "unpaid"
+        : existing.paymentStatus;
     const values = {
       // An attendee token remains valid when a creator corrects that attendee's
       // displayed name in the management dashboard.
@@ -94,12 +101,13 @@ export async function POST(request: Request) {
       diet: clean(body.diet, 120),
       note: clean(body.note, 300),
       response,
+      paymentStatus,
       shareName,
       viewerTokenHash: attendeeTokenHash || await hashCode(attendeeToken),
       updatedAt: new Date().toISOString(),
     };
     if (existing) {
-      if (existing.partySize !== partySize || existing.response !== response) {
+      if (attendanceChanged) {
         await db.delete(mealAssignments).where(eq(mealAssignments.rsvpId, existing.id));
       }
       if (response === "not_attending") {

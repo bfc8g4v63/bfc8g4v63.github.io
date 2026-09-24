@@ -11,6 +11,7 @@ import { rateLimit } from "../rate-limit";
 
 const accessModes = new Set(["public", "unlisted", "private"]);
 const attendanceVisibilities = new Set(["count", "opt_in", "all"]);
+const MAX_FEE_PER_PERSON = 1_000_000;
 
 export function OPTIONS(request: Request) {
   return preflight(request);
@@ -22,6 +23,12 @@ function accessMode(value: unknown, fallback = "unlisted") {
 
 function attendanceVisibility(value: unknown, fallback = "count") {
   return typeof value === "string" && attendanceVisibilities.has(value) ? value : fallback;
+}
+
+function feePerPerson(value: unknown, fallback = 0) {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= MAX_FEE_PER_PERSON
+    ? value
+    : fallback;
 }
 
 function shareUrl(token: string) {
@@ -56,6 +63,7 @@ export async function GET(request: Request) {
         startTime: events.startTime, location: events.location,
         description: events.description, contactName: events.contactName,
         capacity: events.capacity, status: events.status, accessMode: events.accessMode,
+        feePerPerson: events.feePerPerson,
         attendanceVisibility: events.attendanceVisibility,
         shareToken: events.shareToken,
       }).from(events).where(and(eq(events.accessMode, "public"), eq(events.status, "active")))
@@ -102,6 +110,7 @@ export async function POST(request: Request) {
     const mode = accessMode(body.accessMode);
     const visibility = attendanceVisibility(body.attendanceVisibility);
     const participantCode = clean(body.participantCode, 80);
+    const fee = feePerPerson(body.feePerPerson, -1);
     if (!title || !creatorName || !eventDate || !startTime || !location) {
       return json(request, { error: "請填寫活動名稱、日期、時間與地點" }, 400);
     }
@@ -111,6 +120,7 @@ export async function POST(request: Request) {
     if (mode === "private" && participantCode.length < 4) {
       return json(request, { error: "私人活動的參加碼至少需要 4 個字" }, 400);
     }
+    if (fee < 0) return json(request, { error: `每人費用請填 0 到 ${MAX_FEE_PER_PERSON.toLocaleString("zh-TW")} 的整數` }, 400);
     const id = crypto.randomUUID();
     const token = crypto.randomUUID();
     const managerToken = crypto.randomUUID();
@@ -122,6 +132,7 @@ export async function POST(request: Request) {
       contactPhone: clean(body.contactPhone, 40),
       capacity: typeof body.capacity === "number" && body.capacity > 0
         ? Math.min(Math.floor(body.capacity), 999) : null,
+      feePerPerson: fee,
       accessMode: mode,
       attendanceVisibility: visibility,
       shareToken: token,
@@ -162,12 +173,14 @@ export async function PATCH(request: Request) {
       ? existing.attendanceVisibility
       : attendanceVisibility(body.attendanceVisibility, existing.attendanceVisibility);
     const participantCode = clean(body.participantCode, 80);
+    const fee = body.feePerPerson === undefined ? existing.feePerPerson : feePerPerson(body.feePerPerson, -1);
     if (!title || !eventDate || !startTime || !location) {
       return json(request, { error: "請填寫活動名稱、日期、時間與地點" }, 400);
     }
     if (mode === "private" && !existing.participantCodeHash && participantCode.length < 4) {
       return json(request, { error: "請設定至少 4 個字的參加碼" }, 400);
     }
+    if (fee < 0) return json(request, { error: `每人費用請填 0 到 ${MAX_FEE_PER_PERSON.toLocaleString("zh-TW")} 的整數` }, 400);
     const participantCodeHash = mode !== "private" ? ""
       : participantCode ? await hashCredential(participantCode) : existing.participantCodeHash;
     const shareToken = existing.shareToken || crypto.randomUUID();
@@ -184,6 +197,7 @@ export async function PATCH(request: Request) {
       capacity: body.capacity === undefined ? existing.capacity
         : typeof body.capacity === "number" && body.capacity > 0
           ? Math.min(Math.floor(body.capacity), 999) : null,
+      feePerPerson: fee,
       updatedAt: new Date().toISOString(),
     }).where(and(eq(events.id, id), eq(events.editCodeHash, existing.editCodeHash)));
     if (existing.status !== "cancelled" && status === "cancelled") {

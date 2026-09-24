@@ -85,6 +85,13 @@
       "when": 1790224950375,
       "tag": "0011_chubby_nemesis",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1790238529425,
+      "tag": "0012_brown_tyger_tiger",
+      "breakpoints": true
     }
   ]
 }
