@@ -302,7 +302,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.38/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.39/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -331,10 +331,23 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.38/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.38/);
-  assert.match(worker, /good-days-github-v39/);
+  assert.match(page, /\/app\.js\?v=1\.2\.39/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.39/);
+  assert.match(worker, /good-days-github-v40/);
   assert.match(worker, /self\.skipWaiting\(\)/);
+});
+
+test("modal backdrops stay open until an explicit close action", async () => {
+  const [homeClient, eventClient] = await Promise.all([
+    readFile(new URL("../docs/app.js", import.meta.url), "utf8"),
+    readFile(new URL("../docs/e/app.js", import.meta.url), "utf8"),
+  ]);
+  assert.match(homeClient, /if \(close\) return requestModalClose\(\);/);
+  assert.match(homeClient, /keyEvent\.key !== "Escape"/);
+  assert.doesNotMatch(homeClient, /clickEvent\.target\.classList\.contains\("modal-backdrop"\)/);
+  assert.match(eventClient, /event\.target\.closest\("\[data-close\]"\)/);
+  assert.match(eventClient, /event\.key === "Escape"/);
+  assert.doesNotMatch(eventClient, /event\.target\.classList\.contains\("modal-backdrop"\)/);
 });
 
 test("public pages provide crawl discovery while individual event pages remain private", async () => {

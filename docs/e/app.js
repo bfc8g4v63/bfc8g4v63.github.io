@@ -316,5 +316,8 @@ function openManagerEdit(event, editCode) {
   });
 }
 
-document.addEventListener("click", (event) => { if (event.target.closest("[data-close]") || event.target.classList.contains("modal-backdrop")) closeModal(); });
+document.addEventListener("click", (event) => { if (event.target.closest("[data-close]")) closeModal(); });
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && modalRoot.querySelector(".modal")) closeModal();
+});
 loadEvent();

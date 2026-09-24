@@ -1105,10 +1105,6 @@ document.addEventListener("click", (clickEvent) => {
   if (clickEvent.target.closest("[data-recover]")) return openCreatorRecovery();
   const close = clickEvent.target.closest("[data-close]");
   if (close) return requestModalClose();
-  if (clickEvent.target.classList.contains("modal-backdrop")) {
-    if (modalRoot.querySelector("#event-form")) return;
-    return closeModal();
-  }
   if (clickEvent.target.id === "retry") return loadEvents();
   const action = clickEvent.target.closest("[data-action]");
   if (!action) return;
