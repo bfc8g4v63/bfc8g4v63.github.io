@@ -341,7 +341,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.43/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.44/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -370,10 +370,25 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.43/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.43/);
-  assert.match(worker, /good-days-github-v43/);
+  assert.match(page, /\/app\.js\?v=1\.2\.44/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.44/);
+  assert.match(worker, /good-days-github-v44/);
   assert.match(worker, /self\.skipWaiting\(\)/);
+});
+
+test("activity time uses equal-height wheel controls with desktop and touch adjustment", async () => {
+  const [client, styles] = await Promise.all([
+    readFile(new URL("../docs/app.js", import.meta.url), "utf8"),
+    readFile(new URL("../docs/styles.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(client, /class="time-wheel" data-time-wheel=/);
+  assert.match(client, /function enableTimeWheels/);
+  assert.match(client, /addEventListener\("wheel"/);
+  assert.match(client, /addEventListener\("touchstart"/);
+  assert.match(client, /addEventListener\("touchend"/);
+  assert.doesNotMatch(client, /<select name="time/);
+  assert.match(styles, /\.time-picker \{[^}]*grid-template-rows:auto 68px/);
+  assert.match(styles, /\.time-wheel \{[^}]*height:68px/);
 });
 
 test("modal backdrops stay open until an explicit close action", async () => {

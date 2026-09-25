@@ -163,14 +163,66 @@ function timeParts(value) {
 
 function timePicker(value = "") {
   const selected = timeParts(value);
-  const hours = Array.from({ length: 12 }, (_, index) => index + 1);
-  const minutes = Array.from({ length: 60 }, (_, index) => String(index).padStart(2, "0"));
-  return `<fieldset class="time-picker"><legend>時間 <span>必填</span></legend>
-    <label><span class="sr-only">上午或下午</span><select name="timePeriod" data-time-part required><option value="" ${selected.period ? "" : "selected"} disabled>上午／下午</option><option value="am" ${selected.period === "am" ? "selected" : ""}>上午</option><option value="pm" ${selected.period === "pm" ? "selected" : ""}>下午</option></select></label>
-    <label><span class="sr-only">小時</span><select name="timeHour" data-time-part required><option value="" ${selected.hour ? "" : "selected"} disabled>時</option>${hours.map((hour) => `<option value="${hour}" ${selected.hour === String(hour) ? "selected" : ""}>${hour} 時</option>`).join("")}</select></label>
-    <label><span class="sr-only">分鐘</span><select name="timeMinute" data-time-part required><option value="" ${selected.minute ? "" : "selected"} disabled>分</option>${minutes.map((minute) => `<option value="${minute}" ${selected.minute === minute ? "selected" : ""}>${minute} 分</option>`).join("")}</select></label>
+  const options = {
+    period: [["am", "上午"], ["pm", "下午"]],
+    hour: Array.from({ length: 12 }, (_, index) => [String(index + 1), `${index + 1} 時`]),
+    minute: Array.from({ length: 60 }, (_, index) => [String(index).padStart(2, "0"), `${String(index).padStart(2, "0")} 分`]),
+  };
+  const wheel = (name, placeholder) => {
+    const current = options[name].find(([option]) => option === selected[name]);
+    return `<button type="button" class="time-wheel" data-time-wheel="${name}" aria-label="${placeholder}；可點按、滑鼠滾輪或上下滑動調整">
+      <span class="time-wheel-arrow" aria-hidden="true">⌃</span><span class="time-wheel-value">${current ? current[1] : placeholder}</span><span class="time-wheel-arrow" aria-hidden="true">⌄</span>
+    </button><input type="hidden" name="time${name[0].toUpperCase()}${name.slice(1)}" value="${esc(selected[name])}">`;
+  };
+  return `<div class="time-picker" role="group" aria-labelledby="time-picker-label">
+    <span class="time-picker-label" id="time-picker-label">時間 <span>必填</span></span>
+    ${wheel("period", "上午／下午")}
+    ${wheel("hour", "時")}
+    ${wheel("minute", "分")}
     <input type="hidden" name="startTime" value="${esc(value)}">
-  </fieldset>`;
+  </div>`;
+}
+
+const timeWheelOptions = {
+  period: [["am", "上午"], ["pm", "下午"]],
+  hour: Array.from({ length: 12 }, (_, index) => [String(index + 1), `${index + 1} 時`]),
+  minute: Array.from({ length: 60 }, (_, index) => [String(index).padStart(2, "0"), `${String(index).padStart(2, "0")} 分`]),
+};
+
+function updateTimeWheel(form, name, direction) {
+  const options = timeWheelOptions[name];
+  const input = form.elements[`time${name[0].toUpperCase()}${name.slice(1)}`];
+  const current = options.findIndex(([value]) => value === input.value);
+  const next = current < 0 ? (direction > 0 ? 0 : options.length - 1) : (current + direction + options.length) % options.length;
+  input.value = options[next][0];
+  const control = form.querySelector(`[data-time-wheel="${name}"]`);
+  control.querySelector(".time-wheel-value").textContent = options[next][1];
+  control.classList.add("is-selected");
+  form.elements.startTime.value = selectedStartTime(form);
+}
+
+function enableTimeWheels(form) {
+  form.querySelectorAll("[data-time-wheel]").forEach((control) => {
+    const name = control.dataset.timeWheel;
+    let touchStartY = null;
+    let lastTouch = 0;
+    control.addEventListener("click", () => {
+      if (Date.now() - lastTouch > 500) updateTimeWheel(form, name, 1);
+    });
+    control.addEventListener("wheel", (event) => {
+      event.preventDefault();
+      if (event.deltaY) updateTimeWheel(form, name, event.deltaY > 0 ? 1 : -1);
+    }, { passive: false });
+    control.addEventListener("touchstart", (event) => { touchStartY = event.changedTouches[0]?.clientY ?? null; }, { passive: true });
+    control.addEventListener("touchend", (event) => {
+      const endY = event.changedTouches[0]?.clientY;
+      if (touchStartY !== null && typeof endY === "number" && Math.abs(endY - touchStartY) > 18) {
+        updateTimeWheel(form, name, endY < touchStartY ? 1 : -1);
+        lastTouch = Date.now();
+      }
+      touchStartY = null;
+    }, { passive: true });
+  });
 }
 
 function selectedStartTime(form) {
@@ -250,9 +302,7 @@ function openEventForm(event, managerAuth = null) {
   const form = document.querySelector("#event-form");
   const participantCodeField = form.querySelector("#participant-code-field");
   const feePerPersonField = form.querySelector("#fee-per-person-field");
-  const syncStartTime = () => { form.elements.startTime.value = selectedStartTime(form); };
-  form.querySelectorAll("[data-time-part]").forEach((input) => input.addEventListener("change", syncStartTime));
-  syncStartTime();
+  enableTimeWheels(form);
   const syncParticipantCode = () => {
     const privateMode = form.elements.accessMode.value === "private";
     participantCodeField.hidden = !privateMode;
@@ -285,6 +335,12 @@ function openEventForm(event, managerAuth = null) {
     button.textContent = "儲存中…";
     const body = Object.fromEntries(new FormData(form));
     body.startTime = selectedStartTime(form);
+    if (!body.startTime) {
+      showFormError(form, "請完成活動時間的上午／下午、時與分。");
+      button.disabled = false;
+      button.textContent = original;
+      return;
+    }
     delete body.timePeriod;
     delete body.timeHour;
     delete body.timeMinute;
