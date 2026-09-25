@@ -68,7 +68,9 @@ export async function POST(request: Request) {
     const now = Date.now();
     for (const event of rows) {
       const eventTime = Date.parse(`${event.eventDate}T${event.startTime}:00+08:00`);
-      if (!Number.isFinite(eventTime)) continue;
+      // An ended event must never become eligible again, even when its details
+      // are edited after the original reminder window has passed.
+      if (!Number.isFinite(eventTime) || eventTime <= now) continue;
       const attending = await db.select({ partySize: rsvps.partySize }).from(rsvps).where(and(
         eq(rsvps.eventId, event.id), eq(rsvps.response, "attending"),
       ));

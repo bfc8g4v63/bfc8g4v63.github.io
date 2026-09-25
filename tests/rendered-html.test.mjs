@@ -316,6 +316,7 @@ test("creator recovery and attendee-roster privacy stay gated", async () => {
   assert.match(recovery, /creatorName: match\.creatorName/);
   assert.match(recovery, /editCode\.length < 4/);
   assert.match(recovery, /editCodeHash/);
+  assert.match(recovery, /orderBy\(desc\(events\.createdAt\)\)/);
   assert.match(access, /viewerTokenHash/);
   assert.match(access, /attendanceVisibility !== "count"/);
   assert.match(rsvp, /shareName/);
@@ -341,7 +342,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.44/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.45/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -370,9 +371,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.44/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.44/);
-  assert.match(worker, /good-days-github-v44/);
+  assert.match(page, /\/app\.js\?v=1\.2\.45/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.45/);
+  assert.match(worker, /good-days-github-v45/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -487,7 +488,7 @@ test("creators can add several relatives from the recovered management dashboard
   assert.match(adminRoute, /viewerTokenHash: await hashCode\(crypto\.randomUUID\(\)\)/);
   assert.match(adminRoute, /rateLimit\(request, "admin-event", 60/);
   assert.match(homepageClient, /id="create-rsvp"/);
-  assert.match(homepageClient, /openManagedRsvpEditor\(null, event, managerAuth\)/);
+  assert.match(homepageClient, /openManagedRsvpEditor\(null, event, managerAuth, returnToAdmin\)/);
   assert.match(homepageClient, /action: isNew \? "create_rsvp" : "update_rsvp"/);
   assert.match(homepageClient, /function rsvpStorageKey\(shareToken, name\)/);
   assert.match(eventClient, /function attendeeTokenFor\(name\)/);
@@ -612,7 +613,10 @@ test("one LINE group can serve several upcoming activities without sending ended
   assert.match(migration, /DROP INDEX `line_bindings_group_unique`/);
   assert.match(migration, /owner_credential_hash/);
   assert.match(adminLine, /action === "list_groups"/);
+  assert.match(adminLine, /action === "auto_reuse_group"/);
   assert.match(adminLine, /action === "use_existing_group"/);
+  assert.match(adminLine, /reuseGroupForUnboundUpcomingEvents/);
+  assert.match(adminLine, /!Number\.isFinite\(startsAt\) \|\| startsAt <= now/);
   assert.match(adminLine, /action === "publish_events"/);
   assert.match(adminLine, /只能發布尚未開始的活動/);
   assert.match(webhook, /upcomingGroupEvents/);
@@ -620,7 +624,23 @@ test("one LINE group can serve several upcoming activities without sending ended
   assert.match(webhook, /totalPages > 5/);
   assert.match(webhook, /安排 20260930/);
   assert.match(client, /使用既有通知群組/);
+  assert.match(client, /autoReuseLineGroup/);
   assert.match(client, /合併發布近期活動/);
   assert.match(guide, /不必重新綁定/);
   assert.match(guide, /安排 20260930/);
+});
+
+test("admin child panels return to the active dashboard and past reminders are skipped", async () => {
+  const [client, reminders] = await Promise.all([
+    readFile(new URL("../docs/app.js", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/line/run-reminders/route.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(client, /function refreshAdminDashboard/);
+  assert.match(client, /openEventForm\(event, managerAuth, returnToAdmin\)/);
+  assert.match(client, /openSharePanel\(event, returnToAdmin\)/);
+  assert.match(client, /openManagedRsvpEditor\(null, event, managerAuth, returnToAdmin\)/);
+  assert.match(client, /openLineGroupPicker\(event, managerAuth, returnToAdmin\)/);
+  assert.match(client, /openLinePublish\(event, managerAuth, returnToAdmin\)/);
+  assert.match(client, /activeModalClose = returnTo \|\| closeModal/);
+  assert.match(reminders, /!Number\.isFinite\(eventTime\) \|\| eventTime <= now/);
 });

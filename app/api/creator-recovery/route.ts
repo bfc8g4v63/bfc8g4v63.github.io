@@ -1,4 +1,4 @@
-import { and, asc, eq, or } from "drizzle-orm";
+import { and, desc, eq, or } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { ensureSchema } from "../../../db/init";
 import { events } from "../../../db/schema";
@@ -47,7 +47,7 @@ export async function POST(request: Request) {
       id: events.id, title: events.title, eventDate: events.eventDate,
       startTime: events.startTime, status: events.status, shareToken: events.shareToken,
       editCodeHash: events.editCodeHash,
-    }).from(events).where(creatorMatch).orderBy(asc(events.eventDate), asc(events.startTime)).limit(50);
+    }).from(events).where(creatorMatch).orderBy(desc(events.createdAt)).limit(50);
     const matches = [];
     for (const event of rows) {
       if (await verifyCredential(editCode, event.editCodeHash)) matches.push(event);

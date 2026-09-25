@@ -61,6 +61,36 @@ async function ensureReminderSettings(eventId: string) {
   await getDb().insert(lineReminderSettings).values({ eventId }).onConflictDoNothing({ target: lineReminderSettings.eventId });
 }
 
+async function reuseGroupForUnboundUpcomingEvents(
+  credential: string,
+  group: { groupId: string; groupName: string },
+) {
+  if (!credential) return 0;
+  const db = getDb();
+  const candidates = await db.select({
+    id: events.id, eventDate: events.eventDate, startTime: events.startTime,
+    editCodeHash: events.editCodeHash, managerTokenHash: events.managerTokenHash,
+  }).from(events).where(eq(events.status, "active"));
+  const now = Date.now();
+  const boundAt = new Date().toISOString();
+  let linked = 0;
+  for (const event of candidates) {
+    const startsAt = eventStartsAt(event);
+    if (!Number.isFinite(startsAt) || startsAt <= now) continue;
+    const managesEvent = await verifyCredential(credential, event.editCodeHash)
+      || await verifyCredential(credential, event.managerTokenHash);
+    if (!managesEvent) continue;
+    const inserted = await db.insert(lineBindings).values({
+      eventId: event.id, groupId: group.groupId, groupName: group.groupName, boundAt,
+    }).onConflictDoNothing().returning({ eventId: lineBindings.eventId });
+    if (inserted.length) {
+      linked += 1;
+      await ensureReminderSettings(event.id);
+    }
+  }
+  return linked;
+}
+
 async function createUniqueCode() {
   const db = getDb();
   for (let attempt = 0; attempt < 10; attempt += 1) {
@@ -92,6 +122,16 @@ export async function POST(request: Request) {
       return json(request, { groups: groups.map((group) => ({ groupId: group.groupId, groupName: group.groupName })) });
     }
 
+    if (action === "auto_reuse_group") {
+      const groups = await ownedGroups(credential);
+      if (groups.length !== 1) return json(request, { ok: true, binding: null, linked: 0 });
+      const group = groups[0];
+      const linked = await reuseGroupForUnboundUpcomingEvents(credential, group);
+      const [binding] = await db.select().from(lineBindings)
+        .where(eq(lineBindings.eventId, access.event.id)).limit(1);
+      return json(request, { ok: true, binding: binding || null, linked });
+    }
+
     if (action === "create_binding_code") {
       if (!lineConfig().token || !lineConfig().channelSecret) {
         return json(request, { error: "請先完成 LINE Channel access token 與 Channel secret 設定" }, 503);
@@ -110,11 +150,16 @@ export async function POST(request: Request) {
       const groups = await ownedGroups(credential);
       const group = groups.find((item) => item.groupId === groupId);
       if (!group) return json(request, { error: "找不到可使用的通知群組" }, 404);
-      const now = new Date().toISOString();
-      await db.insert(lineBindings).values({ eventId: access.event.id, groupId: group.groupId, groupName: group.groupName, boundAt: now })
-        .onConflictDoUpdate({ target: lineBindings.eventId, set: { groupId: group.groupId, groupName: group.groupName, boundAt: now } });
+      const boundAt = new Date().toISOString();
+      await db.insert(lineBindings).values({
+        eventId: access.event.id, groupId: group.groupId, groupName: group.groupName, boundAt,
+      }).onConflictDoUpdate({
+        target: lineBindings.eventId,
+        set: { groupId: group.groupId, groupName: group.groupName, boundAt },
+      });
       await ensureReminderSettings(access.event.id);
-      return json(request, { ok: true, binding: { groupId: group.groupId, groupName: group.groupName } });
+      const linked = await reuseGroupForUnboundUpcomingEvents(credential, group);
+      return json(request, { ok: true, binding: { groupId: group.groupId, groupName: group.groupName }, linked });
     }
 
     if (action === "save_settings") {
