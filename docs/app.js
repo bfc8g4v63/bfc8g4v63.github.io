@@ -165,8 +165,8 @@ function timePicker(value = "") {
   const selected = timeParts(value);
   const options = {
     period: [["am", "上午"], ["pm", "下午"]],
-    hour: Array.from({ length: 12 }, (_, index) => [String(index + 1), `${index + 1} 時`]),
-    minute: Array.from({ length: 60 }, (_, index) => [String(index).padStart(2, "0"), `${String(index).padStart(2, "0")} 分`]),
+    hour: Array.from({ length: 12 }, (_, index) => [String(index + 1), `${index + 1}時`]),
+    minute: Array.from({ length: 60 }, (_, index) => [String(index).padStart(2, "0"), `${String(index).padStart(2, "0")}分`]),
   };
   const wheel = (name, placeholder) => {
     const current = options[name].find(([option]) => option === selected[name]);
