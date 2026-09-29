@@ -177,11 +177,12 @@ function timePicker(value = "") {
   };
   const wheel = (name, placeholder) => {
     const current = options[name].find(([option]) => option === selected[name]);
-    if (name === "minute") {
+    if (name !== "period") {
+      const unit = name === "hour" ? "時" : "分";
       return `<div class="time-wheel time-wheel-editable" data-time-wheel="${name}" aria-label="${placeholder}；可直接輸入、滑鼠滾輪或上下滑動調整">
-        <button type="button" class="time-wheel-arrow" data-time-step="-1" aria-label="減少 1 分">⌃</button>
-        <input class="time-wheel-input" data-time-input="${name}" inputmode="numeric" autocomplete="off" maxlength="2" aria-label="分鐘，可輸入 00 到 59" placeholder="分" value="${esc(selected[name])}">
-        <button type="button" class="time-wheel-arrow" data-time-step="1" aria-label="增加 1 分">⌄</button>
+        <button type="button" class="time-wheel-arrow" data-time-step="-1" aria-label="減少 1 ${unit}">⌃</button>
+        <span class="time-wheel-input-wrap"><input type="text" class="time-wheel-input" data-time-input="${name}" inputmode="numeric" autocomplete="off" maxlength="2" aria-label="${unit === "分" ? "分鐘，可輸入 00 到 59" : "小時，可輸入 1 到 12"}" placeholder="${placeholder}" value="${esc(selected[name])}"><b aria-hidden="true">${unit}</b></span>
+        <button type="button" class="time-wheel-arrow" data-time-step="1" aria-label="增加 1 ${unit}">⌄</button>
       </div><input type="hidden" name="time${name[0].toUpperCase()}${name.slice(1)}" value="${esc(selected[name])}">`;
     }
     return `<button type="button" class="time-wheel" data-time-wheel="${name}" aria-label="${placeholder}；可點按、滑鼠滾輪或上下滑動調整">
@@ -224,8 +225,8 @@ function updateEditableTimeInput(form, input, normalize = false) {
   const digits = input.value.replace(/\D/g, "").slice(0, 2);
   if (input.value !== digits) input.value = digits;
   const number = Number(digits);
-  const valid = digits !== "" && Number.isInteger(number) && number >= 0 && number <= 59;
-  hidden.value = valid ? String(number).padStart(2, "0") : "";
+  const valid = digits !== "" && Number.isInteger(number) && timeWheelOptions[name].some(([value]) => value === (name === "minute" ? String(number).padStart(2, "0") : String(number)));
+  hidden.value = valid ? (name === "minute" ? String(number).padStart(2, "0") : String(number)) : "";
   if (normalize && valid) input.value = hidden.value;
   form.querySelector(`[data-time-wheel="${name}"]`).classList.toggle("is-selected", valid);
   form.elements.startTime.value = selectedStartTime(form);
