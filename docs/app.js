@@ -181,7 +181,7 @@ function timePicker(value = "") {
       const unit = name === "hour" ? "時" : "分";
       return `<div class="time-wheel time-wheel-editable" data-time-wheel="${name}" aria-label="${placeholder}；可直接輸入、滑鼠滾輪或上下滑動調整">
         <button type="button" class="time-wheel-arrow" data-time-step="-1" aria-label="減少 1 ${unit}">⌃</button>
-        <span class="time-wheel-input-wrap"><input type="text" class="time-wheel-input" data-time-input="${name}" inputmode="numeric" autocomplete="off" maxlength="2" aria-label="${unit === "分" ? "分鐘，可輸入 00 到 59" : "小時，可輸入 1 到 12"}" placeholder="${placeholder}" value="${esc(selected[name])}"><b aria-hidden="true">${unit}</b></span>
+        <span class="time-wheel-input-wrap"><input type="text" class="time-wheel-input" data-time-input="${name}" inputmode="numeric" autocomplete="off" maxlength="2" aria-label="${unit === "分" ? "分鐘，可輸入 00 到 59" : "小時，可輸入 1 到 12"}" placeholder="${placeholder}" value="${esc(selected[name])}"><span class="time-wheel-unit" aria-hidden="true">${unit}</span></span>
         <button type="button" class="time-wheel-arrow" data-time-step="1" aria-label="增加 1 ${unit}">⌄</button>
       </div><input type="hidden" name="time${name[0].toUpperCase()}${name.slice(1)}" value="${esc(selected[name])}">`;
     }
@@ -619,7 +619,7 @@ function openRecoveredActivities(activities, editCode, creatorName) {
     <article class="recovered-activity"><div>${isUpcomingRecoveryActivity(event) ? `<label class="recovery-manager-choice"><input type="checkbox" data-recovery-manager-event="${esc(event.id)}"><span>加入管理提醒</span></label>` : ""}<strong>${esc(event.title)}</strong><span>${esc(formatDate(event.eventDate))} · ${esc(event.startTime)}${event.status === "cancelled" ? " · 已取消" : ""}</span></div><div class="inline-actions"><button class="secondary" data-recovery-share="${esc(event.id)}">分享連結／QR</button><button class="primary" data-recovery-manage="${esc(event.id)}">管理活動</button></div></article>`).join("");
   const batchPanel = upcoming.length ? `
     <section class="recovery-manager-batch">
-      <div><strong>批次綁定管理提醒</strong><span>可一次選取 ${upcoming.length} 場尚未開始的活動</span></div>
+      <div><strong>批次綁定管理提醒</strong><span>可一次選取全部尚未開始的活動</span></div>
       <p>勾選活動後取得一組 10 分鐘有效的指令；在與好日子小幫手的一對一私訊傳送一次，即可綁定目前這個 LINE 帳號。</p>
       <div id="recovery-manager-binding-code"></div>
       <p class="form-error" id="recovery-manager-error" role="alert" hidden></p>

@@ -57,6 +57,21 @@ function requestedDate(command: string, prefix: string) {
   return /^\d{8}$/.test(digits) ? `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}` : "";
 }
 
+async function eventsForManagerBinding(eventIds: string[]) {
+  // SQLite/D1 limits the number of query bindings. Chunking keeps a single
+  // private manager binding usable for every selected upcoming activity.
+  const rows: Array<{ id: string; title: string; status: string; eventDate: string; startTime: string }> = [];
+  for (let index = 0; index < eventIds.length; index += 500) {
+    const ids = eventIds.slice(index, index + 500);
+    rows.push(...await getDb().select({
+      id: events.id, title: events.title, status: events.status,
+      eventDate: events.eventDate, startTime: events.startTime,
+    }).from(events).where(inArray(events.id, ids)));
+  }
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  return eventIds.map((id) => byId.get(id)).filter((row): row is typeof rows[number] => Boolean(row));
+}
+
 async function upcomingGroupEvents(groupId: string) {
   const rows = await getDb().select({
     id: events.id, title: events.title, eventDate: events.eventDate, startTime: events.startTime,
@@ -88,15 +103,12 @@ async function pairManagerAlert(event: LineEvent, code: string) {
   if (batchBindingCode) {
     try {
       const parsed = JSON.parse(batchBindingCode.eventIds);
-      eventIds = Array.isArray(parsed) ? [...new Set(parsed.filter((id): id is string => typeof id === "string"))].slice(0, 12) : [];
+      eventIds = Array.isArray(parsed) ? [...new Set(parsed.filter((id): id is string => typeof id === "string"))] : [];
     } catch {
       eventIds = [];
     }
   }
-  const targetEvents = eventIds.length
-    ? await db.select({ id: events.id, title: events.title, status: events.status, eventDate: events.eventDate, startTime: events.startTime })
-      .from(events).where(inArray(events.id, eventIds))
-    : [];
+  const targetEvents = eventIds.length ? await eventsForManagerBinding(eventIds) : [];
   const activeEvents = targetEvents.filter((targetEvent) => targetEvent.status === "active" && eventStartsAt(targetEvent) > Date.now());
   if (!activeEvents.length || activeEvents.length !== eventIds.length) {
     if (bindingCode) await db.delete(lineManagerBindCodes).where(eq(lineManagerBindCodes.code, bindingCode.code));
@@ -120,7 +132,8 @@ async function pairManagerAlert(event: LineEvent, code: string) {
   }
   if (bindingCode) await db.delete(lineManagerBindCodes).where(eq(lineManagerBindCodes.code, bindingCode.code));
   if (batchBindingCode) await db.delete(lineManagerBatchBindCodes).where(eq(lineManagerBatchBindCodes.code, batchBindingCode.code));
-  const titles = activeEvents.map((targetEvent) => targetEvent.title).join("、");
+  const listedTitles = activeEvents.slice(0, 5).map((targetEvent) => targetEvent.title).join("、");
+  const titles = activeEvents.length > 5 ? `${listedTitles} 等 ${activeEvents.length} 場` : listedTitles;
   await replyText(event.replyToken!, `管理提醒已綁定 ${activeEvents.length} 場活動：${titles}\n之後有人報名、取消或更動人數時，小幫手會在這個私訊通知你；不會依建立者姓名判斷身分。`);
 }
 

@@ -67,7 +67,7 @@ export async function POST(request: Request) {
       id: events.id, title: events.title, eventDate: events.eventDate,
       startTime: events.startTime, status: events.status, shareToken: events.shareToken,
       editCodeHash: events.editCodeHash,
-    }).from(events).where(creatorMatch).orderBy(desc(events.createdAt)).limit(50);
+    }).from(events).where(creatorMatch).orderBy(desc(events.createdAt));
     const matches = [];
     for (const event of rows) {
       if (await verifyCredential(editCode, event.editCodeHash)) matches.push(event);
@@ -78,7 +78,7 @@ export async function POST(request: Request) {
         return json(request, { error: "請先完成 LINE 小幫手設定" }, 503);
       }
       const selectedIds = Array.isArray(body.eventIds)
-        ? [...new Set(body.eventIds.filter((value): value is string => typeof value === "string").map((value) => clean(value, 80)).filter(Boolean))].slice(0, 12)
+        ? [...new Set(body.eventIds.filter((value): value is string => typeof value === "string").map((value) => clean(value, 80)).filter(Boolean))]
         : [];
       if (!selectedIds.length) return json(request, { error: "請至少選擇一場尚未開始的活動" }, 400);
       const selected = matches.filter((event) => selectedIds.includes(event.id)

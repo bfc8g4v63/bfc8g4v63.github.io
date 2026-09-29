@@ -400,7 +400,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.59/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.60/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -429,9 +429,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.59/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.59/);
-  assert.match(worker, /good-days-github-v59/);
+  assert.match(page, /\/app\.js\?v=1\.2\.60/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.60/);
+  assert.match(worker, /good-days-github-v60/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -442,6 +442,7 @@ test("activity time uses equal-height controls with direct minute entry, desktop
   ]);
   assert.match(client, /class="time-wheel" data-time-wheel=/);
   assert.match(client, /type="text" class="time-wheel-input" data-time-input="\$\{name\}" inputmode="numeric"/);
+  assert.match(client, /class="time-wheel-unit"/);
   assert.match(client, /function updateEditableTimeInput/);
   assert.match(client, /function enableTimeWheels/);
   assert.match(client, /addEventListener\("wheel"/);
@@ -454,7 +455,9 @@ test("activity time uses equal-height controls with direct minute entry, desktop
   assert.match(styles, /input\[type="date"\]\) > input \{ min-height:68px; height:68px/);
   assert.match(styles, /grid-template-columns:minmax\(0,1\.3fr\) minmax\(0,\.9fr\) minmax\(0,\.95fr\)/);
   assert.match(styles, /\.time-wheel-input \{[^}]*height:100%/);
-  assert.match(styles, /\.time-wheel-input \{[^}]*min-width:2\.3ch/);
+  assert.match(styles, /\.time-wheel-input \{[^}]*padding:0 1\.25em 0 0/);
+  assert.match(styles, /\.time-wheel-input-wrap \{[^}]*position:relative/);
+  assert.match(styles, /\.time-wheel-unit \{[^}]*position:absolute/);
   assert.doesNotMatch(styles, /\.time-wheel-value \{[^}]*text-overflow:ellipsis/);
 });
 
