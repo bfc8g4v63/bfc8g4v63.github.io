@@ -182,7 +182,8 @@ function timePicker(value = "") {
     </button><input type="hidden" name="time${name[0].toUpperCase()}${name.slice(1)}" value="${esc(selected[name])}">`;
   };
   return `<div class="time-picker" role="group" aria-labelledby="time-picker-label">
-    <span class="time-picker-label" id="time-picker-label">時間 <span>必填</span></span>
+    <span class="time-picker-label" id="time-picker-label">時間</span>
+    <span class="time-picker-required">必填</span>
     ${wheel("period", "上午／下午")}
     ${wheel("hour", "時")}
     ${wheel("minute", "分")}
