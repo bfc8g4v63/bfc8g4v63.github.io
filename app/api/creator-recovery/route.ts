@@ -23,7 +23,7 @@ async function createUniqueManagerBatchCode() {
   const db = getDb();
   for (let attempt = 0; attempt < 10; attempt += 1) {
     const code = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000).padStart(6, "0");
-    const [single, batch] = await Promise.all([
+    const [[single], [batch]] = await Promise.all([
       db.select({ code: lineManagerBindCodes.code }).from(lineManagerBindCodes).where(eq(lineManagerBindCodes.code, code)).limit(1),
       db.select({ code: lineManagerBatchBindCodes.code }).from(lineManagerBatchBindCodes).where(eq(lineManagerBatchBindCodes.code, code)).limit(1),
     ]);
