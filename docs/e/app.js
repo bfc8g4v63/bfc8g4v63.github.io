@@ -45,15 +45,6 @@ function formatDate(value) {
     .format(new Date(`${value}T12:00:00`));
 }
 
-function formatDateTime(value) {
-  if (!value) return "—";
-  const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(value);
-  const date = new Date(hasTimezone ? value : `${value.replace(" ", "T")}Z`);
-  return Number.isNaN(date.getTime()) ? "—" : new Intl.DateTimeFormat("zh-TW", {
-    dateStyle: "short", timeStyle: "short", hour12: false, timeZone: "Asia/Taipei",
-  }).format(date);
-}
-
 async function post(path, body, method = "POST") {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 10_000);
@@ -112,7 +103,7 @@ function renderEvent(event) {
       ${event.status === "active" ? '<section id="companions-root" class="companions-section" aria-live="polite"></section>' : ""}
       ${event.contactName ? `<p class="contact">活動聯絡人：${esc(event.contactName)}</p>` : ""}
       <p class="privacy-note">電話、飲食、備註與管理資訊只會讓活動管理者看到。</p>
-      <button class="text-link manage-link" id="manager">活動管理</button>
+      <button class="text-link manage-link" id="manager">建立者管理活動</button>
     </article>`;
   document.querySelector("#rsvp")?.addEventListener("click", openRsvp);
   document.querySelector("#manager").addEventListener("click", openManagerLogin);
@@ -297,34 +288,19 @@ async function hideCompanionCard() {
 }
 
 function openManagerLogin() {
-  modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">活動管理</p><h2>輸入管理碼</h2><form id="manager-form"><label>活動管理碼<input name="editCode" required minlength="4" autofocus></label><p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button class="primary">開啟名單</button></div></form></section></div>`;
+  modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">建立者專用</p><h2>管理這場活動</h2><p>輸入管理碼後，會直接開啟完整管理後台：修改活動、代填報名、收款、安排分組與 LINE 提醒都可在同一處處理。</p><form id="manager-form"><label>活動管理碼<input name="editCode" required minlength="4" autofocus autocomplete="current-password"></label><p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button class="primary">開啟完整管理後台</button></div></form></section></div>`;
   const form = document.querySelector("#manager-form");
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    try { const data = await post("/admin/event", { eventId: currentEvent.id, editCode: form.elements.editCode.value.trim() }); renderManager(data, form.elements.editCode.value.trim()); }
-    catch (error) { const box = form.querySelector(".form-error"); box.textContent = error.message; box.hidden = false; }
-  });
-}
-
-function renderManager(data, editCode) {
-  const rows = data.rsvps.length ? data.rsvps.map((item) => `<tr><td>${esc(item.name)}</td><td>${item.response === "attending" ? "參加" : "不參加"}</td><td>${item.response === "attending" ? item.partySize : "—"}</td><td>${esc(item.diet || "—")}</td><td>${esc(item.note || "—")}</td><td>${esc(formatDateTime(item.createdAt))}</td></tr>`).join("") : '<tr><td colspan="6">尚未收到回覆</td></tr>';
-  modalRoot.innerHTML = `<div class="modal-backdrop admin-backdrop"><section class="modal admin-modal" role="dialog" aria-modal="true"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">活動管理後台</p><h2>${esc(data.event.title)}</h2><div class="stats-grid"><div><strong>${data.summary.attendingPeople}</strong><span>參加人數</span></div><div><strong>${data.summary.attendingReplies}</strong><span>參加回覆</span></div><div><strong>${data.summary.notAttendingReplies}</strong><span>不參加</span></div></div><div class="admin-toolbar"><button class="primary" id="manager-edit">修改活動</button></div><section class="admin-section"><div class="table-scroll"><table><thead><tr><th>姓名</th><th>回覆</th><th>人數</th><th>飲食</th><th>備註</th><th>登記時間</th></tr></thead><tbody>${rows}</tbody></table></div></section></section></div>`;
-  document.querySelector("#manager-edit").addEventListener("click", () => openManagerEdit(data.event, editCode));
-}
-
-function openManagerEdit(event, editCode) {
-  modalRoot.innerHTML = `
-    <div class="modal-backdrop"><section class="modal" role="dialog" aria-modal="true"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">活動管理</p><h2>修改活動</h2>
-      <form id="manager-edit-form"><label>活動名稱<input name="title" required value="${esc(event.title)}"></label><div class="form-row"><label>日期<input name="eventDate" type="date" required value="${esc(event.eventDate)}"></label><label>時間<input name="startTime" type="time" required value="${esc(event.startTime)}"></label></div><label>地點<input name="location" required value="${esc(event.location)}"></label><label>活動說明<textarea name="description" rows="3">${esc(event.description)}</textarea></label><div class="form-row"><label>聯絡人<input name="contactName" value="${esc(event.contactName)}"></label><label>聯絡電話（僅管理者可見）<input name="contactPhone" value="${esc(event.contactPhone)}"></label></div><label>人數上限<input name="capacity" type="number" min="1" max="999" value="${esc(event.capacity || "")}"></label><fieldset class="access-options"><legend>活動公開方式</legend><label class="choice"><input type="radio" name="accessMode" value="unlisted" ${event.accessMode === "unlisted" ? "checked" : ""}><span><strong>不公開，免密碼</strong></span></label><label class="choice"><input type="radio" name="accessMode" value="private" ${event.accessMode === "private" ? "checked" : ""}><span><strong>不公開＋參加碼</strong></span></label><label class="choice"><input type="radio" name="accessMode" value="public" ${event.accessMode === "public" ? "checked" : ""}><span><strong>完全公開</strong></span></label></fieldset><label id="edit-code-field" ${event.accessMode === "private" ? "" : "hidden"}>更換參加碼（留白代表不變）<input name="participantCode" minlength="4"></label><p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button class="primary">儲存修改</button></div></form>
-    </section></div>`;
-  const form = document.querySelector("#manager-edit-form");
-  const codeField = form.querySelector("#edit-code-field");
-  form.addEventListener("change", () => { codeField.hidden = form.elements.accessMode.value !== "private"; });
-  form.addEventListener("submit", async (submitEvent) => {
-    submitEvent.preventDefault();
-    const body = Object.fromEntries(new FormData(form));
-    body.id = event.id; body.editCode = editCode; body.capacity = body.capacity ? Number(body.capacity) : null;
-    try { await post("/events", body, "PATCH"); closeModal(); await loadEvent(); }
+    const editCode = form.elements.editCode.value.trim();
+    try {
+      await post("/admin/event", { eventId: currentEvent.id, editCode });
+      const destination = new URL("/", location.origin);
+      destination.searchParams.set("manage", currentEvent.id);
+      try { sessionStorage.setItem(`good-days-manager-code:${currentEvent.id}`, editCode); }
+      catch { destination.hash = `code=${encodeURIComponent(editCode)}`; }
+      location.assign(destination.toString());
+    }
     catch (error) { const box = form.querySelector(".form-error"); box.textContent = error.message; box.hidden = false; }
   });
 }

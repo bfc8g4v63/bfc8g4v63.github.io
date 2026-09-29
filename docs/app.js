@@ -10,8 +10,15 @@ let activeModalClose = null;
 
 function managerAuthFromLink() {
   const eventId = new URLSearchParams(location.search).get("manage") || "";
-  const token = new URLSearchParams(location.hash.slice(1)).get("token") || "";
-  return eventId && token ? { type: "token", value: token, eventId } : null;
+  const hash = new URLSearchParams(location.hash.slice(1));
+  const token = hash.get("token") || "";
+  let editCode = hash.get("code") || "";
+  if (!editCode && eventId) {
+    try { editCode = sessionStorage.getItem(`good-days-manager-code:${eventId}`) || ""; } catch {}
+  }
+  if (!eventId) return null;
+  if (token) return { type: "token", value: token, eventId };
+  return editCode ? { type: "code", value: editCode, eventId } : null;
 }
 
 function managerCredentials(managerAuth) {

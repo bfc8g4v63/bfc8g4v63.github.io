@@ -304,6 +304,20 @@ test("creators can manage activities with an independent management link without
   assert.match(client, /管理碼可用於遺失管理連結後找回活動/);
 });
 
+test("an activity invitation provides a verified route to the full management dashboard", async () => {
+  const [homeClient, eventClient] = await Promise.all([
+    readFile(new URL("../docs/app.js", import.meta.url), "utf8"),
+    readFile(new URL("../docs/e/app.js", import.meta.url), "utf8"),
+  ]);
+  assert.match(eventClient, /建立者管理活動/);
+  assert.match(eventClient, /開啟完整管理後台/);
+  assert.match(eventClient, /good-days-manager-code:/);
+  assert.match(eventClient, /destination\.searchParams\.set\("manage", currentEvent\.id\)/);
+  assert.doesNotMatch(eventClient, /function renderManager/);
+  assert.match(homeClient, /sessionStorage\.getItem\(`good-days-manager-code:\$\{eventId\}`\)/);
+  assert.match(homeClient, /return editCode \? \{ type: "code", value: editCode, eventId \} : null/);
+});
+
 test("creator recovery and attendee-roster privacy stay gated", async () => {
   const [recovery, access, rsvp, client, eventClient] = await Promise.all([
     readFile(new URL("../app/api/creator-recovery/route.ts", import.meta.url), "utf8"),
@@ -342,7 +356,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.46/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.47/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -371,9 +385,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.46/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.46/);
-  assert.match(worker, /good-days-github-v46/);
+  assert.match(page, /\/app\.js\?v=1\.2\.47/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.47/);
+  assert.match(worker, /good-days-github-v47/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
