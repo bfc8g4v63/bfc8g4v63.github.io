@@ -1,7 +1,7 @@
 import { and, asc, eq, gt } from "drizzle-orm";
 import { ensureSchema } from "../../../../db/init";
 import { getDb } from "../../../../db";
-import { events, lineBindCodes, lineBindings, lineGroups, lineReminderSettings, rsvps } from "../../../../db/schema";
+import { events, lineBindCodes, lineBindings, lineGroups, lineManagerBindCodes, lineManagerTargets, lineReminderSettings, rsvps } from "../../../../db/schema";
 import { json, preflight } from "../../cors";
 import { clean, hashCredential, requireEventManager, verifyCredential } from "../auth";
 import { eventMessage, lineConfig, pushText } from "../../line/lib";
@@ -102,6 +102,17 @@ async function createUniqueCode() {
   throw new Error("暫時無法產生綁定碼，請再試一次");
 }
 
+async function createUniqueManagerCode() {
+  const db = getDb();
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const code = String(crypto.getRandomValues(new Uint32Array(1))[0] % 1_000_000).padStart(6, "0");
+    const [existing] = await db.select({ code: lineManagerBindCodes.code }).from(lineManagerBindCodes)
+      .where(eq(lineManagerBindCodes.code, code)).limit(1);
+    if (!existing) return code;
+  }
+  throw new Error("暫時無法產生管理提醒綁定碼，請再試一次");
+}
+
 export async function POST(request: Request) {
   try {
     const limit = await rateLimit(request, "admin-line", 12, 15 * 60 * 1000);
@@ -143,6 +154,23 @@ export async function POST(request: Request) {
         code, eventId: access.event.id, ownerCredentialHash: await hashCredential(credential), expiresAt,
       });
       return json(request, { ok: true, code, expiresAt });
+    }
+
+    if (action === "create_manager_binding_code") {
+      if (!lineConfig().token || !lineConfig().channelSecret) {
+        return json(request, { error: "請先完成 LINE Channel access token 與 Channel secret 設定" }, 503);
+      }
+      await db.delete(lineManagerBindCodes).where(eq(lineManagerBindCodes.eventId, access.event.id));
+      const code = await createUniqueManagerCode();
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+      await db.insert(lineManagerBindCodes).values({ code, eventId: access.event.id, expiresAt });
+      return json(request, { ok: true, code, expiresAt });
+    }
+
+    if (action === "clear_manager_targets") {
+      await db.delete(lineManagerBindCodes).where(eq(lineManagerBindCodes.eventId, access.event.id));
+      await db.delete(lineManagerTargets).where(eq(lineManagerTargets.eventId, access.event.id));
+      return json(request, { ok: true });
     }
 
     if (action === "use_existing_group") {

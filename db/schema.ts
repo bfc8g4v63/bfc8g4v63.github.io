@@ -95,6 +95,26 @@ export const lineBindCodes = sqliteTable("line_bind_codes", {
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
+// A manager is identified by the LINE account that completes a short-lived
+// pairing, never by the display name entered while creating an activity.
+export const lineManagerBindCodes = sqliteTable("line_manager_bind_codes", {
+  code: text("code").primaryKey(),
+  eventId: text("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  expiresAt: text("expires_at").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
+export const lineManagerTargets = sqliteTable("line_manager_targets", {
+  id: text("id").primaryKey(),
+  eventId: text("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  lineUserId: text("line_user_id").notNull(),
+  pairedAt: text("paired_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  uniqueIndex("line_manager_targets_event_user_unique").on(table.eventId, table.lineUserId),
+  index("line_manager_targets_event_updated").on(table.eventId, table.updatedAt),
+]);
+
 export const lineReminderSettings = sqliteTable("line_reminder_settings", {
   eventId: text("event_id").primaryKey().references(() => events.id, { onDelete: "cascade" }),
   sevenDays: integer("seven_days", { mode: "boolean" }).notNull().default(true),

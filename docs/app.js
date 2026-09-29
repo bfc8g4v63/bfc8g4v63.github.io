@@ -743,6 +743,7 @@ function linePanel(line) {
     <div class="line-status warning"><strong>LINE 機器人程式已完成，等待填入兩個 LINE 憑證</strong>
       <p>請依照 <a href="/line-bot-guide.html" target="_blank">LINE 機器人設定教學</a> 建立官方帳號，完成後即可產生群組綁定碼。</p></div>`;
   const binding = line.binding;
+  const managerTargetCount = Math.max(0, Number(line.managerTargetCount) || 0);
   const commandLogs = Array.isArray(line.commandLogs) ? line.commandLogs : [];
   const commandLogText = {
     sent: "已傳送",
@@ -752,6 +753,12 @@ function linePanel(line) {
   };
   const logPanel = binding ? `<section class="line-command-log"><div><strong>小幫手最近紀錄</strong><span>只記錄指令結果，不保存聊天內容</span></div>${commandLogs.length ? `<ul>${commandLogs.map((item) => `<li><time>${esc(formatDateTime(item.createdAt))}</time><b>${esc(item.command)}</b><em class="line-log-${esc(item.outcome)}">${esc(commandLogText[item.outcome] || item.outcome)}</em><small>${esc(item.detail || "—")}</small></li>`).join("")}</ul>` : "<p>目前尚無可顯示的指令紀錄。</p>"}</section>` : "";
   return `
+    <section class="manager-alert-panel ${managerTargetCount ? "connected" : ""}">
+      <div><strong>管理者私訊提醒</strong><span>${managerTargetCount ? `已綁定 ${managerTargetCount} 位管理者` : "尚未綁定管理者"}</span></div>
+      <p>綁定的是 LINE 帳號，不使用建立者姓名。有人報名、取消或更動人數時，只有已綁定的管理者會在與小幫手的私訊收到提醒。</p>
+      <div id="manager-binding-code-area"></div>
+      <div class="inline-actions"><button class="line-button" id="manager-alert-code">${managerTargetCount ? "新增／重新產生綁定碼" : "啟用私訊提醒"}</button>${managerTargetCount ? '<button class="text-danger" id="manager-alert-clear">停止所有私訊提醒</button>' : ""}</div>
+    </section>
     <div class="line-status ${binding ? "connected" : ""}">
       <strong>${binding ? `通知群組：${esc(binding.groupName)}` : "尚未選擇通知群組"}</strong>
       <p>${binding ? "這個群組可重複用於多場未來活動；「活動」會列出近期活動，「安排」會直接顯示近期活動的安排圖卡。" : "若同一管理碼只有一個已綁定群組，系統會自動沿用到尚未開始的活動；多個群組時才需要自行選取。"}</p>
@@ -1248,6 +1255,39 @@ function openAdminDashboard(data, managerAuth, returnTo = null) {
       const rsvp = data.rsvps.find((item) => item.id === select.dataset.rsvpPayment);
       if (rsvp) void updateRsvpPayment(rsvp, select.value, event, managerAuth);
     });
+  });
+  document.querySelector("#manager-alert-code")?.addEventListener("click", async (clickEvent) => {
+    const button = clickEvent.currentTarget;
+    button.disabled = true;
+    try {
+      const result = await requestJson("/admin/line", {
+        action: "create_manager_binding_code", ...managerPayload(event.id, managerAuth),
+      });
+      const bindingCommand = `管理綁定 ${result.code}`;
+      document.querySelector("#manager-binding-code-area").innerHTML = `<div class="binding-code"><span>先加小幫手好友，再於私訊輸入</span><strong>${esc(bindingCommand)}</strong><button class="secondary binding-copy" id="copy-manager-binding-code" type="button">複製</button><small>10 分鐘內有效；可交給受邀的共同管理者</small></div>`;
+      document.querySelector("#copy-manager-binding-code")?.addEventListener("click", async (copyEvent) => {
+        const copyButton = copyEvent.currentTarget;
+        try {
+          await navigator.clipboard.writeText(bindingCommand);
+          copyButton.textContent = "已複製";
+          showNotice("管理提醒綁定指令已複製");
+          window.setTimeout(() => { copyButton.textContent = "複製"; }, 1800);
+        } catch {
+          showLineError("無法自動複製，請手動複製管理綁定指令");
+        }
+      });
+      button.textContent = "重新產生綁定碼";
+    } catch (error) { showLineError(error.message); }
+    finally { button.disabled = false; }
+  });
+  document.querySelector("#manager-alert-clear")?.addEventListener("click", async () => {
+    if (!confirm("確定停止這場活動的所有 LINE 私訊管理提醒？日後可重新綁定。")) return;
+    try {
+      await requestJson("/admin/line", { action: "clear_manager_targets", ...managerPayload(event.id, managerAuth) });
+      const fresh = await requestJson("/admin/event", managerPayload(event.id, managerAuth));
+      openAdminDashboard(fresh, managerAuth, returnTo);
+      showNotice("已停止這場活動的私訊管理提醒");
+    } catch (error) { showLineError(error.message); }
   });
   document.querySelector("#line-code")?.addEventListener("click", async (clickEvent) => {
     const button = clickEvent.currentTarget;

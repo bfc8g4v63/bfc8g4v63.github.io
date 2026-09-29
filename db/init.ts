@@ -101,6 +101,23 @@ export function ensureSchema() {
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
       )`),
+      database.prepare(`CREATE TABLE IF NOT EXISTS line_manager_bind_codes (
+        code TEXT PRIMARY KEY NOT NULL,
+        event_id TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+      )`),
+      database.prepare(`CREATE TABLE IF NOT EXISTS line_manager_targets (
+        id TEXT PRIMARY KEY NOT NULL,
+        event_id TEXT NOT NULL,
+        line_user_id TEXT NOT NULL,
+        paired_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+      )`),
+      database.prepare("CREATE UNIQUE INDEX IF NOT EXISTS line_manager_targets_event_user_unique ON line_manager_targets (event_id, line_user_id)"),
+      database.prepare("CREATE INDEX IF NOT EXISTS line_manager_targets_event_updated ON line_manager_targets (event_id, updated_at)"),
       database.prepare(`CREATE TABLE IF NOT EXISTS line_reminder_settings (
         event_id TEXT PRIMARY KEY NOT NULL,
         seven_days INTEGER NOT NULL DEFAULT 1,
@@ -135,6 +152,8 @@ export function ensureSchema() {
         received_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       )`),
       database.prepare("CREATE INDEX IF NOT EXISTS line_webhook_deliveries_received ON line_webhook_deliveries (received_at DESC)"),
+      database.prepare("CREATE UNIQUE INDEX IF NOT EXISTS line_manager_targets_event_user_unique ON line_manager_targets (event_id, line_user_id)"),
+      database.prepare("CREATE INDEX IF NOT EXISTS line_manager_targets_event_updated ON line_manager_targets (event_id, updated_at)"),
       database.prepare("CREATE INDEX IF NOT EXISTS companion_cards_event_visible_updated ON companion_cards (event_id, is_visible, updated_at)"),
       database.prepare("CREATE UNIQUE INDEX IF NOT EXISTS companion_requests_event_from_to_kind_unique ON companion_requests (event_id, from_rsvp_id, to_rsvp_id, kind)"),
       database.prepare("CREATE INDEX IF NOT EXISTS companion_requests_event_to_status ON companion_requests (event_id, to_rsvp_id, status)"),

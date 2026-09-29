@@ -1,7 +1,7 @@
 import { and, asc, eq, sql } from "drizzle-orm";
 import { ensureSchema } from "../../../../db/init";
 import { getDb } from "../../../../db";
-import { lineBindings, lineCommandLogs, lineReminderSettings, mealAssignments, mealTables, rsvps } from "../../../../db/schema";
+import { lineBindings, lineCommandLogs, lineManagerTargets, lineReminderSettings, mealAssignments, mealTables, rsvps } from "../../../../db/schema";
 import { json, preflight } from "../../cors";
 import { clean, hashCode, requireEventManager } from "../auth";
 import { lineConfig } from "../../line/lib";
@@ -212,7 +212,7 @@ export async function POST(request: Request) {
       await db.delete(rsvps).where(eq(rsvps.id, rsvp.id));
       return json(request, { ok: true, message: `已刪除「${rsvp.name}」的回覆` });
     }
-    const [responses, bindingRows, settingRows, mealTableRows, mealAssignmentRows, commandLogs] = await Promise.all([
+    const [responses, bindingRows, settingRows, managerTargets, mealTableRows, mealAssignmentRows, commandLogs] = await Promise.all([
       db.select({
         id: rsvps.id, name: rsvps.name, response: rsvps.response,
         partySize: rsvps.partySize, diet: rsvps.diet, note: rsvps.note, paymentStatus: rsvps.paymentStatus,
@@ -220,6 +220,7 @@ export async function POST(request: Request) {
       }).from(rsvps).where(eq(rsvps.eventId, access.event.id)),
       db.select().from(lineBindings).where(eq(lineBindings.eventId, access.event.id)).limit(1),
       db.select().from(lineReminderSettings).where(eq(lineReminderSettings.eventId, access.event.id)).limit(1),
+      db.select({ id: lineManagerTargets.id }).from(lineManagerTargets).where(eq(lineManagerTargets.eventId, access.event.id)),
       db.select().from(mealTables).where(eq(mealTables.eventId, access.event.id)).orderBy(asc(mealTables.sortOrder)),
       db.select().from(mealAssignments).where(eq(mealAssignments.eventId, access.event.id)),
       db.select({ command: lineCommandLogs.command, outcome: lineCommandLogs.outcome, detail: lineCommandLogs.detail, createdAt: lineCommandLogs.createdAt })
@@ -254,6 +255,7 @@ export async function POST(request: Request) {
       line: {
         configured: Boolean(lineConfig().token && lineConfig().channelSecret),
         binding: bindingRows[0] || null,
+        managerTargetCount: managerTargets.length,
         settings: {
           sevenDays: Boolean(settings.sevenDays),
           oneDay: Boolean(settings.oneDay),

@@ -1,9 +1,11 @@
 import { and, eq, or } from "drizzle-orm";
+import { getRequestExecutionContext } from "vinext/shims/request-context";
 import { getDb } from "../../../db";
 import { ensureSchema } from "../../../db/init";
-import { companionCards, companionRequests, events, mealAssignments, rsvps } from "../../../db/schema";
+import { companionCards, companionRequests, events, lineManagerTargets, mealAssignments, rsvps } from "../../../db/schema";
 import { hashCode, verifyCredential } from "../admin/auth";
 import { json, preflight } from "../cors";
+import { managerRsvpMessage, pushText } from "../line/lib";
 import { rateLimit } from "../rate-limit";
 
 function clean(value: unknown, max = 300) {
@@ -20,6 +22,39 @@ function errorMessages(error: unknown) {
     current = (current as { cause?: unknown }).cause;
   }
   return messages.join("\n");
+}
+
+async function notifyPairedManagers(input: {
+  eventId: string;
+  eventTitle: string;
+  name: string;
+  partySize: number;
+  change: string;
+}) {
+  try {
+    const db = getDb();
+    const [targets, attending, assignments] = await Promise.all([
+      db.select({ lineUserId: lineManagerTargets.lineUserId }).from(lineManagerTargets)
+        .where(eq(lineManagerTargets.eventId, input.eventId)),
+      db.select({ partySize: rsvps.partySize }).from(rsvps).where(and(
+        eq(rsvps.eventId, input.eventId), eq(rsvps.response, "attending"),
+      )),
+      db.select({ people: mealAssignments.people }).from(mealAssignments)
+        .where(eq(mealAssignments.eventId, input.eventId)),
+    ]);
+    if (!targets.length) return;
+    const attendingPeople = attending.reduce((sum, item) => sum + item.partySize, 0);
+    const assignedPeople = assignments.reduce((sum, item) => sum + item.people, 0);
+    const text = managerRsvpMessage({
+      ...input,
+      attendingPeople,
+      unassignedPeople: Math.max(0, attendingPeople - assignedPeople),
+    });
+    await Promise.allSettled(targets.map((target) => pushText(target.lineUserId, text)));
+  } catch (error) {
+    // A notification must never make an attendee's RSVP fail.
+    console.error("Unable to send paired manager notification", error);
+  }
 }
 
 export function OPTIONS(request: Request) {
@@ -47,7 +82,7 @@ export async function POST(request: Request) {
     if (!eventId || !name) return json(request, { error: "請填寫姓名" }, 400);
     const db = getDb();
     const [event] = await db.select({
-      id: events.id, status: events.status, accessMode: events.accessMode,
+      id: events.id, title: events.title, status: events.status, accessMode: events.accessMode,
       attendanceVisibility: events.attendanceVisibility,
       feePerPerson: events.feePerPerson,
       shareToken: events.shareToken, participantCodeHash: events.participantCodeHash,
@@ -120,6 +155,22 @@ export async function POST(request: Request) {
       await db.update(rsvps).set(values).where(eq(rsvps.id, existing.id));
     }
     else await db.insert(rsvps).values({ id: crypto.randomUUID(), ...values });
+    const shouldNotifyManagers = existing ? attendanceChanged : response === "attending";
+    if (shouldNotifyManagers) {
+      const change = !existing
+        ? "新增報名"
+        : response !== "attending"
+          ? "取消參加"
+          : existing.response !== "attending"
+            ? "改為參加"
+            : "更新人數";
+      const notification = notifyPairedManagers({
+        eventId, eventTitle: event.title, name: values.name, partySize: response === "attending" ? partySize : 0, change,
+      });
+      const context = getRequestExecutionContext();
+      if (context) context.waitUntil(notification);
+      else await notification;
+    }
     return json(request, { ok: true, attendeeToken });
   } catch (error) {
     const message = errorMessages(error);
