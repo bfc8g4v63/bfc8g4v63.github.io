@@ -360,7 +360,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.53/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.54/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -389,18 +389,20 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.53/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.53/);
-  assert.match(worker, /good-days-github-v53/);
+  assert.match(page, /\/app\.js\?v=1\.2\.54/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.54/);
+  assert.match(worker, /good-days-github-v54/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
-test("activity time uses equal-height wheel controls with desktop and touch adjustment", async () => {
+test("activity time uses equal-height controls with direct minute entry, desktop wheel and touch adjustment", async () => {
   const [client, styles] = await Promise.all([
     readFile(new URL("../docs/app.js", import.meta.url), "utf8"),
     readFile(new URL("../docs/styles.css", import.meta.url), "utf8"),
   ]);
   assert.match(client, /class="time-wheel" data-time-wheel=/);
+  assert.match(client, /class="time-wheel-input" data-time-input="\$\{name\}" inputmode="numeric"/);
+  assert.match(client, /function updateEditableTimeInput/);
   assert.match(client, /function enableTimeWheels/);
   assert.match(client, /addEventListener\("wheel"/);
   assert.match(client, /addEventListener\("touchstart"/);
@@ -411,6 +413,16 @@ test("activity time uses equal-height wheel controls with desktop and touch adju
   assert.match(styles, /\.time-wheel \{[^}]*height:68px/);
   assert.match(styles, /input\[type="date"\]\) > input \{ min-height:68px; height:68px/);
   assert.match(styles, /grid-template-columns:minmax\(0,1\.35fr\) minmax\(0,\.9fr\) minmax\(0,1fr\)/);
+  assert.match(styles, /\.time-wheel-input \{[^}]*height:100%/);
+});
+
+test("a full activity keeps its RSVP button and explanation in separate rows", async () => {
+  const [client, styles] = await Promise.all([
+    readFile(new URL("../docs/e/app.js", import.meta.url), "utf8"),
+    readFile(new URL("../docs/styles.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(client, /class="rsvp-full-state"/);
+  assert.match(styles, /\.rsvp-full-state \{[^}]*gap:18px/);
 });
 
 test("modal backdrops stay open until an explicit close action", async () => {

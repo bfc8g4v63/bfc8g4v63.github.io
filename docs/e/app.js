@@ -98,7 +98,7 @@ function renderEvent(event) {
       ${event.description ? `<p class="event-description">${esc(event.description)}</p>` : ""}
       <p class="attendance"><strong>${people} 人參加</strong>${event.capacity ? `<span>／上限 ${event.capacity} 人</span>` : ""}</p>
       ${event.feePerPerson > 0 ? `<p class="fee-note">活動費用：每人 ${formatMoney(event.feePerPerson)}</p>` : ""}
-      ${event.status === "cancelled" ? '<p class="form-error">此活動已取消</p>' : `<button class="primary" id="rsvp">${isFull ? "活動已額滿" : "我要參加"}</button>${isFull ? '<p class="form-hint">目前已額滿；已報名者仍可更新內容、減少人數或改為不參加。</p>' : ""}`}
+      ${event.status === "cancelled" ? '<p class="form-error">此活動已取消</p>' : isFull ? '<div class="rsvp-full-state"><button class="primary" id="rsvp">活動已額滿</button><p class="form-hint">目前已額滿；已報名者仍可更新內容、減少人數或改為不參加。</p></div>' : '<button class="primary" id="rsvp">我要參加</button>'}
       ${rosterHtml}
       ${event.status === "active" ? '<section id="companions-root" class="companions-section" aria-live="polite"></section>' : ""}
       ${event.contactName ? `<p class="contact">活動聯絡人：${esc(event.contactName)}</p>` : ""}

@@ -177,6 +177,13 @@ function timePicker(value = "") {
   };
   const wheel = (name, placeholder) => {
     const current = options[name].find(([option]) => option === selected[name]);
+    if (name === "minute") {
+      return `<div class="time-wheel time-wheel-editable" data-time-wheel="${name}" aria-label="${placeholder}；可直接輸入、滑鼠滾輪或上下滑動調整">
+        <button type="button" class="time-wheel-arrow" data-time-step="-1" aria-label="減少 1 分">⌃</button>
+        <input class="time-wheel-input" data-time-input="${name}" inputmode="numeric" autocomplete="off" maxlength="2" aria-label="分鐘，可輸入 00 到 59" placeholder="分" value="${esc(selected[name])}">
+        <button type="button" class="time-wheel-arrow" data-time-step="1" aria-label="增加 1 分">⌄</button>
+      </div><input type="hidden" name="time${name[0].toUpperCase()}${name.slice(1)}" value="${esc(selected[name])}">`;
+    }
     return `<button type="button" class="time-wheel" data-time-wheel="${name}" aria-label="${placeholder}；可點按、滑鼠滾輪或上下滑動調整">
       <span class="time-wheel-arrow" aria-hidden="true">⌃</span><span class="time-wheel-value">${current ? current[1] : placeholder}</span><span class="time-wheel-arrow" aria-hidden="true">⌄</span>
     </button><input type="hidden" name="time${name[0].toUpperCase()}${name.slice(1)}" value="${esc(selected[name])}">`;
@@ -204,8 +211,23 @@ function updateTimeWheel(form, name, direction) {
   const next = current < 0 ? (direction > 0 ? 0 : options.length - 1) : (current + direction + options.length) % options.length;
   input.value = options[next][0];
   const control = form.querySelector(`[data-time-wheel="${name}"]`);
-  control.querySelector(".time-wheel-value").textContent = options[next][1];
+  const editable = control.querySelector(".time-wheel-input");
+  if (editable) editable.value = options[next][0];
+  else control.querySelector(".time-wheel-value").textContent = options[next][1];
   control.classList.add("is-selected");
+  form.elements.startTime.value = selectedStartTime(form);
+}
+
+function updateEditableTimeInput(form, input, normalize = false) {
+  const name = input.dataset.timeInput;
+  const hidden = form.elements[`time${name[0].toUpperCase()}${name.slice(1)}`];
+  const digits = input.value.replace(/\D/g, "").slice(0, 2);
+  if (input.value !== digits) input.value = digits;
+  const number = Number(digits);
+  const valid = digits !== "" && Number.isInteger(number) && number >= 0 && number <= 59;
+  hidden.value = valid ? String(number).padStart(2, "0") : "";
+  if (normalize && valid) input.value = hidden.value;
+  form.querySelector(`[data-time-wheel="${name}"]`).classList.toggle("is-selected", valid);
   form.elements.startTime.value = selectedStartTime(form);
 }
 
@@ -214,7 +236,10 @@ function enableTimeWheels(form) {
     const name = control.dataset.timeWheel;
     let touchStartY = null;
     let lastTouch = 0;
-    control.addEventListener("click", () => {
+    control.addEventListener("click", (event) => {
+      const step = event.target.closest("[data-time-step]");
+      if (step) return updateTimeWheel(form, name, Number(step.dataset.timeStep));
+      if (event.target.closest(".time-wheel-input")) return;
       if (Date.now() - lastTouch > 500) updateTimeWheel(form, name, 1);
     });
     control.addEventListener("wheel", (event) => {
@@ -230,6 +255,18 @@ function enableTimeWheels(form) {
       }
       touchStartY = null;
     }, { passive: true });
+
+    const editable = control.querySelector(".time-wheel-input");
+    if (editable) {
+      editable.addEventListener("input", () => updateEditableTimeInput(form, editable));
+      editable.addEventListener("change", () => updateEditableTimeInput(form, editable, true));
+      editable.addEventListener("blur", () => updateEditableTimeInput(form, editable, true));
+      editable.addEventListener("keydown", (event) => {
+        if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
+        event.preventDefault();
+        updateTimeWheel(form, name, event.key === "ArrowUp" ? -1 : 1);
+      });
+    }
   });
 }
 
