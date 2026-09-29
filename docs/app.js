@@ -1104,6 +1104,23 @@ function openAdminDashboard(data, managerAuth, returnTo = null) {
   const returnToAdmin = () => { void refreshAdminDashboard(event.id, managerAuth, returnTo); };
   activeModalClose = returnTo || closeModal;
   const remaining = event.capacity ? Math.max(0, event.capacity - data.summary.attendingPeople) : null;
+  const attendingRsvps = data.rsvps.filter((item) => item.response === "attending");
+  const assignedPeopleByRsvp = new Map();
+  for (const assignment of data.mealSeating?.assignments || []) {
+    assignedPeopleByRsvp.set(assignment.rsvpId, (assignedPeopleByRsvp.get(assignment.rsvpId) || 0) + assignment.people);
+  }
+  const unassignedRsvps = attendingRsvps.map((rsvp) => ({
+    ...rsvp,
+    unassignedPeople: Math.max(0, rsvp.partySize - (assignedPeopleByRsvp.get(rsvp.id) || 0)),
+  })).filter((rsvp) => rsvp.unassignedPeople > 0);
+  const unassignedPeople = unassignedRsvps.reduce((sum, rsvp) => sum + rsvp.unassignedPeople, 0);
+  const arrangementStatus = unassignedPeople ? `
+        <button class="arrangement-status pending" id="jump-to-arrangements" type="button">
+          <span class="arrangement-status-icon" aria-hidden="true">!</span>
+          <span><strong>尚有 ${unassignedPeople} 人未安排</strong><small>${unassignedRsvps.length} 筆報名等待安排座位／分組</small></span>
+          <span class="arrangement-status-action">前往安排 ↓</span>
+        </button>` : attendingRsvps.length ? `
+        <div class="arrangement-status complete" role="status"><span class="arrangement-status-icon" aria-hidden="true">✓</span><span><strong>所有參加者都已安排</strong><small>座位／分組已完成</small></span></div>` : "";
   const fee = data.summary.fee || { feePerPerson: 0, grossAmount: 0, paidAmount: 0, unpaidAmount: 0, waivedAmount: 0 };
   const paymentOverview = fee.feePerPerson > 0 ? `
         <section class="admin-section fee-section">
@@ -1128,6 +1145,7 @@ function openAdminDashboard(data, managerAuth, returnTo = null) {
           <div><strong>${data.summary.notAttendingReplies}</strong><span>不參加</span></div>
           <div><strong>${remaining === null ? "不限" : remaining}</strong><span>剩餘名額</span></div>
         </div>
+        ${arrangementStatus}
         <div class="admin-toolbar">
           <button class="primary" id="edit-from-admin">修改活動</button>
           <button class="secondary" id="show-share">分享連結與 QR Code</button>
@@ -1142,7 +1160,7 @@ function openAdminDashboard(data, managerAuth, returnTo = null) {
           <div class="table-scroll"><table><thead><tr><th>姓名</th><th>回覆</th><th>人數</th><th>飲食</th><th>備註</th><th>更新時間</th>${fee.feePerPerson > 0 ? "<th>應收</th><th>收款狀態</th>" : ""}<th>管理</th></tr></thead><tbody>${adminRows(data.rsvps, fee.feePerPerson)}</tbody></table></div>
           <p class="form-error" id="rsvp-error" role="alert" hidden></p>
         </section>
-        <section class="admin-section meal-section">
+        <section class="admin-section meal-section" id="activity-arrangements">
           <div class="admin-section-title"><div><p class="eyebrow">活動分組・僅管理者可見</p><h3>活動安排</h3></div><span>可拖曳、拆分與調整分組</span></div>
           <p class="form-hint">聚餐可設定桌次；桌遊、滑雪等活動可把區名改成分組或集合區。設定每區上限後，再把家庭／同行者安排到不同區；人數超過上限時，可分次安排。</p>
           <div id="meal-seating-root"></div>
@@ -1162,6 +1180,9 @@ function openAdminDashboard(data, managerAuth, returnTo = null) {
     showNotice("建立者管理連結已複製，請勿分享給參加者");
   });
   document.querySelector("#export-rsvps").addEventListener("click", () => exportRsvps(event, data.rsvps));
+  document.querySelector("#jump-to-arrangements")?.addEventListener("click", () => {
+    document.querySelector("#activity-arrangements")?.scrollIntoView({ behavior: "smooth", block: "start" });
+  });
   document.querySelector("#create-rsvp").addEventListener("click", () => openManagedRsvpEditor(null, event, managerAuth, returnToAdmin));
   document.querySelector("#line-existing")?.addEventListener("click", () => void openLineGroupPicker(event, managerAuth, returnToAdmin));
   document.querySelector("#line-publish")?.addEventListener("click", () => void openLinePublish(event, managerAuth, returnToAdmin));
