@@ -602,25 +602,78 @@ function openCreatorRecoveryUnlock(creatorName) {
     const editCode = form.elements.editCode.value.trim();
     try {
       const data = await requestJson("/creator-recovery", { action: "unlock", creatorName, editCode });
-      openRecoveredActivities(data.activities || [], editCode);
+      openRecoveredActivities(data.activities || [], editCode, creatorName);
     } catch (error) { showFormError(form, error.message || "無法解鎖活動"); }
   });
 }
 
-function openRecoveredActivities(activities, editCode) {
+function isUpcomingRecoveryActivity(event) {
+  const startsAt = Date.parse(`${event.eventDate}T${event.startTime}:00+08:00`);
+  return event.status === "active" && Number.isFinite(startsAt) && startsAt > Date.now();
+}
+
+function openRecoveredActivities(activities, editCode, creatorName) {
   activeModalClose = closeModal;
+  const upcoming = activities.filter(isUpcomingRecoveryActivity);
   const cards = activities.map((event) => `
-    <article class="recovered-activity"><div><strong>${esc(event.title)}</strong><span>${esc(formatDate(event.eventDate))} · ${esc(event.startTime)}${event.status === "cancelled" ? " · 已取消" : ""}</span></div><div class="inline-actions"><button class="secondary" data-recovery-share="${esc(event.id)}">分享連結／QR</button><button class="primary" data-recovery-manage="${esc(event.id)}">管理活動</button></div></article>`).join("");
+    <article class="recovered-activity"><div>${isUpcomingRecoveryActivity(event) ? `<label class="recovery-manager-choice"><input type="checkbox" data-recovery-manager-event="${esc(event.id)}"><span>加入管理提醒</span></label>` : ""}<strong>${esc(event.title)}</strong><span>${esc(formatDate(event.eventDate))} · ${esc(event.startTime)}${event.status === "cancelled" ? " · 已取消" : ""}</span></div><div class="inline-actions"><button class="secondary" data-recovery-share="${esc(event.id)}">分享連結／QR</button><button class="primary" data-recovery-manage="${esc(event.id)}">管理活動</button></div></article>`).join("");
+  const batchPanel = upcoming.length ? `
+    <section class="recovery-manager-batch">
+      <div><strong>批次綁定管理提醒</strong><span>可一次選取 ${upcoming.length} 場尚未開始的活動</span></div>
+      <p>勾選活動後取得一組 10 分鐘有效的指令；在與好日子小幫手的一對一私訊傳送一次，即可綁定目前這個 LINE 帳號。</p>
+      <div id="recovery-manager-binding-code"></div>
+      <p class="form-error" id="recovery-manager-error" role="alert" hidden></p>
+      <div class="inline-actions"><button class="secondary" id="recovery-manager-select-all" type="button">全選尚未開始活動</button><button class="line-button" id="recovery-manager-batch" type="button">取得批次綁定碼</button></div>
+    </section>` : "";
   modalRoot.innerHTML = `
     <div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="recovered-title">
       <button class="modal-close" data-close aria-label="關閉">×</button>
       <p class="eyebrow">已解鎖</p><h2 id="recovered-title">我的活動</h2>
+      ${batchPanel}
       <div class="recovered-activities">${cards || '<p class="form-hint">沒有可顯示的活動。</p>'}</div>
     </section></div>`;
+  document.querySelector("#recovery-manager-select-all")?.addEventListener("click", () => {
+    document.querySelectorAll("[data-recovery-manager-event]").forEach((input) => { input.checked = true; });
+  });
+  document.querySelector("#recovery-manager-batch")?.addEventListener("click", async (clickEvent) => {
+    const button = clickEvent.currentTarget;
+    const eventIds = [...document.querySelectorAll("[data-recovery-manager-event]:checked")].map((input) => input.dataset.recoveryManagerEvent);
+    const errorBox = document.querySelector("#recovery-manager-error");
+    if (!eventIds.length) {
+      errorBox.textContent = "請先勾選至少一場尚未開始的活動";
+      errorBox.hidden = false;
+      return;
+    }
+    button.disabled = true;
+    errorBox.hidden = true;
+    try {
+      const result = await requestJson("/creator-recovery", {
+        action: "create_manager_batch_binding_code", creatorName, editCode, eventIds,
+      });
+      const bindingCommand = `管理綁定 ${result.code}`;
+      document.querySelector("#recovery-manager-binding-code").innerHTML = `<div class="binding-code"><span>先加小幫手好友，再於私訊輸入</span><strong>${esc(bindingCommand)}</strong><button class="secondary binding-copy" id="copy-recovery-manager-binding-code" type="button">複製</button><small>會同時綁定 ${result.count} 場活動；10 分鐘內有效</small></div>`;
+      document.querySelector("#copy-recovery-manager-binding-code")?.addEventListener("click", async (copyEvent) => {
+        const copyButton = copyEvent.currentTarget;
+        try {
+          await navigator.clipboard.writeText(bindingCommand);
+          copyButton.textContent = "已複製";
+          showNotice("批次管理提醒綁定指令已複製");
+          window.setTimeout(() => { copyButton.textContent = "複製"; }, 1800);
+        } catch {
+          errorBox.textContent = "無法自動複製，請手動複製管理綁定指令";
+          errorBox.hidden = false;
+        }
+      });
+      button.textContent = "重新產生批次綁定碼";
+    } catch (error) {
+      errorBox.textContent = error.message || "無法產生批次綁定碼";
+      errorBox.hidden = false;
+    } finally { button.disabled = false; }
+  });
   for (const event of activities) {
-    document.querySelector(`[data-recovery-share="${CSS.escape(event.id)}"]`)?.addEventListener("click", () => openSharePanel(event, () => openRecoveredActivities(activities, editCode)));
+    document.querySelector(`[data-recovery-share="${CSS.escape(event.id)}"]`)?.addEventListener("click", () => openSharePanel(event, () => openRecoveredActivities(activities, editCode, creatorName)));
     document.querySelector(`[data-recovery-manage="${CSS.escape(event.id)}"]`)?.addEventListener("click", () => {
-      void openAdminFromCredential(event.id, { type: "code", value: editCode }, null, () => openRecoveredActivities(activities, editCode));
+      void openAdminFromCredential(event.id, { type: "code", value: editCode }, null, () => openRecoveredActivities(activities, editCode, creatorName));
     });
   }
 }

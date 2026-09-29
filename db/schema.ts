@@ -104,6 +104,16 @@ export const lineManagerBindCodes = sqliteTable("line_manager_bind_codes", {
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
+// Recovery can pair one LINE account with several upcoming activities in a
+// single step. Event IDs are kept as a JSON array because the code itself is
+// short-lived and is consumed exactly once by the LINE webhook.
+export const lineManagerBatchBindCodes = sqliteTable("line_manager_batch_bind_codes", {
+  code: text("code").primaryKey(),
+  eventIds: text("event_ids").notNull(),
+  expiresAt: text("expires_at").notNull(),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
 export const lineManagerTargets = sqliteTable("line_manager_targets", {
   id: text("id").primaryKey(),
   eventId: text("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),

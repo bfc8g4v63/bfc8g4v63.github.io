@@ -108,6 +108,12 @@ export function ensureSchema() {
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
       )`),
+      database.prepare(`CREATE TABLE IF NOT EXISTS line_manager_batch_bind_codes (
+        code TEXT PRIMARY KEY NOT NULL,
+        event_ids TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`),
       database.prepare(`CREATE TABLE IF NOT EXISTS line_manager_targets (
         id TEXT PRIMARY KEY NOT NULL,
         event_id TEXT NOT NULL,

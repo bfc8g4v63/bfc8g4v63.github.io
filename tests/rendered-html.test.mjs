@@ -309,11 +309,12 @@ test("creators can manage activities with an independent management link without
 });
 
 test("LINE manager alerts pair an account with an event instead of trusting a creator name", async () => {
-  const [schema, schemaInit, webhook, lineAdmin, rsvp, lineLib, adminEvent, client, guide] = await Promise.all([
+  const [schema, schemaInit, webhook, lineAdmin, recovery, rsvp, lineLib, adminEvent, client, guide] = await Promise.all([
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
     readFile(new URL("../db/init.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/line/webhook/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/admin/line/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/creator-recovery/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/rsvps/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/line/lib.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/admin/event/route.ts", import.meta.url), "utf8"),
@@ -321,13 +322,16 @@ test("LINE manager alerts pair an account with an event instead of trusting a cr
     readFile(new URL("../docs/line-bot-guide.html", import.meta.url), "utf8"),
   ]);
   assert.match(schema, /lineManagerBindCodes/);
+  assert.match(schema, /lineManagerBatchBindCodes/);
   assert.match(schema, /lineManagerTargets/);
   assert.match(schemaInit, /CREATE TABLE IF NOT EXISTS line_manager_bind_codes/);
+  assert.match(schemaInit, /CREATE TABLE IF NOT EXISTS line_manager_batch_bind_codes/);
   assert.match(schemaInit, /CREATE TABLE IF NOT EXISTS line_manager_targets/);
   assert.match(lineAdmin, /create_manager_binding_code/);
   assert.match(lineAdmin, /clear_manager_targets/);
   assert.match(webhook, /管理綁定/);
   assert.match(webhook, /pairManagerAlert/);
+  assert.match(webhook, /lineManagerBatchBindCodes/);
   assert.match(webhook, /sourceType === "user"/);
   assert.match(rsvp, /notifyPairedManagers/);
   assert.match(rsvp, /getRequestExecutionContext/);
@@ -335,7 +339,12 @@ test("LINE manager alerts pair an account with an event instead of trusting a cr
   assert.match(adminEvent, /managerTargetCount/);
   assert.match(client, /管理者私訊提醒/);
   assert.match(client, /manager-alert-code/);
+  assert.match(client, /批次綁定管理提醒/);
+  assert.match(client, /create_manager_batch_binding_code/);
+  assert.match(recovery, /create_manager_batch_binding_code/);
+  assert.match(recovery, /lineManagerBatchBindCodes/);
   assert.match(guide, /管理綁定 925843/);
+  assert.match(guide, /取得批次綁定碼/);
 });
 
 test("an activity invitation provides a verified route to the full management dashboard", async () => {
@@ -390,7 +399,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.56/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.57/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -419,9 +428,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.56/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.56/);
-  assert.match(worker, /good-days-github-v56/);
+  assert.match(page, /\/app\.js\?v=1\.2\.57/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.57/);
+  assert.match(worker, /good-days-github-v57/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 

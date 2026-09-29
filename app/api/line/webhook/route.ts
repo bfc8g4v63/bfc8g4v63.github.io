@@ -1,7 +1,7 @@
-import { and, asc, eq, lt } from "drizzle-orm";
+import { and, asc, eq, inArray, lt } from "drizzle-orm";
 import { getRequestExecutionContext } from "vinext/shims/request-context";
 import { getDb } from "../../../../db";
-import { events, lineBindCodes, lineBindings, lineCommandLogs, lineGroups, lineManagerBindCodes, lineManagerTargets, lineReminderSettings, lineWebhookDeliveries, mealTables, rsvps } from "../../../../db/schema";
+import { events, lineBindCodes, lineBindings, lineCommandLogs, lineGroups, lineManagerBatchBindCodes, lineManagerBindCodes, lineManagerTargets, lineReminderSettings, lineWebhookDeliveries, mealTables, rsvps } from "../../../../db/schema";
 import { normalizeLineCommand } from "../commands";
 import { activityArrangementImageUrl, activityShareMessage, getGroupName, lineConfig, pushMessages, replyMessages, replyText, rsvpSummaryMessage, verifyLineSignature } from "../lib";
 
@@ -75,32 +75,53 @@ function upcomingSummary(events: Awaited<ReturnType<typeof upcomingGroupEvents>>
 async function pairManagerAlert(event: LineEvent, code: string) {
   const db = getDb();
   await db.delete(lineManagerBindCodes).where(lt(lineManagerBindCodes.expiresAt, new Date().toISOString()));
-  const [bindingCode] = await db.select().from(lineManagerBindCodes)
-    .where(eq(lineManagerBindCodes.code, code)).limit(1);
-  if (!bindingCode || Date.parse(bindingCode.expiresAt) < Date.now() || !event.source?.userId) {
+  await db.delete(lineManagerBatchBindCodes).where(lt(lineManagerBatchBindCodes.expiresAt, new Date().toISOString()));
+  const [[bindingCode], [batchBindingCode]] = await Promise.all([
+    db.select().from(lineManagerBindCodes).where(eq(lineManagerBindCodes.code, code)).limit(1),
+    db.select().from(lineManagerBatchBindCodes).where(eq(lineManagerBatchBindCodes.code, code)).limit(1),
+  ]);
+  if ((!bindingCode && !batchBindingCode) || !event.source?.userId) {
     await replyText(event.replyToken!, "管理提醒綁定碼無效或已超過 10 分鐘，請回活動管理後台重新取得。");
     return;
   }
-  const [targetEvent] = await db.select({ title: events.title, status: events.status }).from(events)
-    .where(eq(events.id, bindingCode.eventId)).limit(1);
-  if (!targetEvent || targetEvent.status !== "active") {
+  let eventIds: string[] = bindingCode ? [bindingCode.eventId] : [];
+  if (batchBindingCode) {
+    try {
+      const parsed = JSON.parse(batchBindingCode.eventIds);
+      eventIds = Array.isArray(parsed) ? [...new Set(parsed.filter((id): id is string => typeof id === "string"))].slice(0, 12) : [];
+    } catch {
+      eventIds = [];
+    }
+  }
+  const targetEvents = eventIds.length
+    ? await db.select({ id: events.id, title: events.title, status: events.status, eventDate: events.eventDate, startTime: events.startTime })
+      .from(events).where(inArray(events.id, eventIds))
+    : [];
+  const activeEvents = targetEvents.filter((targetEvent) => targetEvent.status === "active" && eventStartsAt(targetEvent) > Date.now());
+  if (!activeEvents.length || activeEvents.length !== eventIds.length) {
+    if (bindingCode) await db.delete(lineManagerBindCodes).where(eq(lineManagerBindCodes.code, bindingCode.code));
+    if (batchBindingCode) await db.delete(lineManagerBatchBindCodes).where(eq(lineManagerBatchBindCodes.code, batchBindingCode.code));
     await replyText(event.replyToken!, "找不到對應的進行中活動，請回網站重新取得綁定碼。");
     return;
   }
   const now = new Date().toISOString();
-  const [existing] = await db.select({ id: lineManagerTargets.id }).from(lineManagerTargets).where(and(
-    eq(lineManagerTargets.eventId, bindingCode.eventId), eq(lineManagerTargets.lineUserId, event.source.userId),
-  )).limit(1);
-  if (existing) {
-    await db.update(lineManagerTargets).set({ updatedAt: now }).where(eq(lineManagerTargets.id, existing.id));
-  } else {
-    await db.insert(lineManagerTargets).values({
-      id: crypto.randomUUID(), eventId: bindingCode.eventId, lineUserId: event.source.userId,
-      pairedAt: now, updatedAt: now,
-    });
+  for (const targetEvent of activeEvents) {
+    const [existing] = await db.select({ id: lineManagerTargets.id }).from(lineManagerTargets).where(and(
+      eq(lineManagerTargets.eventId, targetEvent.id), eq(lineManagerTargets.lineUserId, event.source.userId),
+    )).limit(1);
+    if (existing) {
+      await db.update(lineManagerTargets).set({ updatedAt: now }).where(eq(lineManagerTargets.id, existing.id));
+    } else {
+      await db.insert(lineManagerTargets).values({
+        id: crypto.randomUUID(), eventId: targetEvent.id, lineUserId: event.source.userId,
+        pairedAt: now, updatedAt: now,
+      });
+    }
   }
-  await db.delete(lineManagerBindCodes).where(eq(lineManagerBindCodes.code, bindingCode.code));
-  await replyText(event.replyToken!, `管理提醒已綁定：${targetEvent.title}\n之後有人報名、取消或更動人數時，小幫手會在這個私訊通知你；不會依建立者姓名判斷身分。`);
+  if (bindingCode) await db.delete(lineManagerBindCodes).where(eq(lineManagerBindCodes.code, bindingCode.code));
+  if (batchBindingCode) await db.delete(lineManagerBatchBindCodes).where(eq(lineManagerBatchBindCodes.code, batchBindingCode.code));
+  const titles = activeEvents.map((targetEvent) => targetEvent.title).join("、");
+  await replyText(event.replyToken!, `管理提醒已綁定 ${activeEvents.length} 場活動：${titles}\n之後有人報名、取消或更動人數時，小幫手會在這個私訊通知你；不會依建立者姓名判斷身分。`);
 }
 
 export async function POST(request: Request) {
