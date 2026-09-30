@@ -54,7 +54,8 @@ export async function replyText(replyToken: string, text: string) {
 
 export type LineReplyMessage =
   | { type: "text"; text: string }
-  | { type: "image"; originalContentUrl: string; previewImageUrl: string };
+  | { type: "image"; originalContentUrl: string; previewImageUrl: string }
+  | { type: "flex"; altText: string; contents: Record<string, unknown> };
 
 export async function replyMessages(replyToken: string, messages: LineReplyMessage[]) {
   await lineRequest("/v2/bot/message/reply", {
@@ -256,11 +257,59 @@ export async function verifyLineSignature(body: string, signature: string) {
   return difference === 0;
 }
 
-export function eventMessage(event: {
+type ActivityLinkEvent = {
   id: string; title: string; eventDate: string; startTime: string;
   location: string; shareToken: string; shareCode: string; attendingPeople?: number;
-}, label = "活動提醒") {
-  const people = event.attendingPeople === undefined ? "" : `\n目前 ${event.attendingPeople} 人參加`;
+};
+
+function activityBubble(event: ActivityLinkEvent, eyebrow: string) {
   const shareUrl = eventShareUrl(event.shareCode, event.shareToken);
-  return `【${label}】\n${event.title}\n日期：${event.eventDate}\n時間：${event.startTime}\n地點：${event.location}${people}\n查看／回覆：${shareUrl}`;
+  const people = event.attendingPeople === undefined ? "" : `目前 ${event.attendingPeople} 人參加`;
+  return {
+    type: "bubble",
+    size: "mega",
+    header: {
+      type: "box", layout: "vertical", backgroundColor: "#EEF5EF", paddingAll: "16px",
+      contents: [
+        { type: "text", text: eyebrow, color: "#5B786D", size: "sm", weight: "bold" },
+        { type: "text", text: event.title.slice(0, 40), color: "#153F36", size: "xl", weight: "bold", wrap: true, margin: "sm" },
+      ],
+    },
+    body: {
+      type: "box", layout: "vertical", spacing: "sm", paddingAll: "16px",
+      contents: [
+        { type: "text", text: `日期｜${event.eventDate}`, color: "#315C54", wrap: true },
+        { type: "text", text: `時間｜${event.startTime}`, color: "#315C54", wrap: true },
+        { type: "text", text: `地點｜${event.location.slice(0, 180)}`, color: "#315C54", wrap: true },
+        ...(people ? [{ type: "text", text: people, color: "#C65037", weight: "bold", margin: "md" }] : []),
+      ],
+    },
+    footer: {
+      type: "box", layout: "vertical", paddingAll: "12px",
+      contents: [{
+        type: "button", style: "primary", color: "#2F6656", height: "sm",
+        action: { type: "uri", label: "查看／回覆", uri: shareUrl },
+      }],
+    },
+  };
+}
+
+export function eventCard(event: ActivityLinkEvent, label = "活動提醒"): LineReplyMessage {
+  return {
+    type: "flex",
+    altText: `【${label}】${event.title}｜${event.eventDate} ${event.startTime}`,
+    contents: activityBubble(event, label),
+  };
+}
+
+export function activityListCard(events: ActivityLinkEvent[]): LineReplyMessage {
+  const visible = events.slice(0, 10);
+  return {
+    type: "flex",
+    altText: `近期活動：${visible.map((event) => event.title).join("、")}`.slice(0, 400),
+    contents: {
+      type: "carousel",
+      contents: visible.map((event) => activityBubble(event, "近期活動")),
+    },
+  };
 }

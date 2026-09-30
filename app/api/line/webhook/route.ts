@@ -3,8 +3,7 @@ import { getRequestExecutionContext } from "vinext/shims/request-context";
 import { getDb } from "../../../../db";
 import { events, lineBindCodes, lineBindings, lineCommandLogs, lineGroups, lineManagerBatchBindCodes, lineManagerBindCodes, lineManagerTargets, lineReminderSettings, lineWebhookDeliveries, mealTables, rsvps } from "../../../../db/schema";
 import { normalizeLineCommand } from "../commands";
-import { activityArrangementImageUrl, activityShareMessage, getGroupName, lineConfig, pushMessages, replyMessages, replyText, rsvpSummaryMessage, verifyLineSignature } from "../lib";
-import { eventShareUrl } from "../../../../lib/event-share";
+import { activityArrangementImageUrl, activityListCard, activityShareMessage, getGroupName, lineConfig, pushMessages, replyMessages, replyText, rsvpSummaryMessage, verifyLineSignature } from "../lib";
 
 type LineEvent = {
   type?: string;
@@ -82,17 +81,6 @@ async function upcomingGroupEvents(groupId: string) {
     .orderBy(asc(events.eventDate), asc(events.startTime));
   const now = Date.now();
   return rows.filter((event) => Number.isFinite(eventStartsAt(event)) && eventStartsAt(event) > now);
-}
-
-function upcomingSummary(events: Awaited<ReturnType<typeof upcomingGroupEvents>>) {
-  const list = ["【近期活動】", ...events.map((event, index) => `${index + 1}. ${event.title}\n${event.eventDate} ${event.startTime}｜${event.location}\n查看／回覆：${eventShareUrl(event.shareCode, event.shareToken)}`)];
-  if (events.length > 1) {
-    list.push(`【查看指定活動】\n${events.map((event) => {
-      const date = event.eventDate.replaceAll("-", "");
-      return `${date}：原神啟動 ${date}／安排 ${date}`;
-    }).join("\n")}`);
-  }
-  return list.join("\n\n");
 }
 
 async function pairManagerAlert(event: LineEvent, code: string) {
@@ -252,16 +240,18 @@ async function processWebhookEvents(lineEvents: LineEvent[], requestUrl: string)
       } else {
       const upcoming = await upcomingGroupEvents(chatId);
       if (command === "活動") {
-        await replyText(event.replyToken, upcoming.length ? upcomingSummary(upcoming) : "這個群組目前沒有尚未開始的活動。");
+        await replyMessages(event.replyToken, upcoming.length
+          ? [activityListCard(upcoming)]
+          : [{ type: "text", text: "這個群組目前沒有尚未開始的活動。" }]);
         continue;
       }
       if (command.startsWith("原神啟動")) {
         const date = requestedDate(command, "原神啟動");
         const targetEvent = date ? upcoming.find((item) => item.eventDate === date) : upcoming.length === 1 ? upcoming[0] : null;
         if (!targetEvent) {
-          await replyText(event.replyToken, upcoming.length
-            ? `${upcomingSummary(upcoming)}\n\n要查看名單，請輸入「原神啟動 20260930」。`
-            : "這個群組目前沒有尚未開始的活動。");
+          await replyMessages(event.replyToken, upcoming.length
+            ? [activityListCard(upcoming), { type: "text", text: "要查看名單，請輸入「原神啟動 20260930」。" }]
+            : [{ type: "text", text: "這個群組目前沒有尚未開始的活動。" }]);
           continue;
         }
         const [registrations, settingRows] = await Promise.all([
@@ -292,7 +282,10 @@ async function processWebhookEvents(lineEvents: LineEvent[], requestUrl: string)
           continue;
         }
         if (totalPages > 5) {
-          await replyText(event.replyToken, `${upcomingSummary(targetEvents)}\n\n安排圖卡較多，請輸入「安排 20260930」查看指定日期。`);
+          await replyMessages(event.replyToken, [
+            activityListCard(targetEvents),
+            { type: "text", text: "安排圖卡較多，請輸入「安排 20260930」查看指定日期。" },
+          ]);
           continue;
         }
         const messages = await Promise.all(sendable.flatMap(({ targetEvent, pages }) => Array.from({ length: pages }, async (_, page) => {

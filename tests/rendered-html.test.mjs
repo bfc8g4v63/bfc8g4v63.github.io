@@ -140,7 +140,9 @@ test("calendar reminders keep a small late-delivery tolerance while the two-hour
   assert.match(lineLib, /shareCode: string/);
   assert.match(lineLib, /eventShareUrl\(event\.shareCode, event\.shareToken\)/);
   assert.doesNotMatch(lineLib, /github\.io\/\?event=/);
-  assert.match(adminLine, /eventMessage\(\{[\s\S]*?\.\.\.access\.event/);
+  assert.match(adminLine, /eventCard\(\{[\s\S]*?\.\.\.access\.event/);
+  assert.match(lineLib, /type: "flex"/);
+  assert.match(lineLib, /label: "查看／回覆"/);
 });
 
 test("activity arrangements keep allocation private and validate split family assignments", async () => {
@@ -419,7 +421,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.68/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.69/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -448,9 +450,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.68/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.68/);
-  assert.match(worker, /good-days-github-v68/);
+  assert.match(page, /\/app\.js\?v=1\.2\.69/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.69/);
+  assert.match(worker, /good-days-github-v69/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -769,8 +771,8 @@ test("management UX keeps advanced choices and operational shortcuts easy to rea
   assert.match(styles, /\.advanced-settings/);
   assert.match(styles, /\.admin-quick-nav/);
   assert.match(styles, /\.line-command-card/);
-  assert.match(webhook, /【查看指定活動】/);
-  assert.match(webhook, /原神啟動 日期/);
+  assert.match(webhook, /activityListCard/);
+  assert.match(webhook, /原神啟動 20260930/);
   assert.match(guide, /進階設定/);
   assert.match(guide, /儲存在這台裝置/);
 });

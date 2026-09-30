@@ -4,9 +4,8 @@ import { getDb } from "../../../../db";
 import { events, lineBindCodes, lineBindings, lineGroups, lineManagerBatchBindCodes, lineManagerBindCodes, lineManagerTargets, lineReminderSettings, rsvps } from "../../../../db/schema";
 import { json, preflight } from "../../cors";
 import { clean, hashCredential, requireEventManager, verifyCredential } from "../auth";
-import { eventMessage, lineConfig, pushText } from "../../line/lib";
+import { activityListCard, eventCard, lineConfig, pushMessages } from "../../line/lib";
 import { rateLimit } from "../../rate-limit";
-import { eventShareUrl } from "../../../../lib/event-share";
 
 export function OPTIONS(request: Request) {
   return preflight(request);
@@ -226,10 +225,10 @@ export async function POST(request: Request) {
       const reminderType = typeof body.reminderType === "string" ? body.reminderType : "";
       const label = testLabels[reminderType];
       if (!label) return json(request, { error: "請選擇要測試的提醒時間" }, 400);
-      await pushText(currentBinding.groupId, eventMessage({
+      await pushMessages(currentBinding.groupId, [eventCard({
         ...access.event,
         attendingPeople: attending.reduce((sum, item) => sum + item.partySize, 0),
-      }, label));
+      }, label)]);
       return json(request, { ok: true });
     }
 
@@ -268,8 +267,7 @@ export async function POST(request: Request) {
           .onConflictDoUpdate({ target: lineBindings.eventId, set: { groupId: currentBinding.groupId, groupName: currentBinding.groupName, boundAt: now } });
         await ensureReminderSettings(event.id);
       }
-      const message = ["【近期活動】", ...selected.map((event, index) => `${index + 1}. ${event.title}\n${event.eventDate} ${event.startTime}｜${event.location}\n${eventShareUrl(event.shareCode, event.shareToken)}`)].join("\n\n");
-      await pushText(currentBinding.groupId, message);
+      await pushMessages(currentBinding.groupId, [activityListCard(selected)]);
       return json(request, { ok: true, count: selected.length });
     }
 

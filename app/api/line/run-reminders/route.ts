@@ -4,7 +4,7 @@ import { getDb } from "../../../../db";
 import {
   events, lineBindings, lineReminderDeliveries, lineReminderSettings, rsvps,
 } from "../../../../db/schema";
-import { eventMessage, lineConfig, pushText } from "../lib";
+import { eventCard, lineConfig, pushMessages } from "../lib";
 
 const taipeiEvening = (eventDate: string, daysBefore: number) =>
   Date.parse(`${eventDate}T18:00:00+08:00`) - daysBefore * 24 * 60 * 60 * 1000;
@@ -88,7 +88,7 @@ export async function POST(request: Request) {
             eq(lineReminderDeliveries.eventFingerprint, fingerprint),
           )).limit(1);
         if (delivered) continue;
-        await pushText(event.groupId, eventMessage({ ...event, attendingPeople }, rule.label));
+        await pushMessages(event.groupId, [eventCard({ ...event, attendingPeople }, rule.label)]);
         await db.insert(lineReminderDeliveries).values({
           id: crypto.randomUUID(), eventId: event.id,
           reminderKey: rule.key, eventFingerprint: fingerprint,
