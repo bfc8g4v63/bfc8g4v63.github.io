@@ -6,6 +6,7 @@ import { json, preflight } from "../../cors";
 import { clean, hashCredential, requireEventManager, verifyCredential } from "../auth";
 import { eventMessage, lineConfig, pushText } from "../../line/lib";
 import { rateLimit } from "../../rate-limit";
+import { eventShareUrl } from "../../../../lib/event-share";
 
 export function OPTIONS(request: Request) {
   return preflight(request);
@@ -267,7 +268,7 @@ export async function POST(request: Request) {
           .onConflictDoUpdate({ target: lineBindings.eventId, set: { groupId: currentBinding.groupId, groupName: currentBinding.groupName, boundAt: now } });
         await ensureReminderSettings(event.id);
       }
-      const message = ["【近期活動】", ...selected.map((event, index) => `${index + 1}. ${event.title}\n${event.eventDate} ${event.startTime}｜${event.location}\n${`https://bfc8g4v63.github.io/e/?s=${encodeURIComponent(event.shareToken)}`}`)].join("\n\n");
+      const message = ["【近期活動】", ...selected.map((event, index) => `${index + 1}. ${event.title}\n${event.eventDate} ${event.startTime}｜${event.location}\n${eventShareUrl(event.shareCode, event.shareToken)}`)].join("\n\n");
       await pushText(currentBinding.groupId, message);
       return json(request, { ok: true, count: selected.length });
     }

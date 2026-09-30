@@ -1,4 +1,5 @@
 import { env } from "cloudflare:workers";
+import { eventShareUrl } from "../../../lib/event-share";
 
 type LineBindings = {
   LINE_CHANNEL_ACCESS_TOKEN?: string;
@@ -257,9 +258,9 @@ export async function verifyLineSignature(body: string, signature: string) {
 
 export function eventMessage(event: {
   id: string; title: string; eventDate: string; startTime: string;
-  location: string; shareToken: string; attendingPeople?: number;
+  location: string; shareToken: string; shareCode: string; attendingPeople?: number;
 }, label = "活動提醒") {
   const people = event.attendingPeople === undefined ? "" : `\n目前 ${event.attendingPeople} 人參加`;
-  const shareUrl = `https://bfc8g4v63.github.io/e/?s=${encodeURIComponent(event.shareToken)}`;
+  const shareUrl = eventShareUrl(event.shareCode, event.shareToken);
   return `【${label}】\n${event.title}\n日期：${event.eventDate}\n時間：${event.startTime}\n地點：${event.location}${people}\n查看／回覆：${shareUrl}`;
 }

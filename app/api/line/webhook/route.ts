@@ -4,6 +4,7 @@ import { getDb } from "../../../../db";
 import { events, lineBindCodes, lineBindings, lineCommandLogs, lineGroups, lineManagerBatchBindCodes, lineManagerBindCodes, lineManagerTargets, lineReminderSettings, lineWebhookDeliveries, mealTables, rsvps } from "../../../../db/schema";
 import { normalizeLineCommand } from "../commands";
 import { activityArrangementImageUrl, activityShareMessage, getGroupName, lineConfig, pushMessages, replyMessages, replyText, rsvpSummaryMessage, verifyLineSignature } from "../lib";
+import { eventShareUrl } from "../../../../lib/event-share";
 
 type LineEvent = {
   type?: string;
@@ -75,7 +76,7 @@ async function eventsForManagerBinding(eventIds: string[]) {
 async function upcomingGroupEvents(groupId: string) {
   const rows = await getDb().select({
     id: events.id, title: events.title, eventDate: events.eventDate, startTime: events.startTime,
-    location: events.location, description: events.description, shareToken: events.shareToken,
+    location: events.location, description: events.description, shareToken: events.shareToken, shareCode: events.shareCode,
   }).from(events).innerJoin(lineBindings, eq(events.id, lineBindings.eventId))
     .where(and(eq(lineBindings.groupId, groupId), eq(events.status, "active")))
     .orderBy(asc(events.eventDate), asc(events.startTime));
@@ -84,7 +85,7 @@ async function upcomingGroupEvents(groupId: string) {
 }
 
 function upcomingSummary(events: Awaited<ReturnType<typeof upcomingGroupEvents>>) {
-  const list = ["【近期活動】", ...events.map((event, index) => `${index + 1}. ${event.title}\n${event.eventDate} ${event.startTime}｜${event.location}\n查看／回覆：https://bfc8g4v63.github.io/e/?s=${encodeURIComponent(event.shareToken)}`)];
+  const list = ["【近期活動】", ...events.map((event, index) => `${index + 1}. ${event.title}\n${event.eventDate} ${event.startTime}｜${event.location}\n查看／回覆：${eventShareUrl(event.shareCode, event.shareToken)}`)];
   if (events.length > 1) {
     list.push(`【查看指定活動】\n${events.map((event) => {
       const date = event.eventDate.replaceAll("-", "");

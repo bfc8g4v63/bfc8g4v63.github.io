@@ -7,6 +7,7 @@ import { clean, hashCode, requireEventManager } from "../auth";
 import { lineConfig } from "../../line/lib";
 import { rateLimit } from "../../rate-limit";
 import { arrangementNameKey } from "../../../../lib/arrangement";
+import { eventShareUrl } from "../../../../lib/event-share";
 
 export function OPTIONS(request: Request) {
   return preflight(request);
@@ -243,7 +244,7 @@ export async function POST(request: Request) {
         editCodeHash: undefined,
         managerTokenHash: undefined,
         participantCodeHash: undefined,
-        shareUrl: `https://bfc8g4v63.github.io/e/?s=${encodeURIComponent(access.event.shareToken)}`,
+        shareUrl: eventShareUrl(access.event.shareCode, access.event.shareToken),
       },
       rsvps: responses,
       summary: {

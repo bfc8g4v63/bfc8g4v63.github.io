@@ -8,6 +8,7 @@ import { json, preflight } from "../cors";
 import { clean, hashCredential, requireEventManager } from "../admin/auth";
 import { lineConfig, pushText } from "../line/lib";
 import { rateLimit } from "../rate-limit";
+import { eventShareUrl, shortShareCode } from "../../../lib/event-share";
 
 const accessModes = new Set(["public", "unlisted", "private"]);
 const attendanceVisibilities = new Set(["count", "opt_in", "all"]);
@@ -29,10 +30,6 @@ function feePerPerson(value: unknown, fallback = 0) {
   return typeof value === "number" && Number.isInteger(value) && value >= 0 && value <= MAX_FEE_PER_PERSON
     ? value
     : fallback;
-}
-
-function shareUrl(token: string) {
-  return `https://bfc8g4v63.github.io/e/?s=${encodeURIComponent(token)}`;
 }
 
 function managerUrl(id: string, token: string) {
@@ -65,7 +62,7 @@ export async function GET(request: Request) {
         capacity: events.capacity, status: events.status, accessMode: events.accessMode,
         feePerPerson: events.feePerPerson,
         attendanceVisibility: events.attendanceVisibility,
-        shareToken: events.shareToken,
+        shareToken: events.shareToken, shareCode: events.shareCode,
       }).from(events).where(and(eq(events.accessMode, "public"), eq(events.status, "active")))
         .orderBy(asc(events.eventDate), asc(events.startTime)),
       db.select({
@@ -74,7 +71,7 @@ export async function GET(request: Request) {
     ]);
     return json(request, {
       events: eventRows.map((event) => ({
-        ...withSummary(event, rsvpRows), shareUrl: shareUrl(event.shareToken),
+        ...withSummary(event, rsvpRows), shareUrl: eventShareUrl(event.shareCode, event.shareToken),
       })),
     });
   } catch (error) {
@@ -123,6 +120,7 @@ export async function POST(request: Request) {
     if (fee < 0) return json(request, { error: `每人費用請填 0 到 ${MAX_FEE_PER_PERSON.toLocaleString("zh-TW")} 的整數` }, 400);
     const id = crypto.randomUUID();
     const token = crypto.randomUUID();
+    const shareCode = shortShareCode(token);
     const managerToken = crypto.randomUUID();
     await getDb().insert(events).values({
       id, title, eventDate, startTime, location,
@@ -136,6 +134,7 @@ export async function POST(request: Request) {
       accessMode: mode,
       attendanceVisibility: visibility,
       shareToken: token,
+      shareCode,
       participantCodeHash: mode === "private" ? await hashCredential(participantCode) : "",
       editCodeHash: await hashCredential(editCode),
       managerTokenHash: await hashCredential(managerToken),
@@ -143,7 +142,7 @@ export async function POST(request: Request) {
     return json(request, {
       id,
       shareToken: token,
-      shareUrl: shareUrl(token),
+      shareUrl: eventShareUrl(shareCode, token),
       // Returned only at creation time. The database stores only its hash.
       managerToken,
       managerUrl: managerUrl(id, managerToken),
@@ -184,12 +183,13 @@ export async function PATCH(request: Request) {
     const participantCodeHash = mode !== "private" ? ""
       : participantCode ? await hashCredential(participantCode) : existing.participantCodeHash;
     const shareToken = existing.shareToken || crypto.randomUUID();
+    const shareCode = existing.shareCode || shortShareCode(shareToken);
     const cancelledAt = status === "cancelled"
       ? (existing.status === "cancelled" ? existing.cancelledAt : new Date().toISOString())
       : null;
     await getDb().update(events).set({
       title, eventDate, startTime, location, status, accessMode: mode, attendanceVisibility: visibility,
-      shareToken, participantCodeHash, cancelledAt,
+      shareToken, shareCode, participantCodeHash, cancelledAt,
       description: body.description === undefined ? existing.description : clean(body.description, 1000),
       creatorName: body.creatorName === undefined ? existing.creatorName : clean(body.creatorName, 60),
       contactName: body.contactName === undefined ? existing.contactName : clean(body.contactName, 60),
@@ -206,7 +206,7 @@ export async function PATCH(request: Request) {
         `活動取消通知\n「${existing.title}」原訂 ${existing.eventDate} ${existing.startTime} 的活動已由建立者取消。`,
       );
     }
-    return json(request, { ok: true, shareToken, shareUrl: shareUrl(shareToken) });
+    return json(request, { ok: true, shareToken, shareUrl: eventShareUrl(shareCode, shareToken) });
   } catch (error) {
     return json(request, { error: error instanceof Error ? error.message : "修改活動失敗" }, 500);
   }

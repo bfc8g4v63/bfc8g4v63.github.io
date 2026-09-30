@@ -136,9 +136,9 @@ test("calendar reminders keep a small late-delivery tolerance while the two-hour
   assert.match(await readFile(new URL("../docs/app.js", import.meta.url), "utf8"), /id="line-seven-day-test"/);
   assert.match(await readFile(new URL("../docs/app.js", import.meta.url), "utf8"), /id="line-one-day-test"/);
   assert.match(await readFile(new URL("../docs/app.js", import.meta.url), "utf8"), /id="line-two-hour-test"/);
-  assert.match(reminders, /shareToken: events\.shareToken/);
-  assert.match(lineLib, /shareToken: string/);
-  assert.match(lineLib, /https:\/\/bfc8g4v63\.github\.io\/e\/\?s=\$\{encodeURIComponent\(event\.shareToken\)\}/);
+  assert.match(reminders, /shareCode: events\.shareCode/);
+  assert.match(lineLib, /shareCode: string/);
+  assert.match(lineLib, /eventShareUrl\(event\.shareCode, event\.shareToken\)/);
   assert.doesNotMatch(lineLib, /github\.io\/\?event=/);
   assert.match(adminLine, /eventMessage\(\{[\s\S]*?\.\.\.access\.event/);
 });
@@ -419,7 +419,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.67/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.68/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -448,9 +448,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.67/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.67/);
-  assert.match(worker, /good-days-github-v67/);
+  assert.match(page, /\/app\.js\?v=1\.2\.68/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.68/);
+  assert.match(worker, /good-days-github-v68/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 

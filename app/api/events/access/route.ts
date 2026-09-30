@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, or } from "drizzle-orm";
 import { getDb } from "../../../../db";
 import { ensureSchema } from "../../../../db/init";
 import { events, rsvps } from "../../../../db/schema";
@@ -46,7 +46,10 @@ export async function POST(request: Request) {
     const attendeeToken = clean(body.attendeeToken, 160);
     if (!shareToken) return json(request, { error: "分享連結不完整" }, 400);
     const db = getDb();
-    const [event] = await db.select().from(events).where(eq(events.shareToken, shareToken)).limit(1);
+    const [event] = await db.select().from(events).where(or(
+      eq(events.shareCode, shareToken),
+      eq(events.shareToken, shareToken),
+    )).limit(1);
     if (!event) return json(request, { error: "找不到活動或分享連結已失效" }, 404);
     // A cancelled activity must remain recognisable from its original share
     // URL, even when it was previously protected by a participant code.

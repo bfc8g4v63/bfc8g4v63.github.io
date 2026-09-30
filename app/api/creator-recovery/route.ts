@@ -9,13 +9,10 @@ import { clean, verifyCredential } from "../admin/auth";
 import { json, preflight } from "../cors";
 import { lineConfig } from "../line/lib";
 import { rateLimit } from "../rate-limit";
+import { eventShareUrl } from "../../../lib/event-share";
 
 export function OPTIONS(request: Request) {
   return preflight(request);
-}
-
-function activityUrl(shareToken: string) {
-  return `https://bfc8g4v63.github.io/e/?s=${encodeURIComponent(shareToken)}`;
 }
 
 function eventStartsAt(event: { eventDate: string; startTime: string }) {
@@ -72,7 +69,7 @@ export async function POST(request: Request) {
     if (editCode.length < 4) return json(request, { error: "請輸入至少 4 個字元的管理碼" }, 400);
     const rows = await db.select({
       id: events.id, title: events.title, eventDate: events.eventDate,
-      startTime: events.startTime, status: events.status, shareToken: events.shareToken,
+      startTime: events.startTime, status: events.status, shareToken: events.shareToken, shareCode: events.shareCode,
       capacity: events.capacity,
       editCodeHash: events.editCodeHash,
     }).from(events).where(creatorMatch).orderBy(desc(events.createdAt));
@@ -166,7 +163,7 @@ export async function POST(request: Request) {
           lineGroupName: lineGroupByEvent.get(event.id) || null,
           managerTargetCount: managerTargetCountByEvent.get(event.id) || 0,
           unassignedPeople: tableCountByEvent.has(event.id) ? unassignedPeopleByEvent.get(event.id) || 0 : null,
-          shareUrl: activityUrl(event.shareToken),
+          shareUrl: eventShareUrl(event.shareCode, event.shareToken),
         };
       }),
     });

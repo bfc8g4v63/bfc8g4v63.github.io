@@ -25,6 +25,7 @@ export function ensureSchema() {
         access_mode TEXT NOT NULL DEFAULT 'unlisted',
         attendance_visibility TEXT NOT NULL DEFAULT 'count',
         share_token TEXT NOT NULL DEFAULT '',
+        share_code TEXT NOT NULL DEFAULT '',
         participant_code_hash TEXT NOT NULL DEFAULT '',
         edit_code_hash TEXT NOT NULL,
         manager_token_hash TEXT NOT NULL DEFAULT '',
@@ -213,6 +214,9 @@ export function ensureSchema() {
     if (!names.has("share_token")) {
       await database.prepare("ALTER TABLE events ADD COLUMN share_token TEXT NOT NULL DEFAULT ''").run();
     }
+    if (!names.has("share_code")) {
+      await database.prepare("ALTER TABLE events ADD COLUMN share_code TEXT NOT NULL DEFAULT ''").run();
+    }
     if (!names.has("participant_code_hash")) {
       await database.prepare("ALTER TABLE events ADD COLUMN participant_code_hash TEXT NOT NULL DEFAULT ''").run();
     }
@@ -286,7 +290,9 @@ export function ensureSchema() {
       }
     }
     await database.prepare("UPDATE events SET share_token = lower(hex(randomblob(16))) WHERE share_token = '' OR share_token IS NULL").run();
+    await database.prepare("UPDATE events SET share_code = lower(substr(replace(share_token, '-', ''), 1, 12)) WHERE share_code = '' OR share_code IS NULL").run();
     await database.prepare("CREATE UNIQUE INDEX IF NOT EXISTS events_share_token_unique ON events (share_token)").run();
+    await database.prepare("CREATE UNIQUE INDEX IF NOT EXISTS events_share_code_unique ON events (share_code)").run();
     await database.batch([
       database.prepare("DROP INDEX IF EXISTS line_bindings_group_unique"),
       database.prepare("CREATE INDEX IF NOT EXISTS line_bindings_group_event ON line_bindings (group_id, event_id)"),

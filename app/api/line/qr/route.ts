@@ -1,8 +1,9 @@
 import qrcode from "qrcode-generator";
-import { eq } from "drizzle-orm";
+import { eq, or } from "drizzle-orm";
 import { getDb } from "../../../../db";
 import { ensureSchema } from "../../../../db/init";
 import { events } from "../../../../db/schema";
+import { eventShareUrl } from "../../../../lib/event-share";
 
 const PNG_SIGNATURE = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
 
@@ -95,10 +96,10 @@ export async function GET(request: Request) {
   const token = new URL(request.url).searchParams.get("s")?.trim() || "";
   if (!token) return new Response("Not found", { status: 404 });
   await ensureSchema();
-  const [event] = await getDb().select({ id: events.id }).from(events)
-    .where(eq(events.shareToken, token)).limit(1);
+  const [event] = await getDb().select({ id: events.id, shareCode: events.shareCode, shareToken: events.shareToken }).from(events)
+    .where(or(eq(events.shareCode, token), eq(events.shareToken, token))).limit(1);
   if (!event) return new Response("Not found", { status: 404 });
-  const shareUrl = `https://bfc8g4v63.github.io/e/?s=${encodeURIComponent(token)}`;
+  const shareUrl = eventShareUrl(event.shareCode, event.shareToken);
   return new Response(qrPng(shareUrl), {
     headers: {
       "Content-Type": "image/png",
