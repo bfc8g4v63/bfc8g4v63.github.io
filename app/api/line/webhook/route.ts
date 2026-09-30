@@ -4,6 +4,7 @@ import { getDb } from "../../../../db";
 import { events, lineBindCodes, lineBindings, lineCommandLogs, lineGroups, lineManagerBatchBindCodes, lineManagerBindCodes, lineManagerTargets, lineReminderSettings, lineWebhookDeliveries, mealTables, rsvps } from "../../../../db/schema";
 import { normalizeLineCommand } from "../commands";
 import { activityArrangementImageUrl, activityListCard, activityShareMessage, getGroupName, lineConfig, pushMessages, replyMessages, replyText, rsvpSummaryMessage, verifyLineSignature } from "../lib";
+import { eventShareUrl } from "../../../../lib/event-share";
 
 type LineEvent = {
   type?: string;
@@ -81,6 +82,27 @@ async function upcomingGroupEvents(groupId: string) {
     .orderBy(asc(events.eventDate), asc(events.startTime));
   const now = Date.now();
   return rows.filter((event) => Number.isFinite(eventStartsAt(event)) && eventStartsAt(event) > now);
+}
+
+async function replyUpcomingActivities(
+  replyToken: string,
+  activities: Awaited<ReturnType<typeof upcomingGroupEvents>>,
+  instruction = "",
+) {
+  const messages = [activityListCard(activities), ...(instruction ? [{ type: "text" as const, text: instruction }] : [])];
+  try {
+    await replyMessages(replyToken, messages);
+  } catch (error) {
+    // A malformed or unsupported Flex payload must never leave a group without
+    // an answer. Keep the compact button card as the normal path and provide a
+    // text-only fallback that still opens every activity.
+    console.error("Unable to send LINE activity cards; using text fallback", error);
+    const fallback = ["【近期活動】", ...activities.map((activity, index) => (
+      `${index + 1}. ${activity.title}\n${activity.eventDate} ${activity.startTime}｜${activity.location}\n查看／回覆：${eventShareUrl(activity.shareCode, activity.shareToken)}`
+    ))];
+    if (instruction) fallback.push(instruction);
+    await replyText(replyToken, fallback.join("\n\n").slice(0, 5000));
+  }
 }
 
 async function pairManagerAlert(event: LineEvent, code: string) {
@@ -240,18 +262,16 @@ async function processWebhookEvents(lineEvents: LineEvent[], requestUrl: string)
       } else {
       const upcoming = await upcomingGroupEvents(chatId);
       if (command === "活動") {
-        await replyMessages(event.replyToken, upcoming.length
-          ? [activityListCard(upcoming)]
-          : [{ type: "text", text: "這個群組目前沒有尚未開始的活動。" }]);
+        if (upcoming.length) await replyUpcomingActivities(event.replyToken, upcoming);
+        else await replyText(event.replyToken, "這個群組目前沒有尚未開始的活動。");
         continue;
       }
       if (command.startsWith("原神啟動")) {
         const date = requestedDate(command, "原神啟動");
         const targetEvent = date ? upcoming.find((item) => item.eventDate === date) : upcoming.length === 1 ? upcoming[0] : null;
         if (!targetEvent) {
-          await replyMessages(event.replyToken, upcoming.length
-            ? [activityListCard(upcoming), { type: "text", text: "要查看名單，請輸入「原神啟動 20260930」。" }]
-            : [{ type: "text", text: "這個群組目前沒有尚未開始的活動。" }]);
+          if (upcoming.length) await replyUpcomingActivities(event.replyToken, upcoming, "要查看名單，請輸入「原神啟動 20260930」。");
+          else await replyText(event.replyToken, "這個群組目前沒有尚未開始的活動。");
           continue;
         }
         const [registrations, settingRows] = await Promise.all([
@@ -282,10 +302,7 @@ async function processWebhookEvents(lineEvents: LineEvent[], requestUrl: string)
           continue;
         }
         if (totalPages > 5) {
-          await replyMessages(event.replyToken, [
-            activityListCard(targetEvents),
-            { type: "text", text: "安排圖卡較多，請輸入「安排 20260930」查看指定日期。" },
-          ]);
+          await replyUpcomingActivities(event.replyToken, targetEvents, "安排圖卡較多，請輸入「安排 20260930」查看指定日期。");
           continue;
         }
         const messages = await Promise.all(sendable.flatMap(({ targetEvent, pages }) => Array.from({ length: pages }, async (_, page) => {
