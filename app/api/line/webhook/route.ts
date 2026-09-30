@@ -84,7 +84,14 @@ async function upcomingGroupEvents(groupId: string) {
 }
 
 function upcomingSummary(events: Awaited<ReturnType<typeof upcomingGroupEvents>>) {
-  return ["【近期活動】", ...events.map((event, index) => `${index + 1}. ${event.title}\n${event.eventDate} ${event.startTime}｜${event.location}\n查看／回覆：https://bfc8g4v63.github.io/e/?s=${encodeURIComponent(event.shareToken)}`)].join("\n\n");
+  const list = ["【近期活動】", ...events.map((event, index) => `${index + 1}. ${event.title}\n${event.eventDate} ${event.startTime}｜${event.location}\n查看／回覆：https://bfc8g4v63.github.io/e/?s=${encodeURIComponent(event.shareToken)}`)];
+  if (events.length > 1) {
+    list.push(`【查看指定活動】\n${events.map((event) => {
+      const date = event.eventDate.replaceAll("-", "");
+      return `${date}：原神啟動 ${date}／安排 ${date}`;
+    }).join("\n")}`);
+  }
+  return list.join("\n\n");
 }
 
 async function pairManagerAlert(event: LineEvent, code: string) {
@@ -339,7 +346,7 @@ async function processWebhookEvents(lineEvents: LineEvent[], requestUrl: string)
       await db.insert(lineReminderSettings).values({ eventId: bindingCode.eventId })
         .onConflictDoNothing({ target: lineReminderSettings.eventId });
       await db.delete(lineBindCodes).where(eq(lineBindCodes.code, bindingCode.code));
-      await replyText(event.replyToken, `綁定成功：${targetEvent.title}\n預設會在活動前 7 天與 1 天提醒，可回網站管理後台調整。`);
+      await replyText(event.replyToken, `綁定成功：${targetEvent.title}\n預設會在活動前 7 天與 1 天提醒，可回網站管理後台調整。\n\n群組可直接輸入：\n活動：查看近期活動\n原神啟動 日期：查看指定日期名單\n安排 日期：查看指定日期安排圖卡\n\n有多場活動時，先輸入「活動」取得可用日期。`);
     }
   } catch (error) {
     console.error("LINE webhook failed", error);

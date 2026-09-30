@@ -309,6 +309,9 @@ test("creators can manage activities with an independent management link without
   assert.match(client, /管理我的活動/);
   assert.match(client, /type="password" name="editCode" data-secret/);
   assert.match(client, /\["copy", "cut", "dragstart"\]/);
+  assert.match(client, /儲存在這台裝置/);
+  assert.match(client, /good-days-manager-return-links/);
+  assert.match(client, /這台裝置已保存的管理入口/);
 });
 
 test("LINE manager alerts pair an account with an event instead of trusting a creator name", async () => {
@@ -416,7 +419,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.65/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.66/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -445,9 +448,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.65/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.65/);
-  assert.match(worker, /good-days-github-v65/);
+  assert.match(page, /\/app\.js\?v=1\.2\.66/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.66/);
+  assert.match(worker, /good-days-github-v66/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -457,7 +460,7 @@ test("activity time uses equal-height controls with direct minute entry, desktop
     readFile(new URL("../docs/styles.css", import.meta.url), "utf8"),
   ]);
   assert.match(client, /class="time-wheel" data-time-wheel=/);
-  assert.match(client, /type="text" class="time-wheel-input" data-time-input="\$\{name\}" inputmode="numeric"/);
+  assert.match(client, /type="tel" class="time-wheel-input" data-time-input="\$\{name\}" inputmode="numeric"/);
   assert.match(client, /class="time-wheel-unit"/);
   assert.match(client, /function updateEditableTimeInput/);
   assert.match(client, /function enableTimeWheels/);
@@ -473,6 +476,8 @@ test("activity time uses equal-height controls with direct minute entry, desktop
   assert.match(styles, /\.time-wheel-input \{[^}]*height:100%/);
   assert.match(styles, /\.time-wheel-input \{[^}]*padding:0 1\.25em 0 0/);
   assert.match(styles, /\.time-wheel-input-wrap \{[^}]*position:relative/);
+  assert.match(client, /editable\.addEventListener\("focus", \(\) => editable\.select\(\)\)/);
+  assert.match(client, /const normalized = name === "minute" \? String\(number\)\.padStart\(2, "0"\)/);
   assert.match(styles, /\.time-wheel-unit \{[^}]*position:absolute/);
   assert.doesNotMatch(styles, /\.time-wheel-value \{[^}]*text-overflow:ellipsis/);
 });
@@ -742,4 +747,28 @@ test("admin child panels return to the active dashboard and past reminders are s
   assert.match(client, /openLinePublish\(event, managerAuth, returnToAdmin\)/);
   assert.match(client, /activeModalClose = returnTo \|\| closeModal/);
   assert.match(reminders, /!Number\.isFinite\(eventTime\) \|\| eventTime <= now/);
+});
+
+test("management UX keeps advanced choices and operational shortcuts easy to reach", async () => {
+  const [client, styles, webhook, guide] = await Promise.all([
+    readFile(new URL("../docs/app.js", import.meta.url), "utf8"),
+    readFile(new URL("../docs/styles.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/line/webhook/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../docs/line-bot-guide.html", import.meta.url), "utf8"),
+  ]);
+  assert.match(client, /class="advanced-settings"/);
+  assert.match(client, /公開方式、名單、名額與費用/);
+  assert.match(client, /class="admin-quick-nav"/);
+  assert.match(client, /data-dashboard-jump="participant-list"/);
+  assert.match(client, /id="payment-management"/);
+  assert.match(client, /id="line-notifications"/);
+  assert.match(client, /class="line-command-card"/);
+  assert.match(client, /已結束／已取消活動/);
+  assert.match(styles, /\.advanced-settings/);
+  assert.match(styles, /\.admin-quick-nav/);
+  assert.match(styles, /\.line-command-card/);
+  assert.match(webhook, /【查看指定活動】/);
+  assert.match(webhook, /原神啟動 日期/);
+  assert.match(guide, /進階設定/);
+  assert.match(guide, /儲存在這台裝置/);
 });

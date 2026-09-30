@@ -181,7 +181,7 @@ function timePicker(value = "") {
       const unit = name === "hour" ? "時" : "分";
       return `<div class="time-wheel time-wheel-editable" data-time-wheel="${name}" aria-label="${placeholder}；可直接輸入、滑鼠滾輪或上下滑動調整">
         <button type="button" class="time-wheel-arrow" data-time-step="-1" aria-label="減少 1 ${unit}">⌃</button>
-        <span class="time-wheel-input-wrap"><input type="text" class="time-wheel-input" data-time-input="${name}" inputmode="numeric" autocomplete="off" maxlength="2" aria-label="${unit === "分" ? "分鐘，可輸入 00 到 59" : "小時，可輸入 1 到 12"}" placeholder="${placeholder}" value="${esc(selected[name])}"><span class="time-wheel-unit" aria-hidden="true">${unit}</span></span>
+        <span class="time-wheel-input-wrap"><input type="tel" class="time-wheel-input" data-time-input="${name}" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="2" aria-label="${unit === "分" ? "分鐘，可手動輸入 00 到 59" : "小時，可手動輸入 1 到 12"}" placeholder="${placeholder}" value="${esc(selected[name])}"><span class="time-wheel-unit" aria-hidden="true">${unit}</span></span>
         <button type="button" class="time-wheel-arrow" data-time-step="1" aria-label="增加 1 ${unit}">⌄</button>
       </div><input type="hidden" name="time${name[0].toUpperCase()}${name.slice(1)}" value="${esc(selected[name])}">`;
     }
@@ -225,9 +225,10 @@ function updateEditableTimeInput(form, input, normalize = false) {
   const digits = input.value.replace(/\D/g, "").slice(0, 2);
   if (input.value !== digits) input.value = digits;
   const number = Number(digits);
-  const valid = digits !== "" && Number.isInteger(number) && timeWheelOptions[name].some(([value]) => value === (name === "minute" ? String(number).padStart(2, "0") : String(number)));
-  hidden.value = valid ? (name === "minute" ? String(number).padStart(2, "0") : String(number)) : "";
-  if (normalize && valid) input.value = hidden.value;
+  const normalized = name === "minute" ? String(number).padStart(2, "0") : String(number);
+  const valid = digits !== "" && Number.isInteger(number) && timeWheelOptions[name].some(([value]) => value === normalized);
+  hidden.value = valid ? normalized : "";
+  if (normalize && valid) input.value = normalized;
   form.querySelector(`[data-time-wheel="${name}"]`).classList.toggle("is-selected", valid);
   form.elements.startTime.value = selectedStartTime(form);
 }
@@ -259,6 +260,7 @@ function enableTimeWheels(form) {
 
     const editable = control.querySelector(".time-wheel-input");
     if (editable) {
+      editable.addEventListener("focus", () => editable.select());
       editable.addEventListener("input", () => updateEditableTimeInput(form, editable));
       editable.addEventListener("change", () => updateEditableTimeInput(form, editable, true));
       editable.addEventListener("blur", () => updateEditableTimeInput(form, editable, true));
@@ -309,6 +311,9 @@ function openEventForm(event, managerAuth = null, returnTo = null) {
           </div>
           ${field('地點 <span>必填</span>', "location", event?.location, 'required placeholder="餐廳名稱或地址"')}
           <label>活動說明<textarea name="description" rows="3" placeholder="要帶什麼？在哪裡集合？">${esc(event?.description)}</textarea></label>
+          <details class="advanced-settings" ${editing ? "open" : ""}>
+            <summary><strong>進階設定</strong><span>公開方式、名單、名額與費用</span></summary>
+            <div class="advanced-settings-body">
           <fieldset class="access-options"><legend>活動公開方式</legend>
             <p class="access-privacy-note">差別在於活動是否會出現在首頁，以及參加時是否需要參加碼。無論選哪一種，姓名、飲食與備註都只會由活動管理者查看。</p>
             <label class="choice"><input type="radio" name="accessMode" value="unlisted" ${(!event || event.accessMode === "unlisted") ? "checked" : ""}><span><strong>不公開，免密碼（推薦）</strong><small>不會出現在首頁；拿到專屬連結的人可查看與參加。</small></span></label>
@@ -332,8 +337,10 @@ function openEventForm(event, managerAuth = null, returnTo = null) {
             <label class="choice"><input type="radio" name="feeMode" value="paid" ${event?.feePerPerson > 0 ? "checked" : ""}><span><strong>每人固定收費</strong><small>報名人數會自動換算每戶應收金額。</small></span></label>
             <label id="fee-per-person-field" hidden>每人費用（新台幣）<input name="feePerPerson" type="number" min="1" max="1000000" step="1" inputmode="numeric" value="${event?.feePerPerson || ""}" placeholder="例如：500"><small>管理後台可標記每筆報名為待收、已收或免收。</small></label>
           </fieldset>
+            </div>
+          </details>
           ${managerField}
-          ${editing ? "" : '<p class="form-hint">系統同時建立專屬管理連結。之後也可從首頁「管理我的活動」輸入同一組管理者名稱與管理碼，查看所有符合活動。</p>'}
+          ${editing ? "" : '<p class="form-hint">建立後會提供專屬管理連結；也可從首頁「管理我的活動」用管理者名稱與管理碼回來。</p>'}
           <p class="form-error" id="form-error" role="alert" hidden></p>
           <div class="form-actions">
             ${editing ? `<button type="button" class="danger" id="toggle-event">${event.status === "cancelled" ? "恢復活動" : "取消活動"}</button>` : ""}
@@ -536,19 +543,38 @@ async function openAdminFromCredential(eventId, managerAuth, errorBox, returnTo 
   }
 }
 
+const managerReturnStorageKey = "good-days-manager-return-links";
+
+function savedManagerReturnLinks() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(managerReturnStorageKey) || "[]");
+    return Array.isArray(saved) ? saved.filter((item) => item && typeof item.id === "string" && typeof item.url === "string") : [];
+  } catch { return []; }
+}
+
+function saveManagerReturnLink(event, url) {
+  if (!url) return false;
+  const entry = { id: event.id, title: event.title || "未命名活動", eventDate: event.eventDate || "", startTime: event.startTime || "", url, savedAt: Date.now() };
+  const links = savedManagerReturnLinks().filter((item) => item.id !== event.id);
+  links.unshift(entry);
+  try { localStorage.setItem(managerReturnStorageKey, JSON.stringify(links.slice(0, 12))); return true; } catch { return false; }
+}
+
+function removeManagerReturnLink(eventId) {
+  try { localStorage.setItem(managerReturnStorageKey, JSON.stringify(savedManagerReturnLinks().filter((item) => item.id !== eventId))); } catch {}
+}
+
 function openCreatorNextSteps(event, managerAuth, issuedManagerUrl = "") {
   activeModalClose = closeModal;
   const shareUrl = event.shareUrl;
-  const privateManagerUrl = managerAuth.type === "token"
-    ? (issuedManagerUrl || managerUrl(event.id, managerAuth.value))
-    : "";
+  const privateManagerUrl = issuedManagerUrl || (managerAuth.type === "token" ? managerUrl(event.id, managerAuth.value) : "");
   modalRoot.innerHTML = `
     <div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="created-title">
       <button class="modal-close" data-close aria-label="關閉">×</button>
       <p class="eyebrow">活動已建立</p><h2 id="created-title">下一步：分享或綁定 LINE</h2>
       <p>活動邀請已建立完成。現在就可以加入 LINE 小幫手並產生群組綁定碼。</p>
       <label>活動分享連結<input id="created-share-url" value="${esc(shareUrl)}" readonly></label>
-      ${privateManagerUrl ? `<div class="line-status warning"><strong>請保存管理連結</strong><p>這個連結可修改、取消或永久刪除活動，也可管理 LINE 小幫手；請勿分享給參加者。</p><label>管理連結<input id="created-manager-url" value="${esc(privateManagerUrl)}" readonly></label><button class="secondary" id="copy-manager-link">複製管理連結</button></div>` : ""}
+      ${privateManagerUrl ? `<div class="line-status warning"><strong>請保存管理連結</strong><p>這個連結可修改、取消或永久刪除活動，也可管理 LINE 小幫手；請勿分享給參加者。可選擇只儲存在目前這台裝置。</p><label>管理連結<input id="created-manager-url" value="${esc(privateManagerUrl)}" readonly></label><div class="inline-actions"><button class="secondary" id="copy-manager-link">複製管理連結</button><button class="secondary" id="save-manager-return">儲存在這台裝置</button></div></div>` : ""}
       <p class="form-error" id="form-error" role="alert" hidden></p>
       <div class="form-actions"><button class="secondary" id="copy-created-share">複製分享連結</button><button class="primary" id="start-line-binding">現在綁定 LINE 小幫手</button></div>
     </section></div>`;
@@ -560,6 +586,11 @@ function openCreatorNextSteps(event, managerAuth, issuedManagerUrl = "") {
     await navigator.clipboard.writeText(privateManagerUrl);
     showNotice("管理連結已複製，請妥善保存");
   });
+  document.querySelector("#save-manager-return")?.addEventListener("click", (clickEvent) => {
+    const saved = saveManagerReturnLink(event, privateManagerUrl);
+    clickEvent.currentTarget.textContent = saved ? "已儲存於這台裝置" : "無法儲存";
+    if (saved) showNotice("管理入口已儲存在這台裝置，可從「管理我的活動」直接回訪");
+  });
   document.querySelector("#start-line-binding").addEventListener("click", () => {
     void openAdminFromCredential(event.id, managerAuth, document.querySelector("#form-error"));
   });
@@ -567,14 +598,24 @@ function openCreatorNextSteps(event, managerAuth, issuedManagerUrl = "") {
 
 function openCreatorRecovery() {
   activeModalClose = closeModal;
+  const savedLinks = savedManagerReturnLinks();
+  const savedPanel = savedLinks.length ? `<section class="saved-manager-links"><strong>這台裝置已保存的管理入口</strong><p>僅此裝置可見；換裝置仍請用管理者名稱與管理碼找回。</p><div>${savedLinks.map((item) => `<div><span><b>${esc(item.title)}</b><small>${esc(item.eventDate ? `${formatDate(item.eventDate)} · ${item.startTime}` : "")}</small></span><button class="secondary" data-saved-manager-open="${esc(item.id)}">直接管理</button><button class="text-danger" data-saved-manager-remove="${esc(item.id)}">移除</button></div>`).join("")}</div></section>` : "";
   modalRoot.innerHTML = `
     <div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="recovery-title">
       <button class="modal-close" data-close aria-label="關閉">×</button>
       <p class="eyebrow">管理者專用</p><h2 id="recovery-title">管理我的活動</h2>
-      <p>輸入建立活動時設定的管理者名稱與管理碼，即可查看所有符合的活動。</p>
+       <p>輸入建立活動時設定的管理者名稱與管理碼，即可查看所有符合的活動。</p>${savedPanel}
       <form id="recovery-unlock-form"><label>管理者名稱<input name="creatorName" required minlength="2" autofocus autocomplete="name"></label><label>管理碼<input type="password" name="editCode" data-secret required minlength="4" autocomplete="current-password" spellcheck="false"></label><p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button class="primary">查看活動</button></div></form>
     </section></div>`;
   const form = document.querySelector("#recovery-unlock-form");
+  document.querySelectorAll("[data-saved-manager-open]").forEach((button) => button.addEventListener("click", () => {
+    const item = savedManagerReturnLinks().find((link) => link.id === button.dataset.savedManagerOpen);
+    if (item) location.href = item.url;
+  }));
+  document.querySelectorAll("[data-saved-manager-remove]").forEach((button) => button.addEventListener("click", () => {
+    removeManagerReturnLink(button.dataset.savedManagerRemove);
+    openCreatorRecovery();
+  }));
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const creatorName = form.elements.creatorName.value.trim();
@@ -623,8 +664,10 @@ function recoveryOperationalStatus(event) {
 function openRecoveredActivities(activities, editCode, creatorName) {
   activeModalClose = closeModal;
   const upcoming = activities.filter(isUpcomingRecoveryActivity);
-  const cards = activities.map((event) => `
-    <article class="recovered-activity"><div>${isUpcomingRecoveryActivity(event) ? `<label class="recovery-manager-choice"><input type="checkbox" data-recovery-manager-event="${esc(event.id)}" checked><span>啟用私訊提醒</span></label>` : ""}<strong>${esc(event.title)}</strong><span>${esc(formatDate(event.eventDate))} · ${esc(event.startTime)}${event.status === "cancelled" ? " · 已取消" : ""}</span>${recoveryCapacityLabel(event)}${recoveryOperationalStatus(event)}</div><div class="inline-actions"><button class="secondary" data-recovery-share="${esc(event.id)}">分享連結／QR</button><button class="primary" data-recovery-manage="${esc(event.id)}">管理活動</button></div></article>`).join("");
+  const history = activities.filter((event) => !isUpcomingRecoveryActivity(event));
+  const activityCard = (event) => `<article class="recovered-activity"><div>${isUpcomingRecoveryActivity(event) ? `<label class="recovery-manager-choice"><input type="checkbox" data-recovery-manager-event="${esc(event.id)}" checked><span>啟用私訊提醒</span></label>` : ""}<strong>${esc(event.title)}</strong><span>${esc(formatDate(event.eventDate))} · ${esc(event.startTime)}${event.status === "cancelled" ? " · 已取消" : ""}</span>${recoveryCapacityLabel(event)}${recoveryOperationalStatus(event)}</div><div class="inline-actions"><button class="secondary" data-recovery-share="${esc(event.id)}">分享連結／QR</button><button class="primary" data-recovery-manage="${esc(event.id)}">管理活動</button></div></article>`;
+  const upcomingCards = upcoming.map(activityCard).join("");
+  const historyCards = history.map(activityCard).join("");
   const batchPanel = upcoming.length ? `
     <section class="recovery-manager-batch">
       <div><strong>批次啟用管理者私訊提醒</strong><span>可一次選取全部尚未開始的活動</span></div>
@@ -637,8 +680,9 @@ function openRecoveredActivities(activities, editCode, creatorName) {
     <div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="recovered-title">
       <button class="modal-close" data-close aria-label="關閉">×</button>
       <p class="eyebrow">已解鎖</p><h2 id="recovered-title">我的活動</h2>
-      ${batchPanel}
-      <div class="recovered-activities">${cards || '<p class="form-hint">沒有可顯示的活動。</p>'}</div>
+       ${batchPanel}
+       <section class="recovery-current"><h3>尚未開始的活動</h3><div class="recovered-activities">${upcomingCards || '<p class="form-hint">目前沒有尚未開始的活動。</p>'}</div></section>
+       ${history.length ? `<details class="recovery-history"><summary>已結束／已取消活動（${history.length}）</summary><div class="recovered-activities">${historyCards}</div></details>` : ""}
     </section></div>`;
   document.querySelector("#recovery-manager-select-all")?.addEventListener("click", () => {
     document.querySelectorAll("[data-recovery-manager-event]").forEach((input) => { input.checked = true; });
@@ -812,6 +856,7 @@ function linePanel(line) {
     failed: "傳送失敗",
     no_arrangement: "尚未建立安排",
   };
+  const commandCard = binding ? `<section class="line-command-card"><strong>群組內可直接輸入</strong><div><code>活動</code><span>查看近期活動與報名連結</span></div><div><code>原神啟動 日期</code><span>查看指定日期的報名名單</span></div><div><code>安排 日期</code><span>查看指定日期的安排圖卡</span></div><p>有多場活動時，小幫手會列出每場的日期指令；日期請用 <b>20261007</b> 這類格式。</p></section>` : "";
   const logPanel = binding ? `<section class="line-command-log"><div><strong>小幫手最近紀錄</strong><span>只記錄指令結果，不保存聊天內容</span></div>${commandLogs.length ? `<ul>${commandLogs.map((item) => `<li><time>${esc(formatDateTime(item.createdAt))}</time><b>${esc(item.command)}</b><em class="line-log-${esc(item.outcome)}">${esc(commandLogText[item.outcome] || item.outcome)}</em><small>${esc(item.detail || "—")}</small></li>`).join("")}</ul>` : "<p>目前尚無可顯示的指令紀錄。</p>"}</section>` : "";
   return `
     <section class="manager-alert-panel ${managerTargetCount ? "connected" : ""}">
@@ -829,6 +874,7 @@ function linePanel(line) {
         ${binding ? '<button class="secondary" id="line-existing">改選既有群組</button><button class="secondary" id="line-publish">合併發布近期活動</button><button class="secondary" id="line-seven-day-test">測試 7 天提醒</button><button class="secondary" id="line-one-day-test">測試 1 天提醒</button><button class="secondary" id="line-two-hour-test">測試 2 小時提醒</button><button class="text-danger" id="line-unbind">移除此活動</button>' : '<button class="secondary" id="line-existing">使用既有通知群組</button><button class="line-button" id="line-code">綁定新群組</button>'}
       </div>
     </div>
+    ${commandCard}
     <fieldset class="reminder-options"><legend>自動提醒時間</legend>
       <label class="toggle"><input type="checkbox" name="sevenDays" ${line.settings.sevenDays ? "checked" : ""}><span>活動前 7 天</span></label>
       <label class="toggle"><input type="checkbox" name="oneDay" ${line.settings.oneDay ? "checked" : ""}><span>活動前 1 天</span></label>
@@ -1230,7 +1276,7 @@ function openAdminDashboard(data, managerAuth, returnTo = null) {
         <div class="arrangement-status complete" role="status"><span class="arrangement-status-icon" aria-hidden="true">✓</span><span><strong>所有參加者都已安排</strong><small>座位／分組已完成</small></span></div>` : "";
   const fee = data.summary.fee || { feePerPerson: 0, grossAmount: 0, paidAmount: 0, unpaidAmount: 0, waivedAmount: 0 };
   const paymentOverview = fee.feePerPerson > 0 ? `
-        <section class="admin-section fee-section">
+        <section class="admin-section fee-section" id="payment-management">
           <div class="admin-section-title"><div><p class="eyebrow">僅管理者可見</p><h3>收款管理</h3></div><span>每人 ${formatMoney(fee.feePerPerson)}</span></div>
           <p class="form-hint">應收金額會依各戶目前報名人數自動計算；在人名列可標記待收、已收或免收。</p>
           <div class="payment-summary">
@@ -1259,8 +1305,9 @@ function openAdminDashboard(data, managerAuth, returnTo = null) {
           ${managerAuth.type === "token" ? '<button class="secondary" id="show-manager-link">複製管理連結</button>' : ""}
           <button class="secondary" id="export-rsvps">下載 CSV 名單</button>
         </div>
+        <nav class="admin-quick-nav" aria-label="管理後台快速導覽"><strong>快速前往</strong><button type="button" data-dashboard-jump="participant-list">名單</button>${paymentOverview ? '<button type="button" data-dashboard-jump="payment-management">收款</button>' : ""}<button type="button" data-dashboard-jump="activity-arrangements">安排${unassignedPeople ? `（${unassignedPeople}）` : ""}</button><button type="button" data-dashboard-jump="line-notifications">LINE</button></nav>
         ${paymentOverview}
-        <section class="admin-section">
+        <section class="admin-section" id="participant-list">
           <div class="admin-section-title"><div><p class="eyebrow">僅管理者可見</p><h3>參與者名單</h3></div><span>${data.rsvps.length} 筆回覆</span></div>
           <div class="admin-toolbar"><button class="primary" id="create-rsvp">＋ 代為新增報名</button></div>
           <p class="form-hint">可直接按「代為新增報名」替多位親友登記；要更正既有回覆時，請按該列「修改回覆」。受託取消可按「取消參加」；只有誤登或重複資料才使用「刪除」。</p>
@@ -1272,7 +1319,7 @@ function openAdminDashboard(data, managerAuth, returnTo = null) {
           <p class="form-hint">聚餐可設定桌次；桌遊、滑雪等活動可把區名改成分組或集合區。設定每區上限後，再把家庭／同行者安排到不同區；人數超過上限時，可分次安排。</p>
           <div id="meal-seating-root"></div>
         </section>
-        <section class="admin-section line-section">
+        <section class="admin-section line-section" id="line-notifications">
           <div class="admin-section-title"><div><p class="eyebrow line-eyebrow">LINE 群組</p><h3>自動提醒機器人</h3></div><a href="/line-bot-guide.html" target="_blank">查看設定教學</a></div>
           ${linePanel(data.line)}
           <p class="form-error" id="line-error" role="alert" hidden></p>
@@ -1287,6 +1334,9 @@ function openAdminDashboard(data, managerAuth, returnTo = null) {
     showNotice("管理連結已複製，請勿分享給參加者");
   });
   document.querySelector("#export-rsvps").addEventListener("click", () => exportRsvps(event, data.rsvps));
+  document.querySelectorAll("[data-dashboard-jump]").forEach((button) => button.addEventListener("click", () => {
+    document.querySelector(`#${button.dataset.dashboardJump}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }));
   document.querySelector("#jump-to-arrangements")?.addEventListener("click", () => {
     document.querySelector("#activity-arrangements")?.scrollIntoView({ behavior: "smooth", block: "start" });
   });
