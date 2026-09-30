@@ -56,7 +56,7 @@ export async function requireEventManager(eventId: unknown, editCode: unknown, m
   const token = clean(managerToken, 160);
   const code = clean(editCode, 80);
   const credential = token || code;
-  if (!id || !credential) return { error: "請輸入活動管理碼或開啟建立者管理連結", status: 400 } as const;
+  if (!id || !credential) return { error: "請輸入管理碼或開啟管理連結", status: 400 } as const;
   const [event] = await getDb().select().from(events).where(eq(events.id, id)).limit(1);
   if (!event) return { error: "找不到這個活動", status: 404 } as const;
   // Legacy passwordless activities stored their management-link token in
@@ -66,7 +66,7 @@ export async function requireEventManager(eventId: unknown, editCode: unknown, m
     ? (event.managerTokenHash || event.editCodeHash)
     : event.editCodeHash;
   if (!await verifyCredential(credential, expectedHash)) {
-    return { error: "建立者驗證失敗", status: 403 } as const;
+    return { error: "管理權限驗證失敗", status: 403 } as const;
   }
   return { event } as const;
 }

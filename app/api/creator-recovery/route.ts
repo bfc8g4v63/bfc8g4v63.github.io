@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     if (!limit.allowed) return json(request, { error: `操作過於頻繁，請 ${limit.retryAfterSeconds} 秒後再試` }, 429);
 
     const creatorName = clean(body.creatorName, 60);
-    if (creatorName.length < 2) return json(request, { error: "請輸入完整的建立者姓名" }, 400);
+    if (creatorName.length < 2) return json(request, { error: "請輸入完整的管理者名稱" }, 400);
 
     await ensureSchema();
     const db = getDb();
@@ -72,7 +72,7 @@ export async function POST(request: Request) {
     for (const event of rows) {
       if (await verifyCredential(editCode, event.editCodeHash)) matches.push(event);
     }
-    if (!matches.length) return json(request, { error: "姓名或管理碼不正確" }, 403);
+    if (!matches.length) return json(request, { error: "管理者名稱或管理碼不正確" }, 403);
     if (action === "create_manager_batch_binding_code") {
       if (!lineConfig().token || !lineConfig().channelSecret) {
         return json(request, { error: "請先完成 LINE 小幫手設定" }, 503);
@@ -108,6 +108,6 @@ export async function POST(request: Request) {
       })),
     });
   } catch (error) {
-    return json(request, { error: error instanceof Error ? error.message : "無法找回活動" }, 500);
+    return json(request, { error: error instanceof Error ? error.message : "無法取得管理活動" }, 500);
   }
 }

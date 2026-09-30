@@ -304,8 +304,8 @@ test("creators can manage activities with an independent management link without
   assert.match(lineAdmin, /body\.managerToken/);
   assert.match(client, /managerAuthFromLink/);
   assert.match(client, /現在綁定 LINE 小幫手/);
-  assert.match(client, /請保存建立者管理連結/);
-  assert.match(client, /管理碼可用於遺失管理連結後找回活動/);
+  assert.match(client, /請保存管理連結/);
+  assert.match(client, /管理我的活動/);
 });
 
 test("LINE manager alerts pair an account with an event instead of trusting a creator name", async () => {
@@ -353,7 +353,7 @@ test("an activity invitation provides a verified route to the full management da
     readFile(new URL("../docs/app.js", import.meta.url), "utf8"),
     readFile(new URL("../docs/e/app.js", import.meta.url), "utf8"),
   ]);
-  assert.match(eventClient, /建立者管理活動/);
+  assert.match(eventClient, /管理這場活動/);
   assert.match(eventClient, /開啟完整管理後台/);
   assert.match(eventClient, /good-days-manager-code:/);
   assert.match(eventClient, /destination\.searchParams\.set\("manage", currentEvent\.id\)/);
@@ -378,8 +378,9 @@ test("creator recovery and attendee-roster privacy stay gated", async () => {
   assert.match(access, /viewerTokenHash/);
   assert.match(access, /attendanceVisibility !== "count"/);
   assert.match(rsvp, /shareName/);
-  assert.match(client, /找回我的活動/);
+  assert.match(client, /管理我的活動/);
   assert.match(client, /recovery-unlock-form.*minlength="4"/);
+  assert.doesNotMatch(client, /recovery-search-form/);
   assert.match(eventClient, /公開我的顯示名稱給同場參加者/);
 });
 
@@ -400,7 +401,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.60/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.61/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -429,9 +430,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.60/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.60/);
-  assert.match(worker, /good-days-github-v60/);
+  assert.match(page, /\/app\.js\?v=1\.2\.61/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.61/);
+  assert.match(worker, /good-days-github-v61/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -550,11 +551,11 @@ test("only the attendee's saved token can update or cancel an existing RSVP", as
   assert.match(eventClient, /attendeeToken = data\.attendeeToken/);
   assert.match(guide, /更新或取消自己的回覆/);
   assert.match(guide, /取消整場活動/);
-  assert.match(guide, /找回我的活動/);
-  assert.match(guide, /建立者姓名/);
-  assert.match(guide, /\?recover=1/);
+  assert.match(guide, /管理我的活動/);
+  assert.match(guide, /管理者名稱/);
+  assert.match(guide, /\?activities=1/);
   assert.doesNotMatch(guide, /回好日子首頁/);
-  assert.match(homepageClient, /get\("recover"\) === "1"/);
+  assert.match(homepageClient, /params\.get\("activities"\) === "1"/);
 });
 
 test("creators can add several relatives from the recovered management dashboard without sharing a browser token", async () => {
@@ -590,12 +591,12 @@ test("home action buttons use the shared primary style while recovery remains av
   assert.match(page, /互動小測驗/);
   assert.match(page, /找回剛剛好的社交節奏/);
   assert.match(page, /Nelson Hsieh 的數位作品/);
-  assert.match(page, /class="header-actions"><button class="primary small" data-recover>找回我的活動<\/button><button class="primary small" data-create>＋ 建立活動/);
+  assert.match(page, /class="header-actions"><button class="primary small" data-manage-activities>管理我的活動<\/button><button class="primary small" data-create>＋ 建立活動/);
   assert.match(page, /<a class="primary" href="#activities">看看近期公開活動<\/a>/);
   assert.doesNotMatch(page, /建立第一個活動/);
   assert.doesNotMatch(page, /＋ 新活動/);
-  assert.equal((page.match(/data-recover/g) || []).length, 1);
-  assert.match(client, /get\("recover"\) === "1"/);
+  assert.equal((page.match(/data-manage-activities/g) || []).length, 1);
+  assert.match(client, /params\.get\("activities"\) === "1"/);
 });
 
 test("mobile visitors can open the other projects from compact cards", async () => {

@@ -292,8 +292,8 @@ async function requestJson(path, body) {
 function openEventForm(event, managerAuth = null, returnTo = null) {
   const editing = Boolean(event);
   const managerField = editing
-    ? '<p class="form-hint">已完成建立者驗證；儲存、取消與永久刪除都會使用目前的建立者權限。</p>'
-    : '<label>活動管理碼 <span>至少 6 個字元；用來找回與管理活動</span><input name="editCode" required minlength="6" autocomplete="new-password" placeholder="請妥善保存，不會提供給參加者"></label>';
+    ? '<p class="form-hint">已完成管理者驗證；儲存、取消與永久刪除都會使用目前的管理權限。</p>'
+    : '<label>管理碼 <span>至少 6 個字元；與管理者名稱一起用來管理活動</span><input name="editCode" required minlength="6" autocomplete="new-password" placeholder="請妥善保存，不會提供給參加者"></label>';
   modalRoot.innerHTML = `
     <div class="modal-backdrop">
       <section class="modal" role="dialog" aria-modal="true" aria-labelledby="event-form-title">
@@ -302,7 +302,7 @@ function openEventForm(event, managerAuth = null, returnTo = null) {
         <h2 id="event-form-title">${editing ? "修改活動" : "建立活動"}</h2>
         <form id="event-form">
           ${field('活動名稱 <span>必填</span>', "title", event?.title, 'required placeholder="例如：阿嬤生日午餐"')}
-          ${field('建立者姓名 <span>必填；僅用於遺失連結後找回活動</span>', "creatorName", event?.creatorName, 'required placeholder="例如：王小明"')}
+          ${field('管理者名稱 <span>必填；與管理碼一起查看你管理的活動</span>', "creatorName", event?.creatorName, 'required placeholder="例如：王小明"')}
           <div class="form-row">
             ${field('日期 <span>必填</span>', "eventDate", event?.eventDate || localToday(), 'required type="date"')}
             ${timePicker(event?.startTime)}
@@ -333,7 +333,7 @@ function openEventForm(event, managerAuth = null, returnTo = null) {
             <label id="fee-per-person-field" hidden>每人費用（新台幣）<input name="feePerPerson" type="number" min="1" max="1000000" step="1" inputmode="numeric" value="${event?.feePerPerson || ""}" placeholder="例如：500"><small>管理後台可標記每筆報名為待收、已收或免收。</small></label>
           </fieldset>
           ${managerField}
-          ${editing ? "" : '<p class="form-hint">系統同時建立專屬管理連結。管理碼可用於遺失管理連結後找回活動；兩者皆可修改、取消、永久刪除與設定 LINE 提醒。</p>'}
+          ${editing ? "" : '<p class="form-hint">系統同時建立專屬管理連結。之後也可從首頁「管理我的活動」輸入同一組管理者名稱與管理碼，查看所有符合活動。</p>'}
           <p class="form-error" id="form-error" role="alert" hidden></p>
           <div class="form-actions">
             ${editing ? `<button type="button" class="danger" id="toggle-event">${event.status === "cancelled" ? "恢復活動" : "取消活動"}</button>` : ""}
@@ -498,7 +498,7 @@ function openAdminLogin(event) {
         <p class="eyebrow">私人管理區</p><h2 id="admin-login-title">管理 ${esc(event.title)}</h2>
         <p>輸入建立活動時設定的管理碼，才能查看參與者名單與 LINE 提醒。</p>
         <form id="admin-login-form">
-          ${field('活動管理碼 <span>必填</span>', "editCode", "", 'required minlength="4" inputmode="text" autofocus autocomplete="current-password"')}
+          ${field('管理碼 <span>必填</span>', "editCode", "", 'required minlength="4" inputmode="text" autofocus autocomplete="current-password"')}
           <p class="form-error" id="form-error" role="alert" hidden></p>
           <div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button type="submit" class="primary">開啟管理後台</button></div>
         </form>
@@ -529,10 +529,10 @@ async function openAdminFromCredential(eventId, managerAuth, errorBox, returnTo 
     openAdminDashboard(data, managerAuth, returnTo);
   } catch (error) {
     if (errorBox) {
-      errorBox.textContent = error.message || "無法開啟建立者管理區";
+      errorBox.textContent = error.message || "無法開啟管理後台";
       errorBox.hidden = false;
     }
-    else showNotice(error.message || "無法開啟建立者管理區");
+    else showNotice(error.message || "無法開啟管理後台");
   }
 }
 
@@ -548,7 +548,7 @@ function openCreatorNextSteps(event, managerAuth, issuedManagerUrl = "") {
       <p class="eyebrow">活動已建立</p><h2 id="created-title">下一步：分享或綁定 LINE</h2>
       <p>活動邀請已建立完成。現在就可以加入 LINE 小幫手並產生群組綁定碼。</p>
       <label>活動分享連結<input id="created-share-url" value="${esc(shareUrl)}" readonly></label>
-      ${privateManagerUrl ? `<div class="line-status warning"><strong>請保存建立者管理連結</strong><p>這個連結可修改、取消或永久刪除活動，也可管理 LINE 小幫手；請勿分享給參加者。</p><label>建立者管理連結<input id="created-manager-url" value="${esc(privateManagerUrl)}" readonly></label><button class="secondary" id="copy-manager-link">複製管理連結</button></div>` : ""}
+      ${privateManagerUrl ? `<div class="line-status warning"><strong>請保存管理連結</strong><p>這個連結可修改、取消或永久刪除活動，也可管理 LINE 小幫手；請勿分享給參加者。</p><label>管理連結<input id="created-manager-url" value="${esc(privateManagerUrl)}" readonly></label><button class="secondary" id="copy-manager-link">複製管理連結</button></div>` : ""}
       <p class="form-error" id="form-error" role="alert" hidden></p>
       <div class="form-actions"><button class="secondary" id="copy-created-share">複製分享連結</button><button class="primary" id="start-line-binding">現在綁定 LINE 小幫手</button></div>
     </section></div>`;
@@ -558,7 +558,7 @@ function openCreatorNextSteps(event, managerAuth, issuedManagerUrl = "") {
   });
   document.querySelector("#copy-manager-link")?.addEventListener("click", async () => {
     await navigator.clipboard.writeText(privateManagerUrl);
-    showNotice("建立者管理連結已複製，請妥善保存");
+    showNotice("管理連結已複製，請妥善保存");
   });
   document.querySelector("#start-line-binding").addEventListener("click", () => {
     void openAdminFromCredential(event.id, managerAuth, document.querySelector("#form-error"));
@@ -570,40 +570,19 @@ function openCreatorRecovery() {
   modalRoot.innerHTML = `
     <div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="recovery-title">
       <button class="modal-close" data-close aria-label="關閉">×</button>
-      <p class="eyebrow">建立者專用</p><h2 id="recovery-title">找回我的活動</h2>
-      <p>先輸入建立者姓名。搜尋結果只會顯示完全符合的姓名；活動內容、連結與 QR Code 都會保持鎖定。</p>
-      <form id="recovery-search-form"><label>建立者姓名<input name="creatorName" required minlength="2" autofocus autocomplete="name"></label><p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button class="primary">搜尋</button></div></form>
+      <p class="eyebrow">管理者專用</p><h2 id="recovery-title">管理我的活動</h2>
+      <p>輸入建立活動時設定的管理者名稱與管理碼，即可查看所有符合的活動。</p>
+      <form id="recovery-unlock-form"><label>管理者名稱<input name="creatorName" required minlength="2" autofocus autocomplete="name"></label><label>管理碼<input name="editCode" required minlength="4" autocomplete="current-password"></label><p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button class="primary">查看活動</button></div></form>
     </section></div>`;
-  const form = document.querySelector("#recovery-search-form");
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const creatorName = form.elements.creatorName.value.trim();
-    try {
-      const data = await requestJson("/creator-recovery", { action: "search", creatorName });
-      if (!data.matches?.length) throw new Error("找不到符合的建立者姓名");
-      openCreatorRecoveryUnlock(creatorName);
-    } catch (error) { showFormError(form, error.message || "無法搜尋活動"); }
-  });
-}
-
-function openCreatorRecoveryUnlock(creatorName) {
-  activeModalClose = closeModal;
-  modalRoot.innerHTML = `
-    <div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="unlock-title">
-      <button class="modal-close" data-close aria-label="關閉">×</button>
-      <p class="eyebrow">搜尋結果</p><h2 id="unlock-title">${esc(creatorName)}</h2>
-      <div class="locked-recovery"><span aria-hidden="true">🔒</span><div><strong>活動內容已鎖定</strong><p>輸入建立活動時設定的管理碼，才能查看並分享活動連結。</p></div></div>
-      <form id="recovery-unlock-form"><label>活動管理碼<input name="editCode" required minlength="4" autofocus autocomplete="current-password"></label><p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" id="recovery-back">返回</button><button class="primary">解鎖活動</button></div></form>
-    </section></div>`;
-  document.querySelector("#recovery-back").addEventListener("click", openCreatorRecovery);
   const form = document.querySelector("#recovery-unlock-form");
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
+    const creatorName = form.elements.creatorName.value.trim();
     const editCode = form.elements.editCode.value.trim();
     try {
       const data = await requestJson("/creator-recovery", { action: "unlock", creatorName, editCode });
       openRecoveredActivities(data.activities || [], editCode, creatorName);
-    } catch (error) { showFormError(form, error.message || "無法解鎖活動"); }
+    } catch (error) { showFormError(form, error.message || "無法查看活動"); }
   });
 }
 
@@ -616,11 +595,11 @@ function openRecoveredActivities(activities, editCode, creatorName) {
   activeModalClose = closeModal;
   const upcoming = activities.filter(isUpcomingRecoveryActivity);
   const cards = activities.map((event) => `
-    <article class="recovered-activity"><div>${isUpcomingRecoveryActivity(event) ? `<label class="recovery-manager-choice"><input type="checkbox" data-recovery-manager-event="${esc(event.id)}"><span>加入管理提醒</span></label>` : ""}<strong>${esc(event.title)}</strong><span>${esc(formatDate(event.eventDate))} · ${esc(event.startTime)}${event.status === "cancelled" ? " · 已取消" : ""}</span></div><div class="inline-actions"><button class="secondary" data-recovery-share="${esc(event.id)}">分享連結／QR</button><button class="primary" data-recovery-manage="${esc(event.id)}">管理活動</button></div></article>`).join("");
+    <article class="recovered-activity"><div>${isUpcomingRecoveryActivity(event) ? `<label class="recovery-manager-choice"><input type="checkbox" data-recovery-manager-event="${esc(event.id)}" checked><span>管理提醒</span></label>` : ""}<strong>${esc(event.title)}</strong><span>${esc(formatDate(event.eventDate))} · ${esc(event.startTime)}${event.status === "cancelled" ? " · 已取消" : ""}</span></div><div class="inline-actions"><button class="secondary" data-recovery-share="${esc(event.id)}">分享連結／QR</button><button class="primary" data-recovery-manage="${esc(event.id)}">管理活動</button></div></article>`).join("");
   const batchPanel = upcoming.length ? `
     <section class="recovery-manager-batch">
       <div><strong>批次綁定管理提醒</strong><span>可一次選取全部尚未開始的活動</span></div>
-      <p>勾選活動後取得一組 10 分鐘有效的指令；在與好日子小幫手的一對一私訊傳送一次，即可綁定目前這個 LINE 帳號。</p>
+      <p>已預選所有尚未開始活動；需要時可取消個別活動。取得一組 10 分鐘有效的指令後，在與好日子小幫手的一對一私訊傳送一次，即可綁定目前這個 LINE 帳號。</p>
       <div id="recovery-manager-binding-code"></div>
       <p class="form-error" id="recovery-manager-error" role="alert" hidden></p>
       <div class="inline-actions"><button class="secondary" id="recovery-manager-select-all" type="button">全選尚未開始活動</button><button class="line-button" id="recovery-manager-batch" type="button">取得批次綁定碼</button></div>
@@ -808,7 +787,7 @@ function linePanel(line) {
   return `
     <section class="manager-alert-panel ${managerTargetCount ? "connected" : ""}">
       <div><strong>管理者私訊提醒</strong><span>${managerTargetCount ? `已綁定 ${managerTargetCount} 位管理者` : "尚未綁定管理者"}</span></div>
-      <p>綁定的是 LINE 帳號，不使用建立者姓名。有人報名、取消或更動人數時，只有已綁定的管理者會在與小幫手的私訊收到提醒。</p>
+      <p>綁定的是 LINE 帳號，不使用管理者名稱。有人報名、取消或更動人數時，只有已綁定的管理者會在與小幫手的私訊收到提醒。</p>
       <div id="manager-binding-code-area"></div>
       <div class="inline-actions"><button class="line-button" id="manager-alert-code">${managerTargetCount ? "新增／重新產生綁定碼" : "啟用私訊提醒"}</button>${managerTargetCount ? '<button class="text-danger" id="manager-alert-clear">停止所有私訊提醒</button>' : ""}</div>
     </section>
@@ -1247,7 +1226,7 @@ function openAdminDashboard(data, managerAuth, returnTo = null) {
         <div class="admin-toolbar">
           <button class="primary" id="edit-from-admin">修改活動</button>
           <button class="secondary" id="show-share">分享連結與 QR Code</button>
-          ${managerAuth.type === "token" ? '<button class="secondary" id="show-manager-link">複製建立者管理連結</button>' : ""}
+          ${managerAuth.type === "token" ? '<button class="secondary" id="show-manager-link">複製管理連結</button>' : ""}
           <button class="secondary" id="export-rsvps">下載 CSV 名單</button>
         </div>
         ${paymentOverview}
@@ -1275,7 +1254,7 @@ function openAdminDashboard(data, managerAuth, returnTo = null) {
   document.querySelector("#show-share").addEventListener("click", () => openSharePanel(event, returnToAdmin));
   document.querySelector("#show-manager-link")?.addEventListener("click", async () => {
     await navigator.clipboard.writeText(managerUrl(event.id, managerAuth.value));
-    showNotice("建立者管理連結已複製，請勿分享給參加者");
+    showNotice("管理連結已複製，請勿分享給參加者");
   });
   document.querySelector("#export-rsvps").addEventListener("click", () => exportRsvps(event, data.rsvps));
   document.querySelector("#jump-to-arrangements")?.addEventListener("click", () => {
@@ -1544,7 +1523,7 @@ function openSharePanel(event, returnTo = null) {
 document.addEventListener("click", (clickEvent) => {
   const create = clickEvent.target.closest("[data-create]");
   if (create) return openEventForm();
-  if (clickEvent.target.closest("[data-recover]")) return openCreatorRecovery();
+  if (clickEvent.target.closest("[data-manage-activities]")) return openCreatorRecovery();
   const close = clickEvent.target.closest("[data-close]");
   if (close) return requestModalClose();
   if (clickEvent.target.id === "retry") return loadEvents();
@@ -1568,4 +1547,7 @@ loadEvents();
 trackSiteVisit();
 const linkedManager = managerAuthFromLink();
 if (linkedManager) void openAdminFromCredential(linkedManager.eventId, linkedManager);
-else if (new URLSearchParams(location.search).get("recover") === "1") openCreatorRecovery();
+else {
+  const params = new URLSearchParams(location.search);
+  if (params.get("activities") === "1" || params.get("recover") === "1") openCreatorRecovery();
+}

@@ -103,7 +103,7 @@ function renderEvent(event) {
       ${event.status === "active" ? '<section id="companions-root" class="companions-section" aria-live="polite"></section>' : ""}
       ${event.contactName ? `<p class="contact">活動聯絡人：${esc(event.contactName)}</p>` : ""}
       <p class="privacy-note">電話、飲食、備註與管理資訊只會讓活動管理者看到。</p>
-      <button class="text-link manage-link" id="manager">建立者管理活動</button>
+      <button class="text-link manage-link" id="manager">管理這場活動</button>
     </article>`;
   document.querySelector("#rsvp")?.addEventListener("click", openRsvp);
   document.querySelector("#manager").addEventListener("click", openManagerLogin);
@@ -288,7 +288,7 @@ async function hideCompanionCard() {
 }
 
 function openManagerLogin() {
-  modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">建立者專用</p><h2>管理這場活動</h2><p>輸入管理碼後，會直接開啟完整管理後台：修改活動、代填報名、收款、安排分組與 LINE 提醒都可在同一處處理。</p><form id="manager-form"><label>活動管理碼<input name="editCode" required minlength="4" autofocus autocomplete="current-password"></label><p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button class="primary">開啟完整管理後台</button></div></form></section></div>`;
+  modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">管理者專用</p><h2>管理這場活動</h2><p>輸入管理碼後，會直接開啟完整管理後台：修改活動、代填報名、收款、安排分組與 LINE 提醒都可在同一處處理。</p><form id="manager-form"><label>管理碼<input name="editCode" required minlength="4" autofocus autocomplete="current-password"></label><p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button class="primary">開啟完整管理後台</button></div></form></section></div>`;
   const form = document.querySelector("#manager-form");
   form.addEventListener("submit", async (event) => {
     event.preventDefault();

@@ -161,7 +161,7 @@ export function managerRsvpMessage(input: {
   unassignedPeople: number;
 }) {
   const arrangement = input.unassignedPeople
-    ? `尚有 ${input.unassignedPeople} 人未安排，請使用已保存的建立者管理連結開啟活動安排。`
+    ? `尚有 ${input.unassignedPeople} 人未安排，請使用已保存的管理連結開啟活動安排。`
     : "目前所有參加者都已安排。";
   return `【管理提醒】\n${input.eventTitle}\n${input.change}：${input.name}（${input.partySize} 人）\n目前 ${input.attendingPeople} 人參加\n${arrangement}`;
 }

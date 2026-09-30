@@ -134,7 +134,7 @@ async function pairManagerAlert(event: LineEvent, code: string) {
   if (batchBindingCode) await db.delete(lineManagerBatchBindCodes).where(eq(lineManagerBatchBindCodes.code, batchBindingCode.code));
   const listedTitles = activeEvents.slice(0, 5).map((targetEvent) => targetEvent.title).join("、");
   const titles = activeEvents.length > 5 ? `${listedTitles} 等 ${activeEvents.length} 場` : listedTitles;
-  await replyText(event.replyToken!, `管理提醒已綁定 ${activeEvents.length} 場活動：${titles}\n之後有人報名、取消或更動人數時，小幫手會在這個私訊通知你；不會依建立者姓名判斷身分。`);
+  await replyText(event.replyToken!, `管理提醒已綁定 ${activeEvents.length} 場活動：${titles}\n之後有人報名、取消或更動人數時，小幫手會在這個私訊通知你；不會依管理者名稱判斷身分。`);
 }
 
 export async function POST(request: Request) {
