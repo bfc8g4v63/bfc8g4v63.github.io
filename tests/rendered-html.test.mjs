@@ -378,10 +378,15 @@ test("creator recovery and attendee-roster privacy stay gated", async () => {
   assert.match(recovery, /editCode\.length < 4/);
   assert.match(recovery, /editCodeHash/);
   assert.match(recovery, /orderBy\(desc\(events\.createdAt\)\)/);
+  assert.match(recovery, /capacity: events\.capacity/);
+  assert.match(recovery, /attendingPeople/);
+  assert.match(recovery, /remainingCapacity/);
   assert.match(access, /viewerTokenHash/);
   assert.match(access, /attendanceVisibility !== "count"/);
   assert.match(rsvp, /shareName/);
   assert.match(client, /管理我的活動/);
+  assert.match(client, /剩餘 \$\{remaining\} 名額/);
+  assert.match(client, /已額滿/);
   assert.match(client, /recovery-unlock-form.*minlength="4"/);
   assert.doesNotMatch(client, /recovery-search-form/);
   assert.match(eventClient, /公開我的顯示名稱給同場參加者/);
@@ -404,7 +409,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.62/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.63/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -433,9 +438,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.62/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.62/);
-  assert.match(worker, /good-days-github-v62/);
+  assert.match(page, /\/app\.js\?v=1\.2\.63/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.63/);
+  assert.match(worker, /good-days-github-v63/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 

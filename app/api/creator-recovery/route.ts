@@ -1,7 +1,7 @@
-import { and, desc, eq, or } from "drizzle-orm";
+import { and, desc, eq, inArray, or } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { ensureSchema } from "../../../db/init";
-import { events, lineManagerBatchBindCodes, lineManagerBindCodes } from "../../../db/schema";
+import { events, lineManagerBatchBindCodes, lineManagerBindCodes, rsvps } from "../../../db/schema";
 import { clean, verifyCredential } from "../admin/auth";
 import { json, preflight } from "../cors";
 import { lineConfig } from "../line/lib";
@@ -66,6 +66,7 @@ export async function POST(request: Request) {
     const rows = await db.select({
       id: events.id, title: events.title, eventDate: events.eventDate,
       startTime: events.startTime, status: events.status, shareToken: events.shareToken,
+      capacity: events.capacity,
       editCodeHash: events.editCodeHash,
     }).from(events).where(creatorMatch).orderBy(desc(events.createdAt));
     const matches = [];
@@ -101,11 +102,27 @@ export async function POST(request: Request) {
         activities: selected.map((event) => ({ id: event.id, title: event.title })),
       });
     }
+    const attendeeRows = await db.select({ eventId: rsvps.eventId, partySize: rsvps.partySize }).from(rsvps).where(and(
+      inArray(rsvps.eventId, matches.map((event) => event.id)),
+      eq(rsvps.response, "attending"),
+    ));
+    const attendingPeopleByEvent = new Map<string, number>();
+    for (const attendee of attendeeRows) {
+      attendingPeopleByEvent.set(
+        attendee.eventId,
+        (attendingPeopleByEvent.get(attendee.eventId) || 0) + attendee.partySize,
+      );
+    }
     return json(request, {
-      activities: matches.map(({ editCodeHash: _editCodeHash, ...event }) => ({
-        ...event,
-        shareUrl: activityUrl(event.shareToken),
-      })),
+      activities: matches.map(({ editCodeHash: _editCodeHash, ...event }) => {
+        const attendingPeople = attendingPeopleByEvent.get(event.id) || 0;
+        return {
+          ...event,
+          attendingPeople,
+          remainingCapacity: event.capacity === null ? null : Math.max(0, event.capacity - attendingPeople),
+          shareUrl: activityUrl(event.shareToken),
+        };
+      }),
     });
   } catch (error) {
     return json(request, { error: error instanceof Error ? error.message : "無法取得管理活動" }, 500);

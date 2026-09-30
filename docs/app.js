@@ -591,11 +591,21 @@ function isUpcomingRecoveryActivity(event) {
   return event.status === "active" && Number.isFinite(startsAt) && startsAt > Date.now();
 }
 
+function recoveryCapacityLabel(event) {
+  const attending = Math.max(0, Number(event.attendingPeople) || 0);
+  const capacity = Number(event.capacity);
+  if (!Number.isFinite(capacity) || capacity <= 0) {
+    return `<div class="recovery-capacity unlimited"><strong>已報名 ${attending} 人</strong><small>不限名額</small></div>`;
+  }
+  const remaining = Math.max(0, capacity - attending);
+  return `<div class="recovery-capacity${remaining === 0 ? " full" : ""}"><strong>${remaining === 0 ? "已額滿" : `剩餘 ${remaining} 名額`}</strong><small>已報名 ${attending}／${capacity} 人</small></div>`;
+}
+
 function openRecoveredActivities(activities, editCode, creatorName) {
   activeModalClose = closeModal;
   const upcoming = activities.filter(isUpcomingRecoveryActivity);
   const cards = activities.map((event) => `
-    <article class="recovered-activity"><div>${isUpcomingRecoveryActivity(event) ? `<label class="recovery-manager-choice"><input type="checkbox" data-recovery-manager-event="${esc(event.id)}" checked><span>管理提醒</span></label>` : ""}<strong>${esc(event.title)}</strong><span>${esc(formatDate(event.eventDate))} · ${esc(event.startTime)}${event.status === "cancelled" ? " · 已取消" : ""}</span></div><div class="inline-actions"><button class="secondary" data-recovery-share="${esc(event.id)}">分享連結／QR</button><button class="primary" data-recovery-manage="${esc(event.id)}">管理活動</button></div></article>`).join("");
+    <article class="recovered-activity"><div>${isUpcomingRecoveryActivity(event) ? `<label class="recovery-manager-choice"><input type="checkbox" data-recovery-manager-event="${esc(event.id)}" checked><span>管理提醒</span></label>` : ""}<strong>${esc(event.title)}</strong><span>${esc(formatDate(event.eventDate))} · ${esc(event.startTime)}${event.status === "cancelled" ? " · 已取消" : ""}</span>${recoveryCapacityLabel(event)}</div><div class="inline-actions"><button class="secondary" data-recovery-share="${esc(event.id)}">分享連結／QR</button><button class="primary" data-recovery-manage="${esc(event.id)}">管理活動</button></div></article>`).join("");
   const batchPanel = upcoming.length ? `
     <section class="recovery-manager-batch">
       <div><strong>批次綁定管理提醒</strong><span>可一次選取全部尚未開始的活動</span></div>
