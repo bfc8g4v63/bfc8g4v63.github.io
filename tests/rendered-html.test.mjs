@@ -280,7 +280,7 @@ test("bound LINE groups can show a privacy-safe current activity arrangement ima
   assert.match(imageRoute, /boxSizing: "border-box"/);
   assert.match(imageRoute, /\+ 80/);
   assert.doesNotMatch(imageRoute, /rsvps\.diet|rsvps\.note/);
-  assert.match(client, /「安排」會直接顯示近期活動的安排圖卡/);
+  assert.match(client, /輸入「安排」會顯示安排圖卡/);
   assert.match(client, /小幫手最近紀錄/);
   assert.match(client, /copy-binding-code/);
   assert.match(client, /綁定指令已複製/);
@@ -342,13 +342,13 @@ test("LINE manager alerts pair an account with an event instead of trusting a cr
   assert.match(adminEvent, /managerTargetCount/);
   assert.match(client, /管理者私訊提醒/);
   assert.match(client, /manager-alert-code/);
-  assert.match(client, /批次綁定管理提醒/);
+  assert.match(client, /批次啟用管理者私訊提醒/);
   assert.match(client, /create_manager_batch_binding_code/);
   assert.match(recovery, /create_manager_batch_binding_code/);
   assert.match(recovery, /lineManagerBatchBindCodes/);
   assert.match(recovery, /const \[\[single\], \[batch\]\] = await Promise\.all/);
   assert.match(guide, /管理綁定 925843/);
-  assert.match(guide, /取得批次綁定碼/);
+  assert.match(guide, /取得私訊綁定碼/);
 });
 
 test("an activity invitation provides a verified route to the full management dashboard", async () => {
@@ -381,12 +381,19 @@ test("creator recovery and attendee-roster privacy stay gated", async () => {
   assert.match(recovery, /capacity: events\.capacity/);
   assert.match(recovery, /attendingPeople/);
   assert.match(recovery, /remainingCapacity/);
+  assert.match(recovery, /lineGroupName/);
+  assert.match(recovery, /managerTargetCount/);
+  assert.match(recovery, /unassignedPeople/);
   assert.match(access, /viewerTokenHash/);
   assert.match(access, /attendanceVisibility !== "count"/);
   assert.match(rsvp, /shareName/);
   assert.match(client, /管理我的活動/);
   assert.match(client, /剩餘 \$\{remaining\} 名額/);
   assert.match(client, /已額滿/);
+  assert.match(client, /function recoveryOperationalStatus/);
+  assert.match(client, /批次啟用管理者私訊提醒/);
+  assert.match(client, /這只會設定「有人報名時私訊通知我」/);
+  assert.match(client, /群組內公開通知/);
   assert.match(client, /recovery-unlock-form.*minlength="4"/);
   assert.doesNotMatch(client, /recovery-search-form/);
   assert.match(eventClient, /公開我的顯示名稱給同場參加者/);
@@ -409,7 +416,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.64/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.65/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -438,9 +445,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.64/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.64/);
-  assert.match(worker, /good-days-github-v64/);
+  assert.match(page, /\/app\.js\?v=1\.2\.65/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.65/);
+  assert.match(worker, /good-days-github-v65/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 

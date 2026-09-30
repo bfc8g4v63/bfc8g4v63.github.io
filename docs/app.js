@@ -601,18 +601,37 @@ function recoveryCapacityLabel(event) {
   return `<div class="recovery-capacity${remaining === 0 ? " full" : ""}"><strong>${remaining === 0 ? "已額滿" : `剩餘 ${remaining} 名額`}</strong><small>已報名 ${attending}／${capacity} 人</small></div>`;
 }
 
+function recoveryOperationalStatus(event) {
+  if (!isUpcomingRecoveryActivity(event)) return "";
+  const statuses = [];
+  if (event.unassignedPeople !== null && event.unassignedPeople !== undefined) {
+    const unassigned = Math.max(0, Number(event.unassignedPeople) || 0);
+    statuses.push(unassigned
+      ? `<span class="recovery-status warning">尚有 ${unassigned} 人未安排</span>`
+      : '<span class="recovery-status ready">安排已完成</span>');
+  }
+  statuses.push(event.lineGroupName
+    ? `<span class="recovery-status ready" title="${esc(event.lineGroupName)}">通知群組已綁定</span>`
+    : '<span class="recovery-status muted">尚未設定通知群組</span>');
+  const managerTargetCount = Math.max(0, Number(event.managerTargetCount) || 0);
+  statuses.push(managerTargetCount
+    ? `<span class="recovery-status ready">私訊提醒 ${managerTargetCount} 人</span>`
+    : '<span class="recovery-status muted">尚未啟用私訊提醒</span>');
+  return `<div class="recovery-operational-status" aria-label="活動管理狀態">${statuses.join("")}</div>`;
+}
+
 function openRecoveredActivities(activities, editCode, creatorName) {
   activeModalClose = closeModal;
   const upcoming = activities.filter(isUpcomingRecoveryActivity);
   const cards = activities.map((event) => `
-    <article class="recovered-activity"><div>${isUpcomingRecoveryActivity(event) ? `<label class="recovery-manager-choice"><input type="checkbox" data-recovery-manager-event="${esc(event.id)}" checked><span>管理提醒</span></label>` : ""}<strong>${esc(event.title)}</strong><span>${esc(formatDate(event.eventDate))} · ${esc(event.startTime)}${event.status === "cancelled" ? " · 已取消" : ""}</span>${recoveryCapacityLabel(event)}</div><div class="inline-actions"><button class="secondary" data-recovery-share="${esc(event.id)}">分享連結／QR</button><button class="primary" data-recovery-manage="${esc(event.id)}">管理活動</button></div></article>`).join("");
+    <article class="recovered-activity"><div>${isUpcomingRecoveryActivity(event) ? `<label class="recovery-manager-choice"><input type="checkbox" data-recovery-manager-event="${esc(event.id)}" checked><span>啟用私訊提醒</span></label>` : ""}<strong>${esc(event.title)}</strong><span>${esc(formatDate(event.eventDate))} · ${esc(event.startTime)}${event.status === "cancelled" ? " · 已取消" : ""}</span>${recoveryCapacityLabel(event)}${recoveryOperationalStatus(event)}</div><div class="inline-actions"><button class="secondary" data-recovery-share="${esc(event.id)}">分享連結／QR</button><button class="primary" data-recovery-manage="${esc(event.id)}">管理活動</button></div></article>`).join("");
   const batchPanel = upcoming.length ? `
     <section class="recovery-manager-batch">
-      <div><strong>批次綁定管理提醒</strong><span>可一次選取全部尚未開始的活動</span></div>
-      <p>已預選所有尚未開始活動；需要時可取消個別活動。取得一組 10 分鐘有效的指令後，在與好日子小幫手的一對一私訊傳送一次，即可綁定目前這個 LINE 帳號。</p>
+      <div><strong>批次啟用管理者私訊提醒</strong><span>可一次選取全部尚未開始的活動</span></div>
+      <p>這只會設定「有人報名時私訊通知我」，不會變更通知群組。已預選所有尚未開始活動；需要時可取消個別活動。取得一組 10 分鐘有效的指令後，在與好日子小幫手的一對一私訊傳送一次，即可綁定目前這個 LINE 帳號。</p>
       <div id="recovery-manager-binding-code"></div>
       <p class="form-error" id="recovery-manager-error" role="alert" hidden></p>
-      <div class="inline-actions"><button class="secondary" id="recovery-manager-select-all" type="button">全選尚未開始活動</button><button class="line-button" id="recovery-manager-batch" type="button">取得批次綁定碼</button></div>
+      <div class="inline-actions"><button class="secondary" id="recovery-manager-select-all" type="button">全選尚未開始活動</button><button class="line-button" id="recovery-manager-batch" type="button">取得私訊綁定碼</button></div>
     </section>` : "";
   modalRoot.innerHTML = `
     <div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="recovered-title">
@@ -640,7 +659,7 @@ function openRecoveredActivities(activities, editCode, creatorName) {
         action: "create_manager_batch_binding_code", creatorName, editCode, eventIds,
       });
       const bindingCommand = `管理綁定 ${result.code}`;
-      document.querySelector("#recovery-manager-binding-code").innerHTML = `<div class="binding-code"><span>先加小幫手好友，再於私訊輸入</span><strong>${esc(bindingCommand)}</strong><button class="secondary binding-copy" id="copy-recovery-manager-binding-code" type="button">複製</button><small>會同時綁定 ${result.count} 場活動；10 分鐘內有效</small></div>`;
+      document.querySelector("#recovery-manager-binding-code").innerHTML = `<div class="binding-code"><span>先加小幫手好友，再於私訊輸入</span><strong>${esc(bindingCommand)}</strong><button class="secondary binding-copy" id="copy-recovery-manager-binding-code" type="button">複製</button><small>會同時啟用 ${result.count} 場活動的私訊提醒；10 分鐘內有效</small></div>`;
       document.querySelector("#copy-recovery-manager-binding-code")?.addEventListener("click", async (copyEvent) => {
         const copyButton = copyEvent.currentTarget;
         try {
@@ -653,7 +672,7 @@ function openRecoveredActivities(activities, editCode, creatorName) {
           errorBox.hidden = false;
         }
       });
-      button.textContent = "重新產生批次綁定碼";
+      button.textContent = "重新產生私訊綁定碼";
     } catch (error) {
       errorBox.textContent = error.message || "無法產生批次綁定碼";
       errorBox.hidden = false;
@@ -796,14 +815,15 @@ function linePanel(line) {
   const logPanel = binding ? `<section class="line-command-log"><div><strong>小幫手最近紀錄</strong><span>只記錄指令結果，不保存聊天內容</span></div>${commandLogs.length ? `<ul>${commandLogs.map((item) => `<li><time>${esc(formatDateTime(item.createdAt))}</time><b>${esc(item.command)}</b><em class="line-log-${esc(item.outcome)}">${esc(commandLogText[item.outcome] || item.outcome)}</em><small>${esc(item.detail || "—")}</small></li>`).join("")}</ul>` : "<p>目前尚無可顯示的指令紀錄。</p>"}</section>` : "";
   return `
     <section class="manager-alert-panel ${managerTargetCount ? "connected" : ""}">
-      <div><strong>管理者私訊提醒</strong><span>${managerTargetCount ? `已綁定 ${managerTargetCount} 位管理者` : "尚未綁定管理者"}</span></div>
-      <p>綁定的是 LINE 帳號，不使用管理者名稱。有人報名、取消或更動人數時，只有已綁定的管理者會在與小幫手的私訊收到提醒。</p>
+      <div><div><small class="line-panel-kind">只通知管理者本人</small><strong>管理者私訊提醒</strong></div><span>${managerTargetCount ? `已綁定 ${managerTargetCount} 位管理者` : "尚未啟用"}</span></div>
+      <p>綁定的是 LINE 帳號，不使用管理者名稱。有人報名、取消或更動人數時，只有已綁定的管理者會在與小幫手的私訊收到提醒；不會推送到活動群組。</p>
       <div id="manager-binding-code-area"></div>
       <div class="inline-actions"><button class="line-button" id="manager-alert-code">${managerTargetCount ? "新增／重新產生綁定碼" : "啟用私訊提醒"}</button>${managerTargetCount ? '<button class="text-danger" id="manager-alert-clear">停止所有私訊提醒</button>' : ""}</div>
     </section>
     <div class="line-status ${binding ? "connected" : ""}">
+      <small class="line-panel-kind">群組內公開通知</small>
       <strong>${binding ? `通知群組：${esc(binding.groupName)}` : "尚未選擇通知群組"}</strong>
-      <p>${binding ? "這個群組可重複用於多場未來活動；「活動」會列出近期活動，「安排」會直接顯示近期活動的安排圖卡。" : "若同一管理碼只有一個已綁定群組，系統會自動沿用到尚未開始的活動；多個群組時才需要自行選取。"}</p>
+      <p>${binding ? "這個群組可重複用於多場未來活動；群組成員輸入「活動」會列出近期活動，輸入「安排」會顯示安排圖卡。這與上方的私訊提醒是兩個獨立設定。" : "若同一管理碼只有一個已綁定群組，系統會自動沿用到尚未開始的活動；多個群組時才需要自行選取。這不會啟用管理者私訊提醒。"}</p>
       <div id="binding-code-area"></div>
       <div class="inline-actions">
         ${binding ? '<button class="secondary" id="line-existing">改選既有群組</button><button class="secondary" id="line-publish">合併發布近期活動</button><button class="secondary" id="line-seven-day-test">測試 7 天提醒</button><button class="secondary" id="line-one-day-test">測試 1 天提醒</button><button class="secondary" id="line-two-hour-test">測試 2 小時提醒</button><button class="text-danger" id="line-unbind">移除此活動</button>' : '<button class="secondary" id="line-existing">使用既有通知群組</button><button class="line-button" id="line-code">綁定新群組</button>'}

@@ -1,7 +1,10 @@
 import { and, desc, eq, inArray, or } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { ensureSchema } from "../../../db/init";
-import { events, lineManagerBatchBindCodes, lineManagerBindCodes, rsvps } from "../../../db/schema";
+import {
+  events, lineBindings, lineManagerBatchBindCodes, lineManagerBindCodes,
+  lineManagerTargets, mealAssignments, mealTables, rsvps,
+} from "../../../db/schema";
 import { clean, verifyCredential } from "../admin/auth";
 import { json, preflight } from "../cors";
 import { lineConfig } from "../line/lib";
@@ -17,6 +20,10 @@ function activityUrl(shareToken: string) {
 
 function eventStartsAt(event: { eventDate: string; startTime: string }) {
   return Date.parse(`${event.eventDate}T${event.startTime}:00+08:00`);
+}
+
+function eventIdChunks(eventIds: string[], size = 80) {
+  return Array.from({ length: Math.ceil(eventIds.length / size) }, (_, index) => eventIds.slice(index * size, (index + 1) * size));
 }
 
 async function createUniqueManagerBatchCode() {
@@ -102,16 +109,52 @@ export async function POST(request: Request) {
         activities: selected.map((event) => ({ id: event.id, title: event.title })),
       });
     }
-    const attendeeRows = await db.select({ eventId: rsvps.eventId, partySize: rsvps.partySize }).from(rsvps).where(and(
-      inArray(rsvps.eventId, matches.map((event) => event.id)),
-      eq(rsvps.response, "attending"),
-    ));
+    const eventIds = matches.map((event) => event.id);
+    const chunks = eventIdChunks(eventIds);
+    const [attendeeGroups, bindingGroups, managerTargetGroups, tableGroups, assignmentGroups] = await Promise.all([
+      Promise.all(chunks.map((ids) => db.select({ id: rsvps.id, eventId: rsvps.eventId, partySize: rsvps.partySize }).from(rsvps).where(and(
+        inArray(rsvps.eventId, ids), eq(rsvps.response, "attending"),
+      )))),
+      Promise.all(chunks.map((ids) => db.select({ eventId: lineBindings.eventId, groupName: lineBindings.groupName }).from(lineBindings)
+        .where(inArray(lineBindings.eventId, ids)))),
+      Promise.all(chunks.map((ids) => db.select({ eventId: lineManagerTargets.eventId }).from(lineManagerTargets)
+        .where(inArray(lineManagerTargets.eventId, ids)))),
+      Promise.all(chunks.map((ids) => db.select({ eventId: mealTables.eventId }).from(mealTables)
+        .where(inArray(mealTables.eventId, ids)))),
+      Promise.all(chunks.map((ids) => db.select({ eventId: mealAssignments.eventId, rsvpId: mealAssignments.rsvpId, people: mealAssignments.people }).from(mealAssignments)
+        .where(inArray(mealAssignments.eventId, ids)))),
+    ]);
+    const attendeeRows = attendeeGroups.flat();
+    const bindingRows = bindingGroups.flat();
+    const managerTargetRows = managerTargetGroups.flat();
+    const tableRows = tableGroups.flat();
+    const assignmentRows = assignmentGroups.flat();
     const attendingPeopleByEvent = new Map<string, number>();
+    const attendeeById = new Map<string, { eventId: string; partySize: number }>();
     for (const attendee of attendeeRows) {
+      attendeeById.set(attendee.id, attendee);
       attendingPeopleByEvent.set(
         attendee.eventId,
         (attendingPeopleByEvent.get(attendee.eventId) || 0) + attendee.partySize,
       );
+    }
+    const assignedPeopleByRsvp = new Map<string, number>();
+    for (const assignment of assignmentRows) {
+      assignedPeopleByRsvp.set(assignment.rsvpId, (assignedPeopleByRsvp.get(assignment.rsvpId) || 0) + assignment.people);
+    }
+    const unassignedPeopleByEvent = new Map<string, number>();
+    for (const [rsvpId, attendee] of attendeeById) {
+      const remaining = Math.max(0, attendee.partySize - (assignedPeopleByRsvp.get(rsvpId) || 0));
+      unassignedPeopleByEvent.set(attendee.eventId, (unassignedPeopleByEvent.get(attendee.eventId) || 0) + remaining);
+    }
+    const lineGroupByEvent = new Map(bindingRows.map((binding) => [binding.eventId, binding.groupName]));
+    const managerTargetCountByEvent = new Map<string, number>();
+    for (const target of managerTargetRows) {
+      managerTargetCountByEvent.set(target.eventId, (managerTargetCountByEvent.get(target.eventId) || 0) + 1);
+    }
+    const tableCountByEvent = new Map<string, number>();
+    for (const table of tableRows) {
+      tableCountByEvent.set(table.eventId, (tableCountByEvent.get(table.eventId) || 0) + 1);
     }
     return json(request, {
       activities: matches.map(({ editCodeHash: _editCodeHash, ...event }) => {
@@ -120,6 +163,9 @@ export async function POST(request: Request) {
           ...event,
           attendingPeople,
           remainingCapacity: event.capacity === null ? null : Math.max(0, event.capacity - attendingPeople),
+          lineGroupName: lineGroupByEvent.get(event.id) || null,
+          managerTargetCount: managerTargetCountByEvent.get(event.id) || 0,
+          unassignedPeople: tableCountByEvent.has(event.id) ? unassignedPeopleByEvent.get(event.id) || 0 : null,
           shareUrl: activityUrl(event.shareToken),
         };
       }),
