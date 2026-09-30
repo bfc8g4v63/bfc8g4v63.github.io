@@ -70,7 +70,7 @@ async function post(path, body, method = "POST") {
 function showCodeGate(message = "這是一個需要參加碼的私人活動。") {
   root.innerHTML = `
     <section class="event-gate"><p class="eyebrow">私人活動</p><h1>輸入參加碼</h1><p>${esc(message)}</p>
-      <form id="code-form"><label>參加碼<input name="participantCode" required minlength="4" autofocus autocomplete="off"></label><p class="form-error" hidden></p><button class="primary">開啟活動</button></form>
+      <form id="code-form"><label>參加碼<input type="password" name="participantCode" data-secret required minlength="4" autofocus autocomplete="off" spellcheck="false"></label><p class="form-error" hidden></p><button class="primary">開啟活動</button></form>
     </section>`;
   const form = document.querySelector("#code-form");
   form.addEventListener("submit", async (event) => {
@@ -288,7 +288,7 @@ async function hideCompanionCard() {
 }
 
 function openManagerLogin() {
-  modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">管理者專用</p><h2>管理這場活動</h2><p>輸入管理碼後，會直接開啟完整管理後台：修改活動、代填報名、收款、安排分組與 LINE 提醒都可在同一處處理。</p><form id="manager-form"><label>管理碼<input name="editCode" required minlength="4" autofocus autocomplete="current-password"></label><p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button class="primary">開啟完整管理後台</button></div></form></section></div>`;
+  modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">管理者專用</p><h2>管理這場活動</h2><p>輸入管理碼後，會直接開啟完整管理後台：修改活動、代填報名、收款、安排分組與 LINE 提醒都可在同一處處理。</p><form id="manager-form"><label>管理碼<input type="password" name="editCode" data-secret required minlength="4" autofocus autocomplete="current-password" spellcheck="false"></label><p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button class="primary">開啟完整管理後台</button></div></form></section></div>`;
   const form = document.querySelector("#manager-form");
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -309,4 +309,9 @@ document.addEventListener("click", (event) => { if (event.target.closest("[data-
 document.addEventListener("keydown", (event) => {
   if (event.key === "Escape" && modalRoot.querySelector(".modal")) closeModal();
 });
+for (const eventName of ["copy", "cut", "dragstart"]) {
+  document.addEventListener(eventName, (event) => {
+    if (event.target instanceof Element && event.target.closest("[data-secret]")) event.preventDefault();
+  });
+}
 loadEvent();

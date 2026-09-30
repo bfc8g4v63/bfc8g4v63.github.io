@@ -293,7 +293,7 @@ function openEventForm(event, managerAuth = null, returnTo = null) {
   const editing = Boolean(event);
   const managerField = editing
     ? '<p class="form-hint">已完成管理者驗證；儲存、取消與永久刪除都會使用目前的管理權限。</p>'
-    : '<label>管理碼 <span>至少 6 個字元；與管理者名稱一起用來管理活動</span><input name="editCode" required minlength="6" autocomplete="new-password" placeholder="請妥善保存，不會提供給參加者"></label>';
+    : '<label>管理碼 <span>至少 6 個字元；只保存加鹽雜湊值</span><input type="password" name="editCode" data-secret required minlength="6" autocomplete="new-password" spellcheck="false" placeholder="請妥善保存，不會提供給參加者"></label>';
   modalRoot.innerHTML = `
     <div class="modal-backdrop">
       <section class="modal" role="dialog" aria-modal="true" aria-labelledby="event-form-title">
@@ -321,7 +321,7 @@ function openEventForm(event, managerAuth = null, returnTo = null) {
             <label class="choice"><input type="radio" name="attendanceVisibility" value="opt_in" ${event?.attendanceVisibility === "opt_in" ? "checked" : ""}><span><strong>自願公開名單（推薦）</strong><small>參加者可自行同意是否公開顯示名稱。</small></span></label>
             <label class="choice"><input type="radio" name="attendanceVisibility" value="all" ${event?.attendanceVisibility === "all" ? "checked" : ""}><span><strong>全部名單</strong><small>所有已參加者的顯示名稱皆可見，適合熟人小群組。</small></span></label>
           </fieldset>
-          <label id="participant-code-field" ${event?.accessMode === "private" ? "" : "hidden"}>參加碼 <span>私人活動必填</span><input name="participantCode" minlength="4" autocomplete="new-password" placeholder="自訂至少 4 碼；留白代表不變"></label>
+          <label id="participant-code-field" ${event?.accessMode === "private" ? "" : "hidden"}>參加碼 <span>私人活動必填</span><input type="password" name="participantCode" data-secret minlength="4" autocomplete="new-password" spellcheck="false" placeholder="自訂至少 4 碼；留白代表不變"></label>
           <div class="form-row">
             ${field("聯絡人", "contactName", event?.contactName, 'placeholder="王小明"')}
             ${field("聯絡電話（僅管理者可見）", "contactPhone", event?.contactPhone, 'inputmode="tel" placeholder="0912 345 678"')}
@@ -498,7 +498,7 @@ function openAdminLogin(event) {
         <p class="eyebrow">私人管理區</p><h2 id="admin-login-title">管理 ${esc(event.title)}</h2>
         <p>輸入建立活動時設定的管理碼，才能查看參與者名單與 LINE 提醒。</p>
         <form id="admin-login-form">
-          ${field('管理碼 <span>必填</span>', "editCode", "", 'required minlength="4" inputmode="text" autofocus autocomplete="current-password"')}
+          ${field('管理碼 <span>必填</span>', "editCode", "", 'required type="password" data-secret inputmode="text" autofocus autocomplete="current-password" spellcheck="false"')}
           <p class="form-error" id="form-error" role="alert" hidden></p>
           <div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button type="submit" class="primary">開啟管理後台</button></div>
         </form>
@@ -572,7 +572,7 @@ function openCreatorRecovery() {
       <button class="modal-close" data-close aria-label="關閉">×</button>
       <p class="eyebrow">管理者專用</p><h2 id="recovery-title">管理我的活動</h2>
       <p>輸入建立活動時設定的管理者名稱與管理碼，即可查看所有符合的活動。</p>
-      <form id="recovery-unlock-form"><label>管理者名稱<input name="creatorName" required minlength="2" autofocus autocomplete="name"></label><label>管理碼<input name="editCode" required minlength="4" autocomplete="current-password"></label><p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button class="primary">查看活動</button></div></form>
+      <form id="recovery-unlock-form"><label>管理者名稱<input name="creatorName" required minlength="2" autofocus autocomplete="name"></label><label>管理碼<input type="password" name="editCode" data-secret required minlength="4" autocomplete="current-password" spellcheck="false"></label><p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button class="primary">查看活動</button></div></form>
     </section></div>`;
   const form = document.querySelector("#recovery-unlock-form");
   form.addEventListener("submit", async (event) => {
@@ -1541,6 +1541,12 @@ document.addEventListener("keydown", (keyEvent) => {
   keyEvent.preventDefault();
   requestModalClose();
 });
+
+for (const eventName of ["copy", "cut", "dragstart"]) {
+  document.addEventListener(eventName, (event) => {
+    if (event.target instanceof Element && event.target.closest("[data-secret]")) event.preventDefault();
+  });
+}
 
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => undefined);
 loadEvents();
