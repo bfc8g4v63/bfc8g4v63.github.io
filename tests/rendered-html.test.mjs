@@ -419,7 +419,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.66/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.67/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -448,9 +448,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.66/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.66/);
-  assert.match(worker, /good-days-github-v66/);
+  assert.match(page, /\/app\.js\?v=1\.2\.67/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.67/);
+  assert.match(worker, /good-days-github-v67/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -461,6 +461,7 @@ test("activity time uses equal-height controls with direct minute entry, desktop
   ]);
   assert.match(client, /class="time-wheel" data-time-wheel=/);
   assert.match(client, /type="tel" class="time-wheel-input" data-time-input="\$\{name\}" inputmode="numeric"/);
+  assert.match(client, /placeholder="--" value="\$\{esc\(selected\[name\]\)\}"/);
   assert.match(client, /class="time-wheel-unit"/);
   assert.match(client, /function updateEditableTimeInput/);
   assert.match(client, /function enableTimeWheels/);
@@ -472,7 +473,8 @@ test("activity time uses equal-height controls with direct minute entry, desktop
   assert.match(styles, /\.time-picker \{[^}]*grid-template-rows:auto auto 68px/);
   assert.match(styles, /\.time-wheel \{[^}]*height:68px/);
   assert.match(styles, /input\[type="date"\]\) > input \{ min-height:68px; height:68px/);
-  assert.match(styles, /grid-template-columns:minmax\(0,1\.3fr\) minmax\(0,\.9fr\) minmax\(0,\.95fr\)/);
+  assert.match(styles, /grid-template-columns:minmax\(128px,1\.25fr\) minmax\(90px,\.85fr\) minmax\(90px,\.85fr\)/);
+  assert.match(styles, /\.form-row:has\(\.time-picker\) \{ grid-template-columns:minmax\(230px,1fr\) minmax\(340px,1\.25fr\)/);
   assert.match(styles, /\.time-wheel-input \{[^}]*height:100%/);
   assert.match(styles, /\.time-wheel-input \{[^}]*padding:0 1\.25em 0 0/);
   assert.match(styles, /\.time-wheel-input-wrap \{[^}]*position:relative/);

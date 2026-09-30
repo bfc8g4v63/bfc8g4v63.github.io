@@ -181,7 +181,7 @@ function timePicker(value = "") {
       const unit = name === "hour" ? "時" : "分";
       return `<div class="time-wheel time-wheel-editable" data-time-wheel="${name}" aria-label="${placeholder}；可直接輸入、滑鼠滾輪或上下滑動調整">
         <button type="button" class="time-wheel-arrow" data-time-step="-1" aria-label="減少 1 ${unit}">⌃</button>
-        <span class="time-wheel-input-wrap"><input type="tel" class="time-wheel-input" data-time-input="${name}" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="2" aria-label="${unit === "分" ? "分鐘，可手動輸入 00 到 59" : "小時，可手動輸入 1 到 12"}" placeholder="${placeholder}" value="${esc(selected[name])}"><span class="time-wheel-unit" aria-hidden="true">${unit}</span></span>
+        <span class="time-wheel-input-wrap"><input type="tel" class="time-wheel-input" data-time-input="${name}" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="2" aria-label="${unit === "分" ? "分鐘，可手動輸入 00 到 59" : "小時，可手動輸入 1 到 12"}" placeholder="--" value="${esc(selected[name])}"><span class="time-wheel-unit" aria-hidden="true">${unit}</span></span>
         <button type="button" class="time-wheel-arrow" data-time-step="1" aria-label="增加 1 ${unit}">⌄</button>
       </div><input type="hidden" name="time${name[0].toUpperCase()}${name.slice(1)}" value="${esc(selected[name])}">`;
     }
