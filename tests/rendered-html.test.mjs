@@ -409,7 +409,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.63/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.64/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -438,9 +438,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.63/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.63/);
-  assert.match(worker, /good-days-github-v63/);
+  assert.match(page, /\/app\.js\?v=1\.2\.64/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.64/);
+  assert.match(worker, /good-days-github-v64/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -717,6 +717,9 @@ test("one LINE group can serve several upcoming activities without sending ended
   assert.match(client, /合併發布近期活動/);
   assert.match(guide, /不必重新綁定/);
   assert.match(guide, /安排 20260930/);
+  assert.match(guide, /活動數量不設上限/);
+  assert.match(guide, /剩餘名額/);
+  assert.match(guide, /參加連結只提供報名/);
 });
 
 test("admin child panels return to the active dashboard and past reminders are skipped", async () => {
