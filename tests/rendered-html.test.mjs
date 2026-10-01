@@ -43,11 +43,11 @@ test("venues, addresses, map navigation and weekdays stay consistent across surf
   assert.match(init, /ALTER TABLE events ADD COLUMN address/);
   assert.match(eventsRoute, /const address = clean\(body\.address, 200\)/);
   assert.match(accessRoute, /address: event\.address/);
-  assert.match(homeClient, /"location", event\?\.location, 'required autocomplete="off"/);
+  assert.match(homeClient, /"location", event\?\.location, 'required type="text"[\s\S]*data-1p-ignore/);
   assert.match(homeClient, /"eventAddress", event\?\.address/);
   assert.match(homeClient, /placeholder="例如：台北 101"/);
   assert.match(homeClient, /placeholder="例如：臺北市信義區西村里市府路45號"/);
-  assert.match(homeClient, /"eventAddress", event\?\.address, 'type="search"[\s\S]*data-1p-ignore/);
+  assert.match(homeClient, /"eventAddress", event\?\.address, 'type="text"[\s\S]*data-1p-ignore/);
   assert.match(homeClient, /www\.google\.com\/maps\/search/);
   assert.match(eventClient, /在 Google 地圖開啟/);
   assert.match(homeClient, /function formatShortDate/);
@@ -339,7 +339,8 @@ test("creators can manage activities with an independent management link without
   assert.match(client, /現在綁定 LINE 小幫手/);
   assert.match(client, /請保存管理連結/);
   assert.match(client, /管理我的活動/);
-  assert.match(client, /type="password" name="editCode" data-secret/);
+  assert.match(client, /type="text" name="editCode" data-secret[\s\S]*autocomplete="off"/);
+  assert.doesNotMatch(client, /new-password|type="password"/);
   assert.match(client, /\["copy", "cut", "dragstart"\]/);
   assert.match(client, /儲存在這台裝置/);
   assert.match(client, /good-days-manager-return-links/);
@@ -453,7 +454,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.79/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.80/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -482,9 +483,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.79/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.79/);
-  assert.match(worker, /good-days-github-v79/);
+  assert.match(page, /\/app\.js\?v=1\.2\.80/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.80/);
+  assert.match(worker, /good-days-github-v80/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -800,9 +801,9 @@ test("management UX keeps advanced choices and operational shortcuts easy to rea
   ]);
   assert.match(client, /class="advanced-settings"/);
   assert.match(client, /<form id="event-form" autocomplete="off">/);
-  assert.match(client, /活動名稱[\s\S]*"eventTitle"[\s\S]*type="search"[\s\S]*data-form-type="other"/);
+  assert.match(client, /活動名稱[\s\S]*"eventTitle"[\s\S]*type="text"[\s\S]*data-form-type="other"/);
   assert.match(client, /body\.title = String\(body\.eventTitle \|\| ""\)/);
-  assert.match(client, /地址[\s\S]*"eventAddress"[\s\S]*type="search"[\s\S]*data-form-type="other"/);
+  assert.match(client, /地址[\s\S]*"eventAddress"[\s\S]*type="text"[\s\S]*data-form-type="other"/);
   assert.match(client, /body\.address = String\(body\.eventAddress \|\| ""\)/);
   assert.match(client, /公開方式、名單、名額與費用/);
   assert.match(client, /class="admin-quick-nav"/);
