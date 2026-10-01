@@ -1405,7 +1405,6 @@ function openAdminDashboard(data, managerAuth, returnTo = null) {
           <button class="primary" id="edit-from-admin">修改活動</button>
           <button class="secondary" id="show-share">分享連結與 QR Code</button>
           ${managerAuth.type === "token" ? '<button class="secondary" id="show-manager-link">複製管理連結</button>' : ""}
-          <button class="secondary" id="export-rsvps">下載 CSV 名單</button>
         </div>
         <nav class="admin-quick-nav" aria-label="管理後台快速導覽"><strong>快速前往</strong><button type="button" data-dashboard-jump="participant-list">名單</button>${paymentOverview ? '<button type="button" data-dashboard-jump="payment-management">收款</button>' : ""}<button type="button" data-dashboard-jump="activity-arrangements">安排${unassignedPeople ? `（${unassignedPeople}）` : ""}</button><button type="button" data-dashboard-jump="line-notifications">LINE</button></nav>
         ${paymentOverview}
@@ -1435,7 +1434,6 @@ function openAdminDashboard(data, managerAuth, returnTo = null) {
     await navigator.clipboard.writeText(managerUrl(event.id, managerAuth.value));
     showNotice("管理連結已複製，請勿分享給參加者");
   });
-  document.querySelector("#export-rsvps").addEventListener("click", () => exportRsvps(event, data.rsvps));
   document.querySelectorAll("[data-dashboard-jump]").forEach((button) => button.addEventListener("click", () => {
     document.querySelector(`#${button.dataset.dashboardJump}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
   }));
@@ -1576,30 +1574,6 @@ function showLineError(message) {
   if (!box) return;
   box.textContent = message;
   box.hidden = false;
-}
-
-function csvCell(value) {
-  let text = String(value ?? "");
-  if (/^[=+\-@]/.test(text)) text = `'${text}`;
-  return `"${text.replaceAll('"', '""')}"`;
-}
-
-function exportRsvps(event, rsvps) {
-  const hasFee = event.feePerPerson > 0;
-  const rows = [
-    ["姓名", "回覆", "參加人數", "飲食需求", "備註", ...(hasFee ? ["每人費用", "應收金額", "收款狀態"] : []), "更新時間"],
-    ...rsvps.map((item) => [
-      item.name, responseLabel(item.response), item.response === "attending" ? item.partySize : 0, item.diet, item.note,
-      ...(hasFee ? [event.feePerPerson, item.response === "attending" ? item.partySize * event.feePerPerson : 0, item.response === "attending" ? paymentLabel(item.paymentStatus) : "—"] : []),
-      item.updatedAt,
-    ]),
-  ];
-  const blob = new Blob(["\ufeff", rows.map((row) => row.map(csvCell).join(",")).join("\r\n")], { type: "text/csv;charset=utf-8" });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = `${event.title}-參與名單.csv`;
-  link.click();
-  URL.revokeObjectURL(link.href);
 }
 
 function showFormError(form, message) {

@@ -263,7 +263,7 @@ test("paid activities calculate fixed per-person fees without exposing payment r
   assert.match(homeClient, /name="feeMode" value="paid"/);
   assert.match(homeClient, /收款管理/);
   assert.match(homeClient, /data-rsvp-payment/);
-  assert.match(homeClient, /下載 CSV 名單/);
+  assert.doesNotMatch(homeClient, /下載 CSV 名單|exportRsvps|text\/csv/);
   assert.match(eventClient, /本戶應收：/);
   assert.doesNotMatch(accessRoute, /paymentStatus/);
 });
@@ -453,7 +453,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.78/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.79/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -482,9 +482,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.78/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.78/);
-  assert.match(worker, /good-days-github-v78/);
+  assert.match(page, /\/app\.js\?v=1\.2\.79/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.79/);
+  assert.match(worker, /good-days-github-v79/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
