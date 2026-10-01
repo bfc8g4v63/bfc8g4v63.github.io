@@ -375,6 +375,8 @@ test("LINE manager alerts pair an account with an event instead of trusting a cr
   assert.match(rsvp, /getRequestExecutionContext/);
   assert.match(lineLib, /managerRsvpMessage/);
   assert.match(adminEvent, /managerTargetCount/);
+  assert.match(adminEvent, /管理者代為新增報名/);
+  assert.match(adminEvent, /queueManagerNotification/);
   assert.match(client, /管理者私訊提醒/);
   assert.match(client, /manager-alert-code/);
   assert.match(client, /批次啟用管理者私訊提醒/);
@@ -451,7 +453,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.77/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.78/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -480,9 +482,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.77/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.77/);
-  assert.match(worker, /good-days-github-v77/);
+  assert.match(page, /\/app\.js\?v=1\.2\.78/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.78/);
+  assert.match(worker, /good-days-github-v78/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 

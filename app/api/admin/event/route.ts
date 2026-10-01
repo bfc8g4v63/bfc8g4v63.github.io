@@ -1,10 +1,11 @@
 import { and, asc, eq, sql } from "drizzle-orm";
+import { getRequestExecutionContext } from "vinext/shims/request-context";
 import { ensureSchema } from "../../../../db/init";
 import { getDb } from "../../../../db";
 import { lineBindings, lineCommandLogs, lineManagerTargets, lineReminderSettings, mealAssignments, mealTables, rsvps } from "../../../../db/schema";
 import { json, preflight } from "../../cors";
 import { clean, hashCode, requireEventManager } from "../auth";
-import { lineConfig } from "../../line/lib";
+import { lineConfig, managerRsvpMessage, pushText } from "../../line/lib";
 import { rateLimit } from "../../rate-limit";
 import { arrangementNameKey } from "../../../../lib/arrangement";
 import { eventShareUrl } from "../../../../lib/event-share";
@@ -24,6 +25,46 @@ const paymentStatuses = new Set(["unpaid", "paid", "waived"]);
 
 function paymentStatus(value: unknown) {
   return typeof value === "string" && paymentStatuses.has(value) ? value : "";
+}
+
+async function notifyPairedManagers(input: {
+  eventId: string;
+  eventTitle: string;
+  name: string;
+  partySize: number;
+  change: string;
+}) {
+  try {
+    const db = getDb();
+    const [targets, attending, assignments] = await Promise.all([
+      db.select({ lineUserId: lineManagerTargets.lineUserId }).from(lineManagerTargets)
+        .where(eq(lineManagerTargets.eventId, input.eventId)),
+      db.select({ partySize: rsvps.partySize }).from(rsvps).where(and(
+        eq(rsvps.eventId, input.eventId), eq(rsvps.response, "attending"),
+      )),
+      db.select({ people: mealAssignments.people }).from(mealAssignments)
+        .where(eq(mealAssignments.eventId, input.eventId)),
+    ]);
+    if (!targets.length) return;
+    const attendingPeople = attending.reduce((sum, item) => sum + item.partySize, 0);
+    const assignedPeople = assignments.reduce((sum, item) => sum + item.people, 0);
+    const text = managerRsvpMessage({
+      ...input,
+      attendingPeople,
+      unassignedPeople: Math.max(0, attendingPeople - assignedPeople),
+    });
+    await Promise.allSettled(targets.map((target) => pushText(target.lineUserId, text)));
+  } catch (error) {
+    // A LINE notification must never make a management action fail.
+    console.error("Unable to send paired manager notification", error);
+  }
+}
+
+function queueManagerNotification(input: Parameters<typeof notifyPairedManagers>[0]) {
+  const notification = notifyPairedManagers(input);
+  const context = getRequestExecutionContext();
+  if (context) context.waitUntil(notification);
+  return context ? undefined : notification;
 }
 
 async function saveMealSeating(
@@ -134,6 +175,13 @@ export async function POST(request: Request) {
         // 任一輸入同名的人。
         viewerTokenHash: await hashCode(crypto.randomUUID()),
         updatedAt: new Date().toISOString(),
+      });
+      await queueManagerNotification({
+        eventId: access.event.id,
+        eventTitle: access.event.title,
+        name,
+        partySize: response === "attending" ? partySize! : 0,
+        change: "管理者代為新增報名",
       });
       return json(request, { ok: true, message: `已代為新增「${name}」的回覆` });
     }
