@@ -399,7 +399,7 @@ function openEventForm(event, managerAuth = null, returnTo = null) {
         <p class="eyebrow">${editing ? "管理活動" : "新的相聚"}</p>
         <h2 id="event-form-title">${editing ? "修改活動" : "建立活動"}</h2>
         <form id="event-form" autocomplete="off">
-          ${field('活動名稱 <span>必填</span>', "title", event?.title, 'required autocomplete="off" autocapitalize="sentences" spellcheck="false" placeholder="例如：阿嬤生日午餐"')}
+          ${field('活動名稱 <span>必填</span>', "eventTitle", event?.title, 'required type="search" autocomplete="off" autocapitalize="sentences" autocorrect="off" spellcheck="false" inputmode="text" aria-autocomplete="none" data-form-type="other" data-1p-ignore="true" data-lpignore="true" placeholder="例如：阿嬤生日午餐"')}
           ${field('管理者名稱 <span>必填；與管理碼一起查看你管理的活動</span>', "creatorName", event?.creatorName, 'required placeholder="例如：王小明"')}
           <div class="form-row">
             ${field('日期 <span>必填；點選年、月、日後可用滑鼠滾輪調整</span>', "eventDate", event?.eventDate || localToday(), 'required type="date" data-date-wheel aria-label="日期；點選年、月、日後可用滑鼠滾輪調整"')}
@@ -486,6 +486,8 @@ function openEventForm(event, managerAuth = null, returnTo = null) {
     const original = button.textContent;
     button.textContent = "儲存中…";
     const body = Object.fromEntries(new FormData(form));
+    body.title = String(body.eventTitle || "");
+    delete body.eventTitle;
     body.startTime = selectedStartTime(form);
     if (!body.startTime) {
       showFormError(form, "請完成活動時間的上午／下午、時與分。");
