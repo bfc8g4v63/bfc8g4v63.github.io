@@ -45,6 +45,9 @@ test("venues, addresses, map navigation and weekdays stay consistent across surf
   assert.match(accessRoute, /address: event\.address/);
   assert.match(homeClient, /"location", event\?\.location, 'required autocomplete="off"/);
   assert.match(homeClient, /"address", event\?\.address/);
+  assert.match(homeClient, /placeholder="例如：台北 101"/);
+  assert.match(homeClient, /placeholder="例如：臺北市信義區西村里市府路45號"/);
+  assert.match(homeClient, /"address", event\?\.address, 'autocomplete="off"[\s\S]*data-1p-ignore/);
   assert.match(homeClient, /www\.google\.com\/maps\/search/);
   assert.match(eventClient, /在 Google 地圖開啟/);
   assert.match(homeClient, /function formatShortDate/);
@@ -72,6 +75,8 @@ test("LINE webhook verifies signatures and reminder workflow uses a secret", asy
   assert.doesNotMatch(webhook, /getRequestExecutionContext/);
   assert.doesNotMatch(webhook, /context\.waitUntil\(processing\)/);
   assert.match(webhook, /await processWebhookEvents\(payload\.events \|\| \[\], request\.url\)/);
+  assert.match(webhook, /「管理綁定」只能在你與好日子小幫手的一對一私訊使用/);
+  assert.match(webhook, /也不會推送到活動群組/);
   assert.match(workflow, /secrets\.REMINDER_SECRET/);
   assert.match(workflow, /Authorization: Bearer/);
   assert.match(lineLib, /SCHEDULER_SECRET/);
@@ -446,7 +451,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.74/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.75/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -475,9 +480,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.74/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.74/);
-  assert.match(worker, /good-days-github-v74/);
+  assert.match(page, /\/app\.js\?v=1\.2\.75/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.75/);
+  assert.match(worker, /good-days-github-v75/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 

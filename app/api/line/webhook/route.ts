@@ -132,7 +132,7 @@ async function pairManagerAlert(event: LineEvent, code: string) {
   if (batchBindingCode) await db.delete(lineManagerBatchBindCodes).where(eq(lineManagerBatchBindCodes.code, batchBindingCode.code));
   const listedTitles = activeEvents.slice(0, 5).map((targetEvent) => targetEvent.title).join("、");
   const titles = activeEvents.length > 5 ? `${listedTitles} 等 ${activeEvents.length} 場` : listedTitles;
-  await replyText(event.replyToken!, `管理提醒已綁定 ${activeEvents.length} 場活動：${titles}\n之後有人報名、取消或更動人數時，小幫手會在這個私訊通知你；不會依管理者名稱判斷身分。`);
+  await replyText(event.replyToken!, `管理者私訊提醒已綁定 ${activeEvents.length} 場活動：${titles}\n之後有人報名、取消或更動人數時，小幫手會在這個私訊通知你；不會依管理者名稱判斷身分，也不會推送到活動群組。`);
 }
 
 export async function POST(request: Request) {
@@ -217,6 +217,16 @@ async function processWebhookEvents(lineEvents: LineEvent[], requestUrl: string)
           event.replyToken,
           `Your Portfolio notification ID:\n${event.source?.userId || "Unavailable"}`,
         );
+        continue;
+      }
+
+      if (
+        (sourceType === "group" || sourceType === "room")
+        && event.type === "message"
+        && event.message?.type === "text"
+        && /^管理綁定\s*\d{6}$/.test(event.message.text?.trim() || "")
+      ) {
+        await replyText(event.replyToken, "「管理綁定」只能在你與好日子小幫手的一對一私訊使用，這個群組不會啟用管理者私訊提醒。\n\n若要綁定通知群組，請回網站取得群組綁定碼，再在這裡輸入「綁定 123456」。");
         continue;
       }
 

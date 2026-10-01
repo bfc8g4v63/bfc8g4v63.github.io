@@ -405,8 +405,8 @@ function openEventForm(event, managerAuth = null, returnTo = null) {
             ${field('日期 <span>必填；點選年、月、日後可用滑鼠滾輪調整</span>', "eventDate", event?.eventDate || localToday(), 'required type="date" data-date-wheel aria-label="日期；點選年、月、日後可用滑鼠滾輪調整"')}
             ${timePicker(event?.startTime)}
           </div>
-          ${field('地點 <span>必填；填場館、店名或集合點</span>', "location", event?.location, 'required autocomplete="off" autocapitalize="sentences" spellcheck="false" placeholder="例如：臺北市懷愛館"')}
-          ${field('地址 <span>建議填寫；提供 Google 地圖導航</span>', "address", event?.address, 'autocomplete="street-address" autocapitalize="sentences" spellcheck="false" placeholder="例如：臺北市大安區學府里辛亥路三段330號"')}
+          ${field('地點 <span>必填；填場館、店名或集合點</span>', "location", event?.location, 'required autocomplete="off" autocapitalize="sentences" spellcheck="false" placeholder="例如：台北 101"')}
+          ${field('地址 <span>建議填寫；提供 Google 地圖導航</span>', "address", event?.address, 'autocomplete="off" autocapitalize="sentences" spellcheck="false" data-1p-ignore="true" data-lpignore="true" placeholder="例如：臺北市信義區西村里市府路45號"')}
           <label>活動說明<textarea name="description" rows="3" placeholder="要帶什麼？在哪裡集合？">${esc(event?.description)}</textarea></label>
           <details class="advanced-settings" ${editing ? "open" : ""}>
             <summary><strong>進階設定</strong><span>公開方式、名單、名額與費用</span></summary>
@@ -1474,7 +1474,7 @@ function openAdminDashboard(data, managerAuth, returnTo = null) {
         action: "create_manager_binding_code", ...managerPayload(event.id, managerAuth),
       });
       const bindingCommand = `管理綁定 ${result.code}`;
-      document.querySelector("#manager-binding-code-area").innerHTML = `<div class="binding-code"><span>先加小幫手好友，再於私訊輸入</span><strong>${esc(bindingCommand)}</strong><button class="secondary binding-copy" id="copy-manager-binding-code" type="button">複製</button><small>10 分鐘內有效；可交給受邀的共同管理者</small></div>`;
+      document.querySelector("#manager-binding-code-area").innerHTML = `<div class="binding-code"><span>先加小幫手好友，再於一對一私訊輸入</span><strong>${esc(bindingCommand)}</strong><button class="secondary binding-copy" id="copy-manager-binding-code" type="button">複製</button><small>10 分鐘內有效；只能私訊小幫手，群組不會啟用管理者提醒</small></div>`;
       document.querySelector("#copy-manager-binding-code")?.addEventListener("click", async (copyEvent) => {
         const copyButton = copyEvent.currentTarget;
         try {
