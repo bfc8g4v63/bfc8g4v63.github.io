@@ -421,7 +421,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.72/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.73/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -450,13 +450,13 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.72/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.72/);
-  assert.match(worker, /good-days-github-v72/);
+  assert.match(page, /\/app\.js\?v=1\.2\.73/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.73/);
+  assert.match(worker, /good-days-github-v73/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
-test("activity time uses equal-height controls with direct minute entry, desktop wheel and touch adjustment", async () => {
+test("activity date and time controls support direct editing, desktop wheel and touch adjustment", async () => {
   const [client, styles] = await Promise.all([
     readFile(new URL("../docs/app.js", import.meta.url), "utf8"),
     readFile(new URL("../docs/styles.css", import.meta.url), "utf8"),
@@ -467,6 +467,12 @@ test("activity time uses equal-height controls with direct minute entry, desktop
   assert.match(client, /class="time-wheel-unit"/);
   assert.match(client, /function updateEditableTimeInput/);
   assert.match(client, /function enableTimeWheels/);
+  assert.match(client, /function enableDateWheels/);
+  assert.match(client, /data-date-wheel/);
+  assert.match(client, /function dateWheelSegment/);
+  assert.match(client, /function updateDateWheel/);
+  assert.match(client, /segment === "month"/);
+  assert.match(client, /segment === "day"/);
   assert.match(client, /addEventListener\("wheel"/);
   assert.match(client, /addEventListener\("touchstart"/);
   assert.match(client, /addEventListener\("touchend"/);

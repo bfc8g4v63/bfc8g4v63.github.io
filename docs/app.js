@@ -273,6 +273,80 @@ function enableTimeWheels(form) {
   });
 }
 
+function localDateValue(date) {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function datePartsForWheel(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value || "");
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const probe = new Date(year, month - 1, day);
+  return probe.getFullYear() === year && probe.getMonth() === month - 1 && probe.getDate() === day ? { year, month, day } : null;
+}
+
+function dateWheelSegment(input, clientX) {
+  const parts = datePartsForWheel(input.value) || datePartsForWheel(localToday());
+  const rect = input.getBoundingClientRect();
+  const styles = getComputedStyle(input);
+  const start = rect.left + (parseFloat(styles.paddingLeft) || 14);
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
+  if (!context || !parts) return "day";
+  context.font = `${styles.fontWeight} ${styles.fontSize} ${styles.fontFamily}`;
+  const width = (text) => context.measureText(text).width;
+  const yearEnd = start + width(String(parts.year));
+  const monthStart = yearEnd + width("/");
+  const monthEnd = monthStart + width(String(parts.month).padStart(2, "0"));
+  const dayStart = monthEnd + width("/");
+  const dayEnd = dayStart + width(String(parts.day).padStart(2, "0"));
+  const centers = [
+    ["year", (start + yearEnd) / 2],
+    ["month", (monthStart + monthEnd) / 2],
+    ["day", (dayStart + dayEnd) / 2],
+  ];
+  return centers.reduce((nearest, current) => (
+    Math.abs(clientX - current[1]) < Math.abs(clientX - nearest[1]) ? current : nearest
+  ))[0];
+}
+
+function updateDateWheel(input, segment, direction) {
+  const current = datePartsForWheel(input.value) || datePartsForWheel(localToday());
+  if (!current) return;
+  let next;
+  if (segment === "day") {
+    next = new Date(current.year, current.month - 1, current.day + direction);
+  } else if (segment === "month") {
+    next = new Date(current.year, current.month - 1 + direction, 1);
+    next.setDate(Math.min(current.day, new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate()));
+  } else {
+    next = new Date(current.year + direction, current.month - 1, 1);
+    next.setDate(Math.min(current.day, new Date(next.getFullYear(), next.getMonth() + 1, 0).getDate()));
+  }
+  input.value = localDateValue(next);
+  input.dataset.dateSegment = segment;
+  input.dispatchEvent(new Event("change", { bubbles: true }));
+}
+
+function enableDateWheels(form) {
+  form.querySelectorAll("[data-date-wheel]").forEach((input) => {
+    let selectedSegment = "day";
+    const chooseSegment = (event) => {
+      selectedSegment = dateWheelSegment(input, event.clientX);
+      input.dataset.dateSegment = selectedSegment;
+    };
+    input.addEventListener("pointerdown", chooseSegment);
+    input.addEventListener("click", chooseSegment);
+    input.addEventListener("wheel", (event) => {
+      if (!event.deltaY) return;
+      event.preventDefault();
+      updateDateWheel(input, selectedSegment, event.deltaY > 0 ? 1 : -1);
+    }, { passive: false });
+  });
+}
+
 function selectedStartTime(form) {
   const period = form.elements.timePeriod.value;
   const hour = Number(form.elements.timeHour.value);
@@ -306,7 +380,7 @@ function openEventForm(event, managerAuth = null, returnTo = null) {
           ${field('活動名稱 <span>必填</span>', "title", event?.title, 'required autocomplete="off" autocapitalize="sentences" spellcheck="false" placeholder="例如：阿嬤生日午餐"')}
           ${field('管理者名稱 <span>必填；與管理碼一起查看你管理的活動</span>', "creatorName", event?.creatorName, 'required placeholder="例如：王小明"')}
           <div class="form-row">
-            ${field('日期 <span>必填</span>', "eventDate", event?.eventDate || localToday(), 'required type="date"')}
+            ${field('日期 <span>必填；點選年、月、日後可用滑鼠滾輪調整</span>', "eventDate", event?.eventDate || localToday(), 'required type="date" data-date-wheel aria-label="日期；點選年、月、日後可用滑鼠滾輪調整"')}
             ${timePicker(event?.startTime)}
           </div>
           ${field('地點 <span>必填</span>', "location", event?.location, 'required placeholder="餐廳名稱或地址"')}
@@ -356,6 +430,7 @@ function openEventForm(event, managerAuth = null, returnTo = null) {
   const participantCodeField = form.querySelector("#participant-code-field");
   const feePerPersonField = form.querySelector("#fee-per-person-field");
   enableTimeWheels(form);
+  enableDateWheels(form);
   const syncParticipantCode = () => {
     const privateMode = form.elements.accessMode.value === "private";
     participantCodeField.hidden = !privateMode;
