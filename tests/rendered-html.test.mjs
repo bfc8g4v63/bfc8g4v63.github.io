@@ -44,10 +44,10 @@ test("venues, addresses, map navigation and weekdays stay consistent across surf
   assert.match(eventsRoute, /const address = clean\(body\.address, 200\)/);
   assert.match(accessRoute, /address: event\.address/);
   assert.match(homeClient, /"location", event\?\.location, 'required autocomplete="off"/);
-  assert.match(homeClient, /"address", event\?\.address/);
+  assert.match(homeClient, /"eventAddress", event\?\.address/);
   assert.match(homeClient, /placeholder="例如：台北 101"/);
   assert.match(homeClient, /placeholder="例如：臺北市信義區西村里市府路45號"/);
-  assert.match(homeClient, /"address", event\?\.address, 'autocomplete="off"[\s\S]*data-1p-ignore/);
+  assert.match(homeClient, /"eventAddress", event\?\.address, 'type="search"[\s\S]*data-1p-ignore/);
   assert.match(homeClient, /www\.google\.com\/maps\/search/);
   assert.match(eventClient, /在 Google 地圖開啟/);
   assert.match(homeClient, /function formatShortDate/);
@@ -451,7 +451,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.76/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.77/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -480,9 +480,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.76/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.76/);
-  assert.match(worker, /good-days-github-v76/);
+  assert.match(page, /\/app\.js\?v=1\.2\.77/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.77/);
+  assert.match(worker, /good-days-github-v77/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -800,6 +800,8 @@ test("management UX keeps advanced choices and operational shortcuts easy to rea
   assert.match(client, /<form id="event-form" autocomplete="off">/);
   assert.match(client, /活動名稱[\s\S]*"eventTitle"[\s\S]*type="search"[\s\S]*data-form-type="other"/);
   assert.match(client, /body\.title = String\(body\.eventTitle \|\| ""\)/);
+  assert.match(client, /地址[\s\S]*"eventAddress"[\s\S]*type="search"[\s\S]*data-form-type="other"/);
+  assert.match(client, /body\.address = String\(body\.eventAddress \|\| ""\)/);
   assert.match(client, /公開方式、名單、名額與費用/);
   assert.match(client, /class="admin-quick-nav"/);
   assert.match(client, /data-dashboard-jump="participant-list"/);

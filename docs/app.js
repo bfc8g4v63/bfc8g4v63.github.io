@@ -406,7 +406,7 @@ function openEventForm(event, managerAuth = null, returnTo = null) {
             ${timePicker(event?.startTime)}
           </div>
           ${field('地點 <span>必填；填場館、店名或集合點</span>', "location", event?.location, 'required autocomplete="off" autocapitalize="sentences" spellcheck="false" placeholder="例如：台北 101"')}
-          ${field('地址 <span>建議填寫；提供 Google 地圖導航</span>', "address", event?.address, 'autocomplete="off" autocapitalize="sentences" spellcheck="false" data-1p-ignore="true" data-lpignore="true" placeholder="例如：臺北市信義區西村里市府路45號"')}
+          ${field('地址 <span>建議填寫；提供 Google 地圖導航</span>', "eventAddress", event?.address, 'type="search" autocomplete="off" autocapitalize="sentences" autocorrect="off" spellcheck="false" inputmode="text" aria-autocomplete="none" data-form-type="other" data-1p-ignore="true" data-lpignore="true" placeholder="例如：臺北市信義區西村里市府路45號"')}
           <label>活動說明<textarea name="description" rows="3" placeholder="要帶什麼？在哪裡集合？">${esc(event?.description)}</textarea></label>
           <details class="advanced-settings" ${editing ? "open" : ""}>
             <summary><strong>進階設定</strong><span>公開方式、名單、名額與費用</span></summary>
@@ -488,6 +488,8 @@ function openEventForm(event, managerAuth = null, returnTo = null) {
     const body = Object.fromEntries(new FormData(form));
     body.title = String(body.eventTitle || "");
     delete body.eventTitle;
+    body.address = String(body.eventAddress || "");
+    delete body.eventAddress;
     body.startTime = selectedStartTime(form);
     if (!body.startTime) {
       showFormError(form, "請完成活動時間的上午／下午、時與分。");
