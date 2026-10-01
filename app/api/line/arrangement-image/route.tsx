@@ -14,6 +14,12 @@ const CARD_TABLE_NOTE_HEIGHT = 42;
 const CARD_OVERFLOW_NOTE_HEIGHT = 38;
 const FONT_URL = "https://raw.githubusercontent.com/notofonts/noto-cjk/main/Sans/SubsetOTF/TC/NotoSansTC-Regular.otf";
 let fontData: Promise<ArrayBuffer> | undefined;
+const weekdayLabels = ["日", "一", "二", "三", "四", "五", "六"];
+
+function dateWithWeekday(eventDate: string) {
+  const date = new Date(`${eventDate}T12:00:00Z`);
+  return Number.isNaN(date.getTime()) ? eventDate : `${eventDate} (${weekdayLabels[date.getUTCDay()]})`;
+}
 
 type ArrangementTable = {
   id: string;
@@ -87,7 +93,7 @@ export async function GET(request: Request) {
     await ensureSchema();
     const db = getDb();
     const [eventRows, tables, assignments, attendees] = await Promise.all([
-      db.select({ title: events.title }).from(events).where(eq(events.id, eventId)).limit(1),
+      db.select({ title: events.title, eventDate: events.eventDate }).from(events).where(eq(events.id, eventId)).limit(1),
       db.select({ id: mealTables.id, name: mealTables.name, capacity: mealTables.capacity, isReserve: mealTables.isReserve, note: mealTables.note })
         .from(mealTables).where(eq(mealTables.eventId, eventId)).orderBy(asc(mealTables.sortOrder)),
       db.select({ tableId: mealAssignments.tableId, rsvpId: mealAssignments.rsvpId, people: mealAssignments.people })
@@ -109,7 +115,7 @@ export async function GET(request: Request) {
         + (card.entries.length > 6 ? CARD_OVERFLOW_NOTE_HEIGHT : 0)
       )));
     });
-    const height = 230 + rowHeights.reduce((sum, rowHeight) => sum + rowHeight, 0) + Math.max(0, rowHeights.length - 1) * 22 + 80;
+    const height = 270 + rowHeights.reduce((sum, rowHeight) => sum + rowHeight, 0) + Math.max(0, rowHeights.length - 1) * 22 + 80;
     const font = await loadFont();
 
     return new ImageResponse(
@@ -117,6 +123,7 @@ export async function GET(request: Request) {
         <div style={{ display: "flex", flexDirection: "column", borderBottom: "3px solid #efc36e", paddingBottom: 22, marginBottom: 20 }}>
           <div style={{ display: "flex", color: "#cf5943", fontSize: 23, fontWeight: 700 }}>好日子・活動安排</div>
           <div style={{ display: "flex", fontSize: 42, fontWeight: 700, marginTop: 6 }}>{event.title}</div>
+          <div style={{ display: "flex", fontSize: 21, marginTop: 7, color: "#58706d" }}>日期｜{dateWithWeekday(event.eventDate)}</div>
           <div style={{ display: "flex", fontSize: 23, marginTop: 10, color: "#58706d" }}>已安排 {arrangement.assignedPeople} 人　・　尚未安排 {arrangement.unassignedPeople} 人</div>
         </div>
         <div style={{ display: "flex", flexDirection: "row", flexWrap: "wrap", gap: 22 }}>

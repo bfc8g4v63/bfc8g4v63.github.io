@@ -15,6 +15,7 @@ export function ensureSchema() {
         event_date TEXT NOT NULL,
         start_time TEXT NOT NULL,
         location TEXT NOT NULL,
+        address TEXT NOT NULL DEFAULT '',
         description TEXT NOT NULL DEFAULT '',
         creator_name TEXT NOT NULL DEFAULT '',
         contact_name TEXT NOT NULL DEFAULT '',
@@ -234,6 +235,9 @@ export function ensureSchema() {
     }
     if (!names.has("fee_per_person")) {
       await database.prepare("ALTER TABLE events ADD COLUMN fee_per_person INTEGER NOT NULL DEFAULT 0").run();
+    }
+    if (!names.has("address")) {
+      await database.prepare("ALTER TABLE events ADD COLUMN address TEXT NOT NULL DEFAULT ''").run();
     }
     const rsvpColumns = await database.prepare("PRAGMA table_info(rsvps)").all<{ name: string }>();
     const rsvpNames = new Set((rsvpColumns.results || []).map((column) => column.name));

@@ -28,6 +28,31 @@ test("public activity response is summary-only", async () => {
   assert.match(client, /\/admin\/event/);
 });
 
+test("venues, addresses, map navigation and weekdays stay consistent across surfaces", async () => {
+  const [schema, init, eventsRoute, accessRoute, homeClient, eventClient, lineLib, imageRoute] = await Promise.all([
+    readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
+    readFile(new URL("../db/init.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/events/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/events/access/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../docs/app.js", import.meta.url), "utf8"),
+    readFile(new URL("../docs/e/app.js", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/line/lib.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/line/arrangement-image/route.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(schema, /address: text\("address"\)\.notNull\(\)\.default\(""\)/);
+  assert.match(init, /ALTER TABLE events ADD COLUMN address/);
+  assert.match(eventsRoute, /const address = clean\(body\.address, 200\)/);
+  assert.match(accessRoute, /address: event\.address/);
+  assert.match(homeClient, /"location", event\?\.location, 'required autocomplete="off"/);
+  assert.match(homeClient, /"address", event\?\.address/);
+  assert.match(homeClient, /www\.google\.com\/maps\/search/);
+  assert.match(eventClient, /在 Google 地圖開啟/);
+  assert.match(homeClient, /function formatShortDate/);
+  assert.match(lineLib, /export function lineDateLabel/);
+  assert.match(lineLib, /日期｜\$\{lineDateLabel\(event\.eventDate\)\}/);
+  assert.match(imageRoute, /日期｜\{dateWithWeekday\(event\.eventDate\)\}/);
+});
+
 test("LINE webhook verifies signatures and reminder workflow uses a secret", async () => {
   const [webhook, ingress, workflow, reminders, scheduler, lineLib] = await Promise.all([
     readFile(new URL("../app/api/line/webhook/route.ts", import.meta.url), "utf8"),
@@ -421,7 +446,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.73/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.74/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -450,9 +475,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.73/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.73/);
-  assert.match(worker, /good-days-github-v73/);
+  assert.match(page, /\/app\.js\?v=1\.2\.74/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.74/);
+  assert.match(worker, /good-days-github-v74/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 

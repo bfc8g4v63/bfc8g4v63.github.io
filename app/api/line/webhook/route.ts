@@ -2,7 +2,7 @@ import { and, asc, eq, inArray, lt } from "drizzle-orm";
 import { getDb } from "../../../../db";
 import { events, lineBindCodes, lineBindings, lineCommandLogs, lineGroups, lineManagerBatchBindCodes, lineManagerBindCodes, lineManagerTargets, lineReminderSettings, lineWebhookDeliveries, mealTables, rsvps } from "../../../../db/schema";
 import { normalizeLineCommand } from "../commands";
-import { activityArrangementImageUrl, activityListCard, activityShareMessage, getGroupName, lineConfig, replyMessages, replyText, rsvpSummaryMessage, verifyLineSignature } from "../lib";
+import { activityArrangementImageUrl, activityListCard, activityShareMessage, getGroupName, lineConfig, lineDateLabel, replyMessages, replyText, rsvpSummaryMessage, verifyLineSignature } from "../lib";
 import { eventShareUrl } from "../../../../lib/event-share";
 
 type LineEvent = {
@@ -56,7 +56,7 @@ async function eventsForManagerBinding(eventIds: string[]) {
 async function upcomingGroupEvents(groupId: string) {
   const rows = await getDb().select({
     id: events.id, title: events.title, eventDate: events.eventDate, startTime: events.startTime,
-    location: events.location, description: events.description, shareToken: events.shareToken, shareCode: events.shareCode,
+    location: events.location, address: events.address, description: events.description, shareToken: events.shareToken, shareCode: events.shareCode,
   }).from(events).innerJoin(lineBindings, eq(events.id, lineBindings.eventId))
     .where(and(eq(lineBindings.groupId, groupId), eq(events.status, "active")))
     .orderBy(asc(events.eventDate), asc(events.startTime));
@@ -78,7 +78,7 @@ async function replyUpcomingActivities(
     // text-only fallback that still opens every activity.
     console.error("Unable to send LINE activity cards; using text fallback", error);
     const fallback = ["【近期活動】", ...activities.map((activity, index) => (
-      `${index + 1}. ${activity.title}\n${activity.eventDate} ${activity.startTime}｜${activity.location}\n查看／回覆：${eventShareUrl(activity.shareCode, activity.shareToken)}`
+      `${index + 1}. ${activity.title}\n${lineDateLabel(activity.eventDate)} ${activity.startTime}｜${activity.location}${activity.address ? `\n地址：${activity.address}` : ""}\n查看／回覆：${eventShareUrl(activity.shareCode, activity.shareToken)}`
     ))];
     if (instruction) fallback.push(instruction);
     await replyText(replyToken, fallback.join("\n\n").slice(0, 5000));

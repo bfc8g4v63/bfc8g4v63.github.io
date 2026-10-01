@@ -221,13 +221,15 @@ export function activityShareMessage(event: {
   eventDate: string;
   startTime: string;
   location: string;
+  address?: string;
   description: string;
   shareUrl: string;
 }) {
   const description = event.description.trim()
     ? `\n\n活動內容\n${event.description.trim()}`
     : "";
-  return `〖${event.title}〗\n日期：${event.eventDate}\n時間：${event.startTime}\n餐廳／地點：${event.location}${description}\n\n活動連結\n${event.shareUrl}\n\n請掃描下方 QR Code，或點選連結查看與報名。`;
+  const address = event.address?.trim() ? `\n地址：${event.address.trim()}` : "";
+  return `〖${event.title}〗\n日期：${lineDateLabel(event.eventDate)}\n時間：${event.startTime}\n地點：${event.location}${address}${description}\n\n活動連結\n${event.shareUrl}\n\n請掃描下方 QR Code，或點選連結查看與報名。`;
 }
 
 export async function getGroupName(groupId: string) {
@@ -259,11 +261,24 @@ export async function verifyLineSignature(body: string, signature: string) {
 
 type ActivityLinkEvent = {
   id: string; title: string; eventDate: string; startTime: string;
-  location: string; shareToken: string; shareCode: string; attendingPeople?: number;
+  location: string; address?: string; shareToken: string; shareCode: string; attendingPeople?: number;
 };
+
+const weekdayLabels = ["日", "一", "二", "三", "四", "五", "六"];
+
+export function lineDateLabel(eventDate: string) {
+  const parsed = new Date(`${eventDate}T12:00:00Z`);
+  return Number.isNaN(parsed.getTime()) ? eventDate : `${eventDate} (${weekdayLabels[parsed.getUTCDay()]})`;
+}
+
+function googleMapsUrl(address: string, location: string) {
+  const query = address.trim() || location.trim();
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
+}
 
 function activityBubble(event: ActivityLinkEvent, eyebrow: string) {
   const shareUrl = eventShareUrl(event.shareCode, event.shareToken);
+  const mapUrl = googleMapsUrl(event.address || "", event.location);
   const people = event.attendingPeople === undefined ? "" : `目前 ${event.attendingPeople} 人參加`;
   return {
     type: "bubble",
@@ -278,9 +293,10 @@ function activityBubble(event: ActivityLinkEvent, eyebrow: string) {
     body: {
       type: "box", layout: "vertical", spacing: "sm", paddingAll: "16px",
       contents: [
-        { type: "text", text: `日期｜${event.eventDate}`, color: "#315C54", wrap: true },
+        { type: "text", text: `日期｜${lineDateLabel(event.eventDate)}`, color: "#315C54", wrap: true },
         { type: "text", text: `時間｜${event.startTime}`, color: "#315C54", wrap: true },
         { type: "text", text: `地點｜${event.location.slice(0, 180)}`, color: "#315C54", wrap: true },
+        ...(event.address?.trim() ? [{ type: "text", text: `地址｜${event.address.trim().slice(0, 180)}`, color: "#315C54", wrap: true }] : []),
         ...(people ? [{ type: "text", text: people, color: "#C65037", weight: "bold", margin: "md" }] : []),
       ],
     },
@@ -289,7 +305,10 @@ function activityBubble(event: ActivityLinkEvent, eyebrow: string) {
       contents: [{
         type: "button", style: "primary", color: "#2F6656", height: "sm",
         action: { type: "uri", label: "查看／回覆", uri: shareUrl },
-      }],
+      }, ...(mapUrl ? [{
+        type: "button", style: "secondary", height: "sm",
+        action: { type: "uri", label: "在 Google 地圖開啟", uri: mapUrl },
+      }] : [])],
     },
   };
 }
@@ -297,7 +316,7 @@ function activityBubble(event: ActivityLinkEvent, eyebrow: string) {
 export function eventCard(event: ActivityLinkEvent, label = "活動提醒"): LineReplyMessage {
   return {
     type: "flex",
-    altText: `【${label}】${event.title}｜${event.eventDate} ${event.startTime}`,
+    altText: `【${label}】${event.title}｜${lineDateLabel(event.eventDate)} ${event.startTime}`,
     contents: activityBubble(event, label),
   };
 }

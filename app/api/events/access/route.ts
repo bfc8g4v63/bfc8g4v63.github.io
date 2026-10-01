@@ -21,6 +21,7 @@ function eventView(
     eventDate: event.eventDate,
     startTime: event.startTime,
     location: event.location,
+    address: event.address,
     description: event.description,
     contactName: event.contactName,
     capacity: event.capacity,

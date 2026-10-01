@@ -57,7 +57,7 @@ export async function GET(request: Request) {
     const [eventRows, rsvpRows] = await Promise.all([
       db.select({
         id: events.id, title: events.title, eventDate: events.eventDate,
-        startTime: events.startTime, location: events.location,
+        startTime: events.startTime, location: events.location, address: events.address,
         description: events.description, contactName: events.contactName,
         capacity: events.capacity, status: events.status, accessMode: events.accessMode,
         feePerPerson: events.feePerPerson,
@@ -103,6 +103,7 @@ export async function POST(request: Request) {
     const eventDate = clean(body.eventDate, 10);
     const startTime = clean(body.startTime, 5);
     const location = clean(body.location, 160);
+    const address = clean(body.address, 200);
     const editCode = clean(body.editCode, 80);
     const mode = accessMode(body.accessMode);
     const visibility = attendanceVisibility(body.attendanceVisibility);
@@ -123,7 +124,7 @@ export async function POST(request: Request) {
     const shareCode = shortShareCode(token);
     const managerToken = crypto.randomUUID();
     await getDb().insert(events).values({
-      id, title, eventDate, startTime, location,
+      id, title, eventDate, startTime, location, address,
       description: clean(body.description, 1000),
       creatorName,
       contactName: clean(body.contactName, 60),
@@ -167,6 +168,7 @@ export async function PATCH(request: Request) {
     const eventDate = body.eventDate === undefined ? existing.eventDate : clean(body.eventDate, 10);
     const startTime = body.startTime === undefined ? existing.startTime : clean(body.startTime, 5);
     const location = body.location === undefined ? existing.location : clean(body.location, 160);
+    const address = body.address === undefined ? existing.address : clean(body.address, 200);
     const mode = body.accessMode === undefined ? existing.accessMode : accessMode(body.accessMode, existing.accessMode);
     const visibility = body.attendanceVisibility === undefined
       ? existing.attendanceVisibility
@@ -188,7 +190,7 @@ export async function PATCH(request: Request) {
       ? (existing.status === "cancelled" ? existing.cancelledAt : new Date().toISOString())
       : null;
     await getDb().update(events).set({
-      title, eventDate, startTime, location, status, accessMode: mode, attendanceVisibility: visibility,
+      title, eventDate, startTime, location, address, status, accessMode: mode, attendanceVisibility: visibility,
       shareToken, shareCode, participantCodeHash, cancelledAt,
       description: body.description === undefined ? existing.description : clean(body.description, 1000),
       creatorName: body.creatorName === undefined ? existing.creatorName : clean(body.creatorName, 60),

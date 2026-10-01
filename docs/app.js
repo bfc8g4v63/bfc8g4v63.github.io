@@ -59,6 +59,27 @@ function formatDate(value) {
   }).format(new Date(`${value}T12:00:00`));
 }
 
+function formatShortDate(value) {
+  if (!value) return "日期未定";
+  const date = new Date(`${value}T12:00:00`);
+  if (Number.isNaN(date.getTime())) return value;
+  return `${value} (${["日", "一", "二", "三", "四", "五", "六"][date.getDay()]})`;
+}
+
+function googleMapsUrl(event) {
+  const query = String(event?.address || event?.location || "").trim();
+  return query ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}` : "";
+}
+
+function eventLocationDetails(event) {
+  const venue = event.location || "地點未定";
+  const address = String(event.address || "").trim();
+  const mapUrl = googleMapsUrl(event);
+  return `<p class="event-meta"><span aria-hidden="true">⌖</span>地點｜${esc(venue)}</p>
+    ${address ? `<p class="event-meta event-address"><span aria-hidden="true">⌂</span>地址｜${esc(address)}</p>` : ""}
+    ${mapUrl ? `<a class="map-link" href="${esc(mapUrl)}" target="_blank" rel="noopener noreferrer">在 Google 地圖開啟</a>` : ""}`;
+}
+
 function formatDateTime(value) {
   if (!value) return "時間不明";
   const date = new Date(value);
@@ -107,8 +128,9 @@ function eventCard(event) {
       <div class="date-block"><span>${esc(parts.month)}</span><strong>${esc(parts.day)}</strong></div>
       <div class="event-body">
         <div class="event-title-row"><h3>${esc(event.title)}</h3>${event.status === "cancelled" ? '<span class="status-cancelled">已取消</span>' : ""}</div>
-        <p class="event-meta"><span aria-hidden="true">◷</span>${esc(event.startTime || "時間未定")}</p>
-        <p class="event-meta"><span aria-hidden="true">⌖</span>${esc(event.location || "地點未定")}</p>
+        <p class="event-meta"><span aria-hidden="true">▣</span>日期｜${esc(formatShortDate(event.eventDate))}</p>
+        <p class="event-meta"><span aria-hidden="true">◷</span>時間｜${esc(event.startTime || "時間未定")}</p>
+        ${eventLocationDetails(event)}
         ${event.description ? `<p class="event-description">${esc(event.description)}</p>` : ""}
         <div class="attendance"><strong>${people} 人參加</strong><span>${event.capacity ? `／上限 ${event.capacity} 人` : "歡迎全家一起來"}</span></div>
         ${event.feePerPerson > 0 ? `<p class="fee-note">活動費用：每人 ${formatMoney(event.feePerPerson)}</p>` : ""}
@@ -383,7 +405,8 @@ function openEventForm(event, managerAuth = null, returnTo = null) {
             ${field('日期 <span>必填；點選年、月、日後可用滑鼠滾輪調整</span>', "eventDate", event?.eventDate || localToday(), 'required type="date" data-date-wheel aria-label="日期；點選年、月、日後可用滑鼠滾輪調整"')}
             ${timePicker(event?.startTime)}
           </div>
-          ${field('地點 <span>必填</span>', "location", event?.location, 'required placeholder="餐廳名稱或地址"')}
+          ${field('地點 <span>必填；填場館、店名或集合點</span>', "location", event?.location, 'required autocomplete="off" autocapitalize="sentences" spellcheck="false" placeholder="例如：臺北市懷愛館"')}
+          ${field('地址 <span>建議填寫；提供 Google 地圖導航</span>', "address", event?.address, 'autocomplete="street-address" autocapitalize="sentences" spellcheck="false" placeholder="例如：臺北市大安區學府里辛亥路三段330號"')}
           <label>活動說明<textarea name="description" rows="3" placeholder="要帶什麼？在哪裡集合？">${esc(event?.description)}</textarea></label>
           <details class="advanced-settings" ${editing ? "open" : ""}>
             <summary><strong>進階設定</strong><span>公開方式、名單、名額與費用</span></summary>
@@ -518,7 +541,7 @@ function openRsvpForm(event) {
       <section class="modal rsvp-modal" role="dialog" aria-modal="true" aria-labelledby="rsvp-title">
         <button class="modal-close" data-close aria-label="關閉">×</button>
         <p class="eyebrow">回覆活動</p><h2 id="rsvp-title">${esc(event.title)}</h2>
-        <p class="modal-event-meta">${esc(formatDate(event.eventDate))} · ${esc(event.startTime)}<br>${esc(event.location)}</p>
+        <p class="modal-event-meta">${esc(formatShortDate(event.eventDate))} · ${esc(event.startTime)}<br>地點｜${esc(event.location)}${event.address ? `<br>地址｜${esc(event.address)}` : ""}</p>
         <form id="rsvp-form">
           ${field('您的姓名 <span>必填</span>', "name", "", 'required autofocus placeholder="例如：王奶奶"')}
           <fieldset><legend>是否參加？</legend>
@@ -981,7 +1004,7 @@ async function autoReuseLineGroup(event, managerAuth, returnTo) {
 }
 
 function lineEventLabel(event) {
-  return `${event.eventDate} ${event.startTime}｜${event.title}`;
+  return `${formatShortDate(event.eventDate)} ${event.startTime}｜${event.title}`;
 }
 
 async function openLineGroupPicker(event, managerAuth, returnTo = null) {
@@ -1366,7 +1389,7 @@ function openAdminDashboard(data, managerAuth, returnTo = null) {
       <section class="modal admin-modal" role="dialog" aria-modal="true" aria-labelledby="admin-title">
         <button class="modal-close" data-close aria-label="關閉">×</button>
         <p class="eyebrow">活動管理後台</p><h2 id="admin-title">${esc(event.title)}</h2>
-        <p class="modal-event-meta">${esc(formatDate(event.eventDate))} · ${esc(event.startTime)}<br>${esc(event.location)}</p>
+        <p class="modal-event-meta">${esc(formatShortDate(event.eventDate))} · ${esc(event.startTime)}<br>地點｜${esc(event.location)}${event.address ? `<br>地址｜${esc(event.address)}` : ""}</p>
         <div class="stats-grid">
           <div><strong>${data.summary.attendingPeople}</strong><span>參加人數</span></div>
           <div><strong>${data.summary.attendingReplies}</strong><span>參加回覆</span></div>
@@ -1633,7 +1656,7 @@ function closeModal() {
 async function shareEvent(event) {
   const url = event.shareUrl || `${location.origin}/?event=${encodeURIComponent(event.id)}`;
   try {
-    if (navigator.share) await navigator.share({ title: event.title, text: `${formatDate(event.eventDate)} ${event.startTime}｜${event.location}`, url });
+    if (navigator.share) await navigator.share({ title: event.title, text: `${formatShortDate(event.eventDate)} ${event.startTime}｜${event.location}${event.address ? `｜${event.address}` : ""}`, url });
     else {
       await navigator.clipboard.writeText(url);
       showNotice("活動網址已複製，可以貼到 LINE 分享");

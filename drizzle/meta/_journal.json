@@ -99,6 +99,13 @@
       "when": 1790263175323,
       "tag": "0013_loud_shotgun",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1790819522178,
+      "tag": "0014_cold_barracuda",
+      "breakpoints": true
     }
   ]
 }

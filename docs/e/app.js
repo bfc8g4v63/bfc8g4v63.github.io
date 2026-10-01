@@ -45,6 +45,16 @@ function formatDate(value) {
     .format(new Date(`${value}T12:00:00`));
 }
 
+function formatShortDate(value) {
+  const date = new Date(`${value}T12:00:00`);
+  return Number.isNaN(date.getTime()) ? value : `${value} (${["日", "一", "二", "三", "四", "五", "六"][date.getDay()]})`;
+}
+
+function googleMapsUrl(event) {
+  const query = String(event.address || event.location || "").trim();
+  return query ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}` : "";
+}
+
 async function post(path, body, method = "POST") {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 10_000);
@@ -90,11 +100,13 @@ function renderEvent(event) {
       ${roster.length ? `<ul class="attendee-names">${roster.map((name) => `<li>${esc(name)}</li>`).join("")}</ul>` : '<p>目前沒有可公開的顯示名稱。</p>'}
     </section>` : event.attendanceVisibility !== "count" && event.status === "active"
       ? '<p class="privacy-note">完成報名後，可在這裡查看依活動設定公開的參加者名稱。</p>' : "";
+  const mapUrl = googleMapsUrl(event);
   root.innerHTML = `
     <article class="event-invitation ${event.status === "cancelled" ? "cancelled" : ""}">
       <p class="eyebrow">${event.accessMode === "public" ? "公開活動" : "活動邀請"}</p>
       <h1>${esc(event.title)}</h1>
-      <p class="invitation-meta">${esc(formatDate(event.eventDate))} · ${esc(event.startTime)}<br>${esc(event.location)}</p>
+      <p class="invitation-meta">日期｜${esc(formatShortDate(event.eventDate))}<br>時間｜${esc(event.startTime)}<br>地點｜${esc(event.location)}${event.address ? `<br>地址｜${esc(event.address)}` : ""}</p>
+      ${mapUrl ? `<a class="secondary event-map-link" href="${esc(mapUrl)}" target="_blank" rel="noopener noreferrer">在 Google 地圖開啟</a>` : ""}
       ${event.description ? `<p class="event-description">${esc(event.description)}</p>` : ""}
       <p class="attendance"><strong>${people} 人參加</strong>${event.capacity ? `<span>／上限 ${event.capacity} 人</span>` : ""}</p>
       ${event.feePerPerson > 0 ? `<p class="fee-note">活動費用：每人 ${formatMoney(event.feePerPerson)}</p>` : ""}

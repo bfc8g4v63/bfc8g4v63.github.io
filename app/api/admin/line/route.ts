@@ -234,15 +234,15 @@ export async function POST(request: Request) {
 
     if (action === "list_publishable") {
       const future = await db.select({
-        id: events.id, title: events.title, eventDate: events.eventDate, startTime: events.startTime, location: events.location,
+        id: events.id, title: events.title, eventDate: events.eventDate, startTime: events.startTime, location: events.location, address: events.address,
         editCodeHash: events.editCodeHash, managerTokenHash: events.managerTokenHash,
       }).from(events).where(and(eq(events.status, "active"), gt(events.eventDate, new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10))))
         .orderBy(asc(events.eventDate), asc(events.startTime));
-      const visible = [] as Array<{ id: string; title: string; eventDate: string; startTime: string; location: string }>;
+      const visible = [] as Array<{ id: string; title: string; eventDate: string; startTime: string; location: string; address: string }>;
       for (const event of future) {
         const expected = clean(body.managerToken, 160) ? event.managerTokenHash : event.editCodeHash;
         if (credential && await verifyCredential(credential, expected) && eventStartsAt(event) > Date.now()) {
-          visible.push({ id: event.id, title: event.title, eventDate: event.eventDate, startTime: event.startTime, location: event.location });
+          visible.push({ id: event.id, title: event.title, eventDate: event.eventDate, startTime: event.startTime, location: event.location, address: event.address });
         }
       }
       return json(request, { events: visible });
