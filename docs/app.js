@@ -302,8 +302,8 @@ function openEventForm(event, managerAuth = null, returnTo = null) {
         <button class="modal-close" data-close aria-label="關閉">×</button>
         <p class="eyebrow">${editing ? "管理活動" : "新的相聚"}</p>
         <h2 id="event-form-title">${editing ? "修改活動" : "建立活動"}</h2>
-        <form id="event-form">
-          ${field('活動名稱 <span>必填</span>', "title", event?.title, 'required placeholder="例如：阿嬤生日午餐"')}
+        <form id="event-form" autocomplete="off">
+          ${field('活動名稱 <span>必填</span>', "title", event?.title, 'required autocomplete="off" autocapitalize="sentences" spellcheck="false" placeholder="例如：阿嬤生日午餐"')}
           ${field('管理者名稱 <span>必填；與管理碼一起查看你管理的活動</span>', "creatorName", event?.creatorName, 'required placeholder="例如：王小明"')}
           <div class="form-row">
             ${field('日期 <span>必填</span>', "eventDate", event?.eventDate || localToday(), 'required type="date"')}
