@@ -1,9 +1,8 @@
 import { and, asc, eq, inArray, lt } from "drizzle-orm";
-import { getRequestExecutionContext } from "vinext/shims/request-context";
 import { getDb } from "../../../../db";
 import { events, lineBindCodes, lineBindings, lineCommandLogs, lineGroups, lineManagerBatchBindCodes, lineManagerBindCodes, lineManagerTargets, lineReminderSettings, lineWebhookDeliveries, mealTables, rsvps } from "../../../../db/schema";
 import { normalizeLineCommand } from "../commands";
-import { activityArrangementImageUrl, activityListCard, activityShareMessage, getGroupName, lineConfig, pushMessages, replyMessages, replyText, rsvpSummaryMessage, verifyLineSignature } from "../lib";
+import { activityArrangementImageUrl, activityListCard, activityShareMessage, getGroupName, lineConfig, replyMessages, replyText, rsvpSummaryMessage, verifyLineSignature } from "../lib";
 import { eventShareUrl } from "../../../../lib/event-share";
 
 type LineEvent = {
@@ -27,25 +26,6 @@ async function logCommand(eventId: string, command: string, outcome: string, det
   } catch (error) {
     // Diagnostic logging must never prevent a family from receiving a response.
     console.error("Unable to record LINE command status", error);
-  }
-}
-
-function canRetryLinePush(error: unknown) {
-  const message = error instanceof Error ? error.message : String(error);
-  return /LINE 傳送失敗（5\d\d）|fetch failed|network|timeout/i.test(message);
-}
-
-async function pushArrangement(chatId: string, messages: Parameters<typeof pushMessages>[1]) {
-  const retryKey = crypto.randomUUID();
-  try {
-    await pushMessages(chatId, messages, retryKey);
-    return "sent" as const;
-  } catch (error) {
-    if (!canRetryLinePush(error)) throw error;
-    // LINE uses the retry key to avoid duplicate delivery if the first request
-    // reached LINE but the response was interrupted in transit.
-    await pushMessages(chatId, messages, retryKey);
-    return "retried" as const;
   }
 }
 
@@ -176,18 +156,11 @@ export async function POST(request: Request) {
     return Response.json({ error: "Invalid LINE payload" }, { status: 400 });
   }
 
-  // LINE requires a 2xx response within two seconds. Database work and a
-  // reply/push call can exceed that budget on a cold Worker, so acknowledge
-  // the verified delivery first and keep the actual command work alive with
-  // the request execution context.
-  const processing = processWebhookEvents(payload.events || [], request.url);
-  if (isTrustedRelay) {
-    await processing;
-    return Response.json({ ok: true });
-  }
-  const context = getRequestExecutionContext();
-  if (context) context.waitUntil(processing);
-  else void processing;
+  // Commands that a person is waiting for must consume the LINE reply token
+  // in this request. Deferring them with waitUntil made 「活動」and「安排」
+  // appear minutes later when a Worker was scheduled late. Event claiming
+  // above makes an eventual LINE retry safe if the response exceeds its window.
+  await processWebhookEvents(payload.events || [], request.url);
   return Response.json({ ok: true });
 }
 
@@ -310,8 +283,8 @@ async function processWebhookEvents(lineEvents: LineEvent[], requestUrl: string)
           return { type: "image" as const, originalContentUrl, previewImageUrl: originalContentUrl };
         })));
         try {
-          const result = await pushArrangement(chatId, messages);
-          for (const item of sendable) await logCommand(item.targetEvent.id, "安排", "sent", result === "retried" ? "安全重試後已傳送安排圖卡" : "已傳送安排圖卡");
+          await replyMessages(event.replyToken, messages);
+          for (const item of sendable) await logCommand(item.targetEvent.id, "安排", "sent", "已直接回覆安排圖卡");
         } catch (error) {
           const detail = error instanceof Error ? error.message : "LINE 圖卡傳送失敗";
           try {
