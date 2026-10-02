@@ -208,7 +208,11 @@ test("activity arrangements keep allocation private and validate split family as
   assert.match(client, /scrollIntoView\(\{ behavior: "smooth", block: "start" \}\)/);
   assert.match(client, /桌遊、滑雪等活動/);
   assert.match(client, /同一筆報名超過空位時/);
+  assert.match(client, /function enableTouchPartyDrag/);
+  assert.match(client, /touchDropTableAt\(pointerEvent\.clientX, pointerEvent\.clientY\)/);
+  assert.match(client, /enableTouchPartyDrag\(card, card\.dataset\.seatSelect\)/);
   assert.match(styles, /\.meal-table-grid/);
+  assert.match(styles, /\.meal-table-card\.touch-drop-target/);
   assert.match(styles, /\.arrangement-status\.pending/);
   assert.doesNotMatch(await readFile(new URL("../app/api/events/route.ts", import.meta.url), "utf8"), /mealTables/);
 });
@@ -384,6 +388,7 @@ test("LINE manager alerts pair an account with an event instead of trusting a cr
   assert.match(client, /create_manager_batch_binding_code/);
   assert.match(recovery, /create_manager_batch_binding_code/);
   assert.match(recovery, /lineManagerBatchBindCodes/);
+  assert.match(recovery, /if \(selected\.length === 1\)[\s\S]*lineManagerBindCodes/);
   assert.match(recovery, /const \[\[single\], \[batch\]\] = await Promise\.all/);
   assert.match(guide, /管理綁定 925843/);
   assert.match(guide, /取得私訊綁定碼/);
@@ -454,7 +459,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.82/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.83/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -483,9 +488,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.82/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.82/);
-  assert.match(worker, /good-days-github-v82/);
+  assert.match(page, /\/app\.js\?v=1\.2\.83/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.83/);
+  assert.match(worker, /good-days-github-v83/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 

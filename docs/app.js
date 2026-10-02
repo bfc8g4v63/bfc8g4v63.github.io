@@ -1204,6 +1204,59 @@ function initMealSeating(data, event, managerAuth) {
     render();
   }
 
+  function touchDropTableAt(clientX, clientY) {
+    const target = document.elementFromPoint(clientX, clientY);
+    return target instanceof Element ? target.closest("[data-seat-drop-table]") : null;
+  }
+
+  function clearTouchDropTargets() {
+    root.querySelectorAll(".touch-drop-target").forEach((table) => table.classList.remove("touch-drop-target"));
+  }
+
+  function enableTouchPartyDrag(card, rsvpId) {
+    let pointerId = null;
+    let startX = 0;
+    let startY = 0;
+    let dragging = false;
+    const reset = () => {
+      pointerId = null;
+      dragging = false;
+      card.classList.remove("touch-dragging");
+      clearTouchDropTargets();
+    };
+    card.addEventListener("pointerdown", (pointerEvent) => {
+      if (pointerEvent.pointerType !== "touch") return;
+      pointerId = pointerEvent.pointerId;
+      startX = pointerEvent.clientX;
+      startY = pointerEvent.clientY;
+      card.setPointerCapture?.(pointerId);
+    });
+    card.addEventListener("pointermove", (pointerEvent) => {
+      if (pointerEvent.pointerType !== "touch" || pointerEvent.pointerId !== pointerId) return;
+      if (!dragging && Math.hypot(pointerEvent.clientX - startX, pointerEvent.clientY - startY) < 12) return;
+      dragging = true;
+      pointerEvent.preventDefault();
+      card.classList.add("touch-dragging");
+      const target = touchDropTableAt(pointerEvent.clientX, pointerEvent.clientY);
+      root.querySelectorAll("[data-seat-drop-table]").forEach((table) => table.classList.toggle("touch-drop-target", table === target));
+    });
+    const finishTouchDrag = (pointerEvent) => {
+      if (pointerEvent.pointerType !== "touch" || pointerEvent.pointerId !== pointerId) return;
+      const target = dragging ? touchDropTableAt(pointerEvent.clientX, pointerEvent.clientY) : null;
+      const dropped = dragging && target?.dataset.seatDropTable;
+      if (dragging) pointerEvent.preventDefault();
+      reset();
+      if (dropped) {
+        // Prevent the synthetic click that follows a touch drag from selecting
+        // the card again after it has already been placed in the target area.
+        card.dataset.touchDragDrop = "true";
+        addToTable(rsvpId, dropped);
+      }
+    };
+    card.addEventListener("pointerup", finishTouchDrag);
+    card.addEventListener("pointercancel", reset);
+  }
+
   function render() {
     const assignedPeople = state.assignments.reduce((sum, item) => sum + item.people, 0);
     const unassignedPeople = attending.reduce((sum, item) => sum + unassignedFor(item.id), 0);
@@ -1252,15 +1305,24 @@ function initMealSeating(data, event, managerAuth) {
       </details>
       <div class="meal-seating-actions"><button class="secondary" type="button" id="meal-add-table" ${arrangementLimitReached ? "disabled" : ""}>${arrangementLimitReached ? "已達活動總人數" : "＋ 新增安排區"}</button><button class="primary" type="button" id="meal-save" ${nameErrors.size ? "disabled" : ""}>儲存活動安排</button></div>
       ${state.error ? `<p class="form-error">${esc(state.error)}</p>` : ""}
-      <div class="meal-workspace"><section class="meal-unassigned"><div><p class="eyebrow">先選家庭，再點桌次</p><h4>未安排</h4></div>${unassignedCards}</section><section class="meal-table-grid">${tables}</section></div>
-      <p class="form-hint">電腦可把家庭卡拖到桌次；拖到另一張家庭卡可交換桌次。手機請先選家庭，再按目標桌的「安排選取家庭」。同一筆報名超過空位時，可輸入要先安排的人數。</p>`;
+      <div class="meal-workspace"><section class="meal-unassigned"><div><p class="eyebrow">選家庭，拖到安排區</p><h4>未安排</h4></div>${unassignedCards}</section><section class="meal-table-grid">${tables}</section></div>
+      <p class="form-hint">電腦與手機都可把家庭卡拖到安排區；電腦拖到另一張家庭卡可交換桌次。手機也可先選家庭，再按目標區的「安排選取家庭」。同一筆報名超過空位時，可輸入要先安排的人數。</p>`;
 
     const readDrag = (dragEvent) => {
       try { return JSON.parse(dragEvent.dataTransfer.getData("text/plain")); } catch { return null; }
     };
     root.querySelectorAll("[data-seat-select]").forEach((card) => {
-      card.addEventListener("click", () => { state.selectedRsvpId = card.dataset.seatSelect; state.error = ""; render(); });
+      card.addEventListener("click", () => {
+        if (card.dataset.touchDragDrop === "true") {
+          delete card.dataset.touchDragDrop;
+          return;
+        }
+        state.selectedRsvpId = card.dataset.seatSelect;
+        state.error = "";
+        render();
+      });
       card.addEventListener("dragstart", (dragEvent) => dragEvent.dataTransfer.setData("text/plain", JSON.stringify({ kind: "unassigned", id: card.dataset.seatSelect })));
+      enableTouchPartyDrag(card, card.dataset.seatSelect);
     });
     root.querySelectorAll("[data-seat-assignment]").forEach((card) => {
       card.addEventListener("dragstart", (dragEvent) => dragEvent.dataTransfer.setData("text/plain", JSON.stringify({ kind: "assignment", id: card.dataset.seatAssignment })));

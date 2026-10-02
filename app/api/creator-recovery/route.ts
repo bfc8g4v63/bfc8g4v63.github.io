@@ -93,11 +93,19 @@ export async function POST(request: Request) {
       }
       const code = await createUniqueManagerBatchCode();
       const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
-      await db.insert(lineManagerBatchBindCodes).values({
-        code,
-        eventIds: JSON.stringify(selected.map((event) => event.id)),
-        expiresAt,
-      });
+      // A single selected activity must use the exact same binding-code record
+      // as the per-activity dashboard. The batch record is only for two or more
+      // activities, so both entry points are accepted by the LINE webhook alike.
+      if (selected.length === 1) {
+        await db.delete(lineManagerBindCodes).where(eq(lineManagerBindCodes.eventId, selected[0].id));
+        await db.insert(lineManagerBindCodes).values({ code, eventId: selected[0].id, expiresAt });
+      } else {
+        await db.insert(lineManagerBatchBindCodes).values({
+          code,
+          eventIds: JSON.stringify(selected.map((event) => event.id)),
+          expiresAt,
+        });
+      }
       return json(request, {
         ok: true,
         code,
