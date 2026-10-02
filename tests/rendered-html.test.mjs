@@ -812,7 +812,7 @@ test("events can deliberately publish to several saved LINE groups while keeping
   ]);
   assert.match(schema, /export const activityLineGroups/);
   assert.match(schema, /isTest: integer\("is_test"/);
-  assert.match(schemaInit, /CREATE TABLE IF NOT EXISTS activity_line_groups/);
+  assert.doesNotMatch(schemaInit, /CREATE TABLE IF NOT EXISTS activity_line_groups/);
   assert.match(migration, /activity_line_groups/);
   assert.match(migration, /is_test/);
   assert.match(adminLine, /action === "set_event_groups"/);
