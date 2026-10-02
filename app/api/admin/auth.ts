@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { events } from "../../../db/schema";
+import { verifyLineManagerToken } from "./line-manager-link";
 
 export function clean(value: unknown, max = 500) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
@@ -59,6 +60,9 @@ export async function requireEventManager(eventId: unknown, editCode: unknown, m
   if (!id || !credential) return { error: "請輸入管理碼或開啟管理連結", status: 400 } as const;
   const [event] = await getDb().select().from(events).where(eq(events.id, id)).limit(1);
   if (!event) return { error: "找不到這個活動", status: 404 } as const;
+  // Management links sent through a paired LINE private chat are scoped to
+  // that exact event and become invalid as soon as the manager unpairs it.
+  if (token.startsWith("lm.") && await verifyLineManagerToken(id, token)) return { event } as const;
   // Legacy passwordless activities stored their management-link token in
   // edit_code_hash. New activities keep that high-entropy token separate
   // from the creator's recoverable management code.

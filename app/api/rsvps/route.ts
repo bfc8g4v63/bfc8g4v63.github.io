@@ -4,6 +4,7 @@ import { getDb } from "../../../db";
 import { ensureSchema } from "../../../db/init";
 import { companionCards, companionRequests, events, lineManagerTargets, mealAssignments, rsvps } from "../../../db/schema";
 import { hashCode, verifyCredential } from "../admin/auth";
+import { lineManagerUrl } from "../admin/line-manager-link";
 import { json, preflight } from "../cors";
 import { managerRsvpMessage, pushText } from "../line/lib";
 import { rateLimit } from "../rate-limit";
@@ -34,7 +35,7 @@ async function notifyPairedManagers(input: {
   try {
     const db = getDb();
     const [targets, attending, assignments] = await Promise.all([
-      db.select({ lineUserId: lineManagerTargets.lineUserId }).from(lineManagerTargets)
+      db.select({ id: lineManagerTargets.id, lineUserId: lineManagerTargets.lineUserId }).from(lineManagerTargets)
         .where(eq(lineManagerTargets.eventId, input.eventId)),
       db.select({ partySize: rsvps.partySize }).from(rsvps).where(and(
         eq(rsvps.eventId, input.eventId), eq(rsvps.response, "attending"),
@@ -45,12 +46,16 @@ async function notifyPairedManagers(input: {
     if (!targets.length) return;
     const attendingPeople = attending.reduce((sum, item) => sum + item.partySize, 0);
     const assignedPeople = assignments.reduce((sum, item) => sum + item.people, 0);
-    const text = managerRsvpMessage({
-      ...input,
-      attendingPeople,
-      unassignedPeople: Math.max(0, attendingPeople - assignedPeople),
-    });
-    await Promise.allSettled(targets.map((target) => pushText(target.lineUserId, text)));
+    await Promise.allSettled(targets.map(async (target) => {
+      const managerUrl = await lineManagerUrl(input.eventId, target.id);
+      const text = managerRsvpMessage({
+        ...input,
+        attendingPeople,
+        unassignedPeople: Math.max(0, attendingPeople - assignedPeople),
+        managerUrl,
+      });
+      await pushText(target.lineUserId, text);
+    }));
   } catch (error) {
     // A notification must never make an attendee's RSVP fail.
     console.error("Unable to send paired manager notification", error);
