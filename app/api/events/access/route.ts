@@ -68,7 +68,12 @@ export async function POST(request: Request) {
     const replies = await db.select({ partySize: rsvps.partySize, response: rsvps.response })
       .from(rsvps).where(eq(rsvps.eventId, event.id));
     let attendeeNames: string[] | null = null;
-    if (event.status === "active" && event.attendanceVisibility !== "count" && attendeeToken) {
+    if (event.status === "active" && event.attendanceVisibility === "all") {
+      const visibleRows = await db.select({ name: rsvps.name }).from(rsvps).where(and(
+        eq(rsvps.eventId, event.id), eq(rsvps.response, "attending"),
+      ));
+      attendeeNames = visibleRows.map((row) => row.name);
+    } else if (event.status === "active" && event.attendanceVisibility === "opt_in" && attendeeToken) {
       const tokenHash = await hashCode(attendeeToken);
       const [verified] = await db.select({ id: rsvps.id }).from(rsvps).where(and(
         eq(rsvps.eventId, event.id),
@@ -79,7 +84,7 @@ export async function POST(request: Request) {
         const visibleRows = await db.select({ name: rsvps.name }).from(rsvps).where(and(
           eq(rsvps.eventId, event.id),
           eq(rsvps.response, "attending"),
-          ...(event.attendanceVisibility === "opt_in" ? [eq(rsvps.shareName, true)] : []),
+          eq(rsvps.shareName, true),
         ));
         attendeeNames = visibleRows.map((row) => row.name);
       }

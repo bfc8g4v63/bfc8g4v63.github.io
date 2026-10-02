@@ -437,7 +437,8 @@ test("creator recovery and attendee-roster privacy stay gated", async () => {
   assert.match(recovery, /managerTargetCount/);
   assert.match(recovery, /unassignedPeople/);
   assert.match(access, /viewerTokenHash/);
-  assert.match(access, /attendanceVisibility !== "count"/);
+  assert.match(access, /event\.attendanceVisibility === "all"/);
+  assert.match(access, /event\.attendanceVisibility === "opt_in" && attendeeToken/);
   assert.match(rsvp, /shareName/);
   assert.match(client, /管理我的活動/);
   assert.match(client, /剩餘 \$\{remaining\} 名額/);
