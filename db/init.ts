@@ -92,9 +92,19 @@ export function ensureSchema() {
         group_id TEXT PRIMARY KEY NOT NULL,
         group_name TEXT NOT NULL DEFAULT 'LINE 群組',
         owner_credential_hash TEXT NOT NULL DEFAULT '',
+        is_test INTEGER NOT NULL DEFAULT 0,
         bound_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       )`),
+      database.prepare(`CREATE TABLE IF NOT EXISTS activity_line_groups (
+        event_id TEXT NOT NULL,
+        group_id TEXT NOT NULL,
+        group_name TEXT NOT NULL DEFAULT 'LINE 群組',
+        bound_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (event_id) REFERENCES events(id) ON DELETE CASCADE
+      )`),
+      database.prepare("CREATE UNIQUE INDEX IF NOT EXISTS activity_line_groups_event_group_unique ON activity_line_groups (event_id, group_id)"),
+      database.prepare("CREATE INDEX IF NOT EXISTS activity_line_groups_group_event ON activity_line_groups (group_id, event_id)"),
       database.prepare(`CREATE TABLE IF NOT EXISTS line_bind_codes (
         code TEXT PRIMARY KEY NOT NULL,
         event_id TEXT NOT NULL,
@@ -251,6 +261,11 @@ export function ensureSchema() {
     const bindCodeNames = new Set((bindCodeColumns.results || []).map((column) => column.name));
     if (!bindCodeNames.has("owner_credential_hash")) {
       await database.prepare("ALTER TABLE line_bind_codes ADD COLUMN owner_credential_hash TEXT NOT NULL DEFAULT ''").run();
+    }
+    const lineGroupColumns = await database.prepare("PRAGMA table_info(line_groups)").all<{ name: string }>();
+    const lineGroupNames = new Set((lineGroupColumns.results || []).map((column) => column.name));
+    if (!lineGroupNames.has("is_test")) {
+      await database.prepare("ALTER TABLE line_groups ADD COLUMN is_test INTEGER NOT NULL DEFAULT 0").run();
     }
     if (!rsvpNames.has("payment_status")) {
       await database.prepare("ALTER TABLE rsvps ADD COLUMN payment_status TEXT NOT NULL DEFAULT 'not_applicable'").run();

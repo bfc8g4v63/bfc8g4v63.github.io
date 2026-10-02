@@ -110,6 +110,7 @@ tbody tr:last-child td { border-bottom:0; }
 .line-eyebrow { color:#168648; }
 .line-status { padding:18px; background:white; border:2px dashed #8bc8a0; border-radius:14px; }
 .line-status.connected { border-style:solid; background:#edf9ef; }
+.line-group-choice { display:grid; gap:5px; margin:9px 0; }.line-group-choice .text-danger { justify-self:start; min-height:32px; font-size:13px; }
 .line-status.warning { border-color:#e7b55f; background:#fff8df; }
 .line-status p { margin:5px 0 12px; color:var(--ink-soft); }
 .line-panel-kind { display:block; margin:0 0 4px; color:#168648; font-size:13px; font-weight:900; letter-spacing:.06em; }

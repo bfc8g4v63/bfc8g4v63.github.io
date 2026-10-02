@@ -9,6 +9,7 @@ import { lineConfig, managerRsvpMessage, pushText } from "../../line/lib";
 import { rateLimit } from "../../rate-limit";
 import { arrangementNameKey } from "../../../../lib/arrangement";
 import { eventShareUrl } from "../../../../lib/event-share";
+import { eventNotificationGroups } from "../../line/groups";
 
 export function OPTIONS(request: Request) {
   return preflight(request);
@@ -261,13 +262,14 @@ export async function POST(request: Request) {
       await db.delete(rsvps).where(eq(rsvps.id, rsvp.id));
       return json(request, { ok: true, message: `已刪除「${rsvp.name}」的回覆` });
     }
-    const [responses, bindingRows, settingRows, managerTargets, mealTableRows, mealAssignmentRows, commandLogs] = await Promise.all([
+    const [responses, bindingRows, notificationGroups, settingRows, managerTargets, mealTableRows, mealAssignmentRows, commandLogs] = await Promise.all([
       db.select({
         id: rsvps.id, name: rsvps.name, response: rsvps.response,
         partySize: rsvps.partySize, diet: rsvps.diet, note: rsvps.note, paymentStatus: rsvps.paymentStatus,
         createdAt: rsvps.createdAt, updatedAt: rsvps.updatedAt,
       }).from(rsvps).where(eq(rsvps.eventId, access.event.id)),
       db.select().from(lineBindings).where(eq(lineBindings.eventId, access.event.id)).limit(1),
+      eventNotificationGroups(access.event.id),
       db.select().from(lineReminderSettings).where(eq(lineReminderSettings.eventId, access.event.id)).limit(1),
       db.select({ id: lineManagerTargets.id }).from(lineManagerTargets).where(eq(lineManagerTargets.eventId, access.event.id)),
       db.select().from(mealTables).where(eq(mealTables.eventId, access.event.id)).orderBy(asc(mealTables.sortOrder)),
@@ -304,6 +306,7 @@ export async function POST(request: Request) {
       line: {
         configured: Boolean(lineConfig().token && lineConfig().channelSecret),
         binding: bindingRows[0] || null,
+        groups: notificationGroups,
         managerTargetCount: managerTargets.length,
         settings: {
           sevenDays: Boolean(settings.sevenDays),

@@ -340,7 +340,7 @@ test("creators can manage activities with an independent management link without
   assert.doesNotMatch(auth, /210_000/);
   assert.match(lineAdmin, /body\.managerToken/);
   assert.match(client, /managerAuthFromLink/);
-  assert.match(client, /現在綁定 LINE 小幫手/);
+  assert.match(client, /設定 LINE 小幫手/);
   assert.match(client, /請保存管理連結/);
   assert.match(client, /管理我的活動/);
   assert.match(client, /type="text" name="editCode" data-secret[\s\S]*autocomplete="off"/);
@@ -466,7 +466,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.84/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.85/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -495,9 +495,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.84/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.84/);
-  assert.match(worker, /good-days-github-v84/);
+  assert.match(page, /\/app\.js\?v=1\.2\.85/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.85/);
+  assert.match(worker, /good-days-github-v85/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -511,6 +511,10 @@ test("activity date and time controls support direct editing, desktop wheel and 
   assert.match(client, /placeholder="--" value="\$\{esc\(selected\[name\]\)\}"/);
   assert.match(client, /class="time-wheel-unit"/);
   assert.match(client, /function updateEditableTimeInput/);
+  assert.match(client, /number >= 0 && number <= 23/);
+  assert.match(client, /number === 0 \? "am" : "pm"/);
+  assert.match(client, /convertedHour = number === 0 \? 12 : number - 12/);
+  assert.match(client, /輸入 13 到 23 會自動轉為下午/);
   assert.match(client, /function enableTimeWheels/);
   assert.match(client, /function enableDateWheels/);
   assert.match(client, /data-date-wheel/);
@@ -783,14 +787,43 @@ test("one LINE group can serve several upcoming activities without sending ended
   assert.match(webhook, /eventStartsAt\(event\) > now/);
   assert.match(webhook, /totalPages > 5/);
   assert.match(webhook, /安排 20260930/);
-  assert.match(client, /使用既有通知群組/);
+  assert.match(client, /選擇既有通知群組/);
   assert.match(client, /autoReuseLineGroup/);
   assert.match(client, /合併發布近期活動/);
-  assert.match(guide, /不必重新綁定/);
+  assert.match(guide, /群組庫/);
   assert.match(guide, /安排 20260930/);
   assert.match(guide, /活動數量不設上限/);
   assert.match(guide, /剩餘名額/);
   assert.match(guide, /參加連結只提供報名/);
+});
+
+test("events can deliberately publish to several saved LINE groups while keeping test groups guarded", async () => {
+  const [schema, schemaInit, migration, adminLine, webhook, reminders, client, lineLib] = await Promise.all([
+    readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
+    readFile(new URL("../db/init.ts", import.meta.url), "utf8"),
+    readFile(new URL("../drizzle/0015_parched_toro.sql", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/line/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/line/webhook/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/line/run-reminders/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../docs/app.js", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/line/lib.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(schema, /export const activityLineGroups/);
+  assert.match(schema, /isTest: integer\("is_test"/);
+  assert.match(schemaInit, /CREATE TABLE IF NOT EXISTS activity_line_groups/);
+  assert.match(migration, /activity_line_groups/);
+  assert.match(migration, /is_test/);
+  assert.match(adminLine, /action === "set_event_groups"/);
+  assert.match(adminLine, /allowTestGroups/);
+  assert.match(adminLine, /action === "save_group_profile"/);
+  assert.match(adminLine, /saveEventGroups/);
+  assert.match(webhook, /activityLineGroups/);
+  assert.match(reminders, /eventNotificationGroups/);
+  assert.match(client, /publish-created-event/);
+  assert.match(client, /測試群組/);
+  assert.match(client, /set_event_groups/);
+  assert.match(lineLib, /目前 \$\{event\.attendingPeople\} 人參加/);
+  assert.match(lineLib, /在 Google 地圖開啟/);
 });
 
 test("admin child panels return to the active dashboard and past reminders are skipped", async () => {

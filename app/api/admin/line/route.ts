@@ -1,10 +1,11 @@
 import { and, asc, eq, gt } from "drizzle-orm";
 import { ensureSchema } from "../../../../db/init";
 import { getDb } from "../../../../db";
-import { events, lineBindCodes, lineBindings, lineGroups, lineManagerBatchBindCodes, lineManagerBindCodes, lineManagerTargets, lineReminderSettings, rsvps } from "../../../../db/schema";
+import { activityLineGroups, events, lineBindCodes, lineBindings, lineGroups, lineManagerBatchBindCodes, lineManagerBindCodes, lineManagerTargets, lineReminderSettings, rsvps } from "../../../../db/schema";
 import { json, preflight } from "../../cors";
 import { clean, hashCredential, requireEventManager, verifyCredential } from "../auth";
 import { activityListCard, eventCard, lineConfig, pushMessages } from "../../line/lib";
+import { eventNotificationGroups, type NotificationGroup } from "../../line/groups";
 import { rateLimit } from "../../rate-limit";
 
 export function OPTIONS(request: Request) {
@@ -57,6 +58,24 @@ async function ownedGroups(credential: string) {
   return result;
 }
 
+async function saveEventGroups(eventId: string, groups: NotificationGroup[]) {
+  const db = getDb();
+  const unique = [...new Map(groups.map((group) => [group.groupId, group])).values()];
+  if (!unique.length) throw new Error("請至少選擇一個通知群組");
+  const now = new Date().toISOString();
+  await db.delete(activityLineGroups).where(eq(activityLineGroups.eventId, eventId));
+  await db.insert(activityLineGroups).values(unique.map((group) => ({
+    eventId, groupId: group.groupId, groupName: group.groupName, boundAt: now,
+  })));
+  const primary = unique[0];
+  await db.insert(lineBindings).values({ eventId, groupId: primary.groupId, groupName: primary.groupName, boundAt: now })
+    .onConflictDoUpdate({ target: lineBindings.eventId, set: { groupId: primary.groupId, groupName: primary.groupName, boundAt: now } });
+  for (const group of unique) {
+    await db.update(lineGroups).set({ updatedAt: now }).where(eq(lineGroups.groupId, group.groupId));
+  }
+  await ensureReminderSettings(eventId);
+}
+
 async function ensureReminderSettings(eventId: string) {
   await getDb().insert(lineReminderSettings).values({ eventId }).onConflictDoNothing({ target: lineReminderSettings.eventId });
 }
@@ -84,6 +103,8 @@ async function reuseGroupForUnboundUpcomingEvents(
       eventId: event.id, groupId: group.groupId, groupName: group.groupName, boundAt,
     }).onConflictDoNothing().returning({ eventId: lineBindings.eventId });
     if (inserted.length) {
+      await db.insert(activityLineGroups).values({ eventId: event.id, groupId: group.groupId, groupName: group.groupName, boundAt })
+        .onConflictDoNothing();
       linked += 1;
       await ensureReminderSettings(event.id);
     }
@@ -126,23 +147,25 @@ export async function POST(request: Request) {
     const db = getDb();
     const action = body.action;
     const credential = credentialFrom(body);
-    const [currentBinding] = await db.select().from(lineBindings)
-      .where(eq(lineBindings.eventId, access.event.id)).limit(1);
+    const currentGroups = await eventNotificationGroups(access.event.id);
+    const currentBinding = currentGroups[0] || null;
     await adoptCurrentGroup(credential, currentBinding);
 
     if (action === "list_groups") {
       const groups = await ownedGroups(credential);
-      return json(request, { groups: groups.map((group) => ({ groupId: group.groupId, groupName: group.groupName })) });
+      return json(request, {
+        groups: groups.map((group) => ({ groupId: group.groupId, groupName: group.groupName, isTest: Boolean(group.isTest) })),
+        selectedGroupIds: currentGroups.map((group) => group.groupId),
+      });
     }
 
     if (action === "auto_reuse_group") {
       const groups = await ownedGroups(credential);
-      if (groups.length !== 1) return json(request, { ok: true, binding: null, linked: 0 });
+      if (groups.length !== 1 || groups[0].isTest) return json(request, { ok: true, binding: null, linked: 0 });
       const group = groups[0];
       const linked = await reuseGroupForUnboundUpcomingEvents(credential, group);
-      const [binding] = await db.select().from(lineBindings)
-        .where(eq(lineBindings.eventId, access.event.id)).limit(1);
-      return json(request, { ok: true, binding: binding || null, linked });
+      const groupsAfterReuse = await eventNotificationGroups(access.event.id);
+      return json(request, { ok: true, binding: groupsAfterReuse[0] || null, groups: groupsAfterReuse, linked });
     }
 
     if (action === "create_binding_code") {
@@ -175,21 +198,46 @@ export async function POST(request: Request) {
       return json(request, { ok: true });
     }
 
+    if (action === "save_group_profile") {
+      const groupId = clean(body.groupId, 160);
+      const groups = await ownedGroups(credential);
+      const group = groups.find((item) => item.groupId === groupId);
+      if (!group) return json(request, { error: "找不到可管理的通知群組" }, 404);
+      await db.update(lineGroups).set({ isTest: boolean(body.isTest), updatedAt: new Date().toISOString() })
+        .where(eq(lineGroups.groupId, groupId));
+      return json(request, { ok: true });
+    }
+
+    if (action === "set_event_groups") {
+      const groupIds = Array.isArray(body.groupIds)
+        ? [...new Set(body.groupIds.filter((value): value is string => typeof value === "string").map((value) => clean(value, 160)).filter(Boolean))].slice(0, 5)
+        : [];
+      const groups = await ownedGroups(credential);
+      const selected = groupIds.map((id) => groups.find((group) => group.groupId === id)).filter((group): group is typeof groups[number] => Boolean(group));
+      if (!selected.length || selected.length !== groupIds.length) return json(request, { error: "請從你已綁定的通知群組中選擇" }, 400);
+      if (!boolean(body.allowTestGroups) && selected.some((group) => group.isTest)) {
+        return json(request, { error: "測試群組需要另外勾選確認，避免誤發正式通知" }, 400);
+      }
+      const targets = selected.map((group) => ({ groupId: group.groupId, groupName: group.groupName }));
+      await saveEventGroups(access.event.id, targets);
+      if (boolean(body.publishNow)) {
+        const attending = await db.select({ partySize: rsvps.partySize }).from(rsvps).where(and(
+          eq(rsvps.eventId, access.event.id), eq(rsvps.response, "attending"),
+        ));
+        const card = eventCard({ ...access.event, attendingPeople: attending.reduce((sum, item) => sum + item.partySize, 0) }, "活動邀請");
+        await Promise.all(targets.map((group) => pushMessages(group.groupId, [card])));
+      }
+      return json(request, { ok: true, groups: targets, published: boolean(body.publishNow) });
+    }
+
     if (action === "use_existing_group") {
       const groupId = clean(body.groupId, 160);
       const groups = await ownedGroups(credential);
       const group = groups.find((item) => item.groupId === groupId);
       if (!group) return json(request, { error: "找不到可使用的通知群組" }, 404);
-      const boundAt = new Date().toISOString();
-      await db.insert(lineBindings).values({
-        eventId: access.event.id, groupId: group.groupId, groupName: group.groupName, boundAt,
-      }).onConflictDoUpdate({
-        target: lineBindings.eventId,
-        set: { groupId: group.groupId, groupName: group.groupName, boundAt },
-      });
-      await ensureReminderSettings(access.event.id);
+      await saveEventGroups(access.event.id, [{ groupId: group.groupId, groupName: group.groupName }]);
       const linked = await reuseGroupForUnboundUpcomingEvents(credential, group);
-      return json(request, { ok: true, binding: { groupId: group.groupId, groupName: group.groupName }, linked });
+      return json(request, { ok: true, binding: { groupId: group.groupId, groupName: group.groupName }, groups: await eventNotificationGroups(access.event.id), linked });
     }
 
     if (action === "save_settings") {
@@ -210,7 +258,7 @@ export async function POST(request: Request) {
     }
 
     if (action === "send_test") {
-      if (!currentBinding) return json(request, { error: "這個活動尚未選擇通知群組" }, 400);
+      if (!currentGroups.length) return json(request, { error: "這個活動尚未選擇通知群組" }, 400);
       if (!Number.isFinite(eventStartsAt(access.event)) || eventStartsAt(access.event) <= Date.now()) {
         return json(request, { error: "活動已結束，無法發送提醒測試" }, 400);
       }
@@ -225,10 +273,11 @@ export async function POST(request: Request) {
       const reminderType = typeof body.reminderType === "string" ? body.reminderType : "";
       const label = testLabels[reminderType];
       if (!label) return json(request, { error: "請選擇要測試的提醒時間" }, 400);
-      await pushMessages(currentBinding.groupId, [eventCard({
+      const card = eventCard({
         ...access.event,
         attendingPeople: attending.reduce((sum, item) => sum + item.partySize, 0),
-      }, label)]);
+      }, label);
+      await Promise.all(currentGroups.map((group) => pushMessages(group.groupId, [card])));
       return json(request, { ok: true });
     }
 
@@ -249,7 +298,7 @@ export async function POST(request: Request) {
     }
 
     if (action === "publish_events") {
-      if (!currentBinding) return json(request, { error: "請先選擇通知群組" }, 400);
+      if (!currentGroups.length) return json(request, { error: "請先選擇通知群組" }, 400);
       const ids = Array.isArray(body.eventIds) ? [...new Set(body.eventIds.filter((value): value is string => typeof value === "string").map((value) => clean(value, 80)).filter(Boolean))].slice(0, 8) : [];
       if (!ids.length) return json(request, { error: "請至少選擇一場活動" }, 400);
       const candidates = await db.select().from(events).where(eq(events.status, "active"));
@@ -261,18 +310,18 @@ export async function POST(request: Request) {
         if (!credential || !await verifyCredential(credential, expected)) return json(request, { error: "只能合併發布自己可管理的活動" }, 403);
         selected.push(event);
       }
-      const now = new Date().toISOString();
       for (const event of selected) {
-        await db.insert(lineBindings).values({ eventId: event.id, groupId: currentBinding.groupId, groupName: currentBinding.groupName, boundAt: now })
-          .onConflictDoUpdate({ target: lineBindings.eventId, set: { groupId: currentBinding.groupId, groupName: currentBinding.groupName, boundAt: now } });
-        await ensureReminderSettings(event.id);
+        await saveEventGroups(event.id, currentGroups);
       }
-      await pushMessages(currentBinding.groupId, [activityListCard(selected)]);
+      const attending = await db.select({ eventId: rsvps.eventId, partySize: rsvps.partySize }).from(rsvps).where(eq(rsvps.response, "attending"));
+      const cards = selected.map((event) => ({ ...event, attendingPeople: attending.filter((rsvp) => rsvp.eventId === event.id).reduce((sum, rsvp) => sum + rsvp.partySize, 0) }));
+      await Promise.all(currentGroups.map((group) => pushMessages(group.groupId, [activityListCard(cards)])));
       return json(request, { ok: true, count: selected.length });
     }
 
     if (action === "unbind") {
       await db.delete(lineBindings).where(eq(lineBindings.eventId, access.event.id));
+      await db.delete(activityLineGroups).where(eq(activityLineGroups.eventId, access.event.id));
       return json(request, { ok: true });
     }
 

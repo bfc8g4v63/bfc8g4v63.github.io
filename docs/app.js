@@ -203,7 +203,7 @@ function timePicker(value = "") {
       const unit = name === "hour" ? "時" : "分";
       return `<div class="time-wheel time-wheel-editable" data-time-wheel="${name}" aria-label="${placeholder}；可直接輸入、滑鼠滾輪或上下滑動調整">
         <button type="button" class="time-wheel-arrow" data-time-step="-1" aria-label="減少 1 ${unit}">⌃</button>
-        <span class="time-wheel-input-wrap"><input type="tel" class="time-wheel-input" data-time-input="${name}" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="2" aria-label="${unit === "分" ? "分鐘，可手動輸入 00 到 59" : "小時，可手動輸入 1 到 12"}" placeholder="--" value="${esc(selected[name])}"><span class="time-wheel-unit" aria-hidden="true">${unit}</span></span>
+        <span class="time-wheel-input-wrap"><input type="tel" class="time-wheel-input" data-time-input="${name}" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="2" aria-label="${unit === "分" ? "分鐘，可手動輸入 00 到 59" : "小時，可手動輸入 1 到 12；輸入 13 到 23 會自動轉為下午"}" placeholder="--" value="${esc(selected[name])}"><span class="time-wheel-unit" aria-hidden="true">${unit}</span></span>
         <button type="button" class="time-wheel-arrow" data-time-step="1" aria-label="增加 1 ${unit}">⌄</button>
       </div><input type="hidden" name="time${name[0].toUpperCase()}${name.slice(1)}" value="${esc(selected[name])}">`;
     }
@@ -247,6 +247,19 @@ function updateEditableTimeInput(form, input, normalize = false) {
   const digits = input.value.replace(/\D/g, "").slice(0, 2);
   if (input.value !== digits) input.value = digits;
   const number = Number(digits);
+  if (name === "hour" && digits !== "" && Number.isInteger(number) && number >= 0 && number <= 23 && (number === 0 || number > 12)) {
+    const period = number === 0 ? "am" : "pm";
+    const convertedHour = number === 0 ? 12 : number - 12;
+    hidden.value = String(convertedHour);
+    input.value = String(convertedHour);
+    form.elements.timePeriod.value = period;
+    const periodControl = form.querySelector('[data-time-wheel="period"]');
+    periodControl.querySelector(".time-wheel-value").textContent = period === "pm" ? "下午" : "上午";
+    periodControl.classList.add("is-selected");
+    form.querySelector(`[data-time-wheel="${name}"]`).classList.add("is-selected");
+    form.elements.startTime.value = selectedStartTime(form);
+    return;
+  }
   const normalized = name === "minute" ? String(number).padStart(2, "0") : String(number);
   const valid = digits !== "" && Number.isInteger(number) && timeWheelOptions[name].some(([value]) => value === normalized);
   hidden.value = valid ? normalized : "";
@@ -674,11 +687,11 @@ function openCreatorNextSteps(event, managerAuth, issuedManagerUrl = "") {
     <div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="created-title">
       <button class="modal-close" data-close aria-label="關閉">×</button>
       <p class="eyebrow">活動已建立</p><h2 id="created-title">下一步：分享或綁定 LINE</h2>
-      <p>活動邀請已建立完成。現在就可以加入 LINE 小幫手並產生群組綁定碼。</p>
+      <p>活動邀請已建立完成。可直接選擇已綁定的群組發送邀請，或進入後台建立新的群組綁定。</p>
       <label>活動分享連結<input id="created-share-url" value="${esc(shareUrl)}" readonly></label>
       ${privateManagerUrl ? `<div class="line-status warning"><strong>請保存管理連結</strong><p>這個連結可修改、取消或永久刪除活動，也可管理 LINE 小幫手；請勿分享給參加者。可選擇只儲存在目前這台裝置。</p><label>管理連結<input id="created-manager-url" value="${esc(privateManagerUrl)}" readonly></label><div class="inline-actions"><button class="secondary" id="copy-manager-link">複製管理連結</button><button class="secondary" id="save-manager-return">儲存在這台裝置</button></div></div>` : ""}
       <p class="form-error" id="form-error" role="alert" hidden></p>
-      <div class="form-actions"><button class="secondary" id="copy-created-share">複製分享連結</button><button class="primary" id="start-line-binding">現在綁定 LINE 小幫手</button></div>
+      <div class="form-actions"><button class="secondary" id="copy-created-share">複製分享連結</button><button class="primary" id="publish-created-event">選群組並發布</button><button class="secondary" id="start-line-binding">設定 LINE 小幫手</button></div>
     </section></div>`;
   document.querySelector("#copy-created-share").addEventListener("click", async () => {
     await navigator.clipboard.writeText(shareUrl);
@@ -695,6 +708,9 @@ function openCreatorNextSteps(event, managerAuth, issuedManagerUrl = "") {
   });
   document.querySelector("#start-line-binding").addEventListener("click", () => {
     void openAdminFromCredential(event.id, managerAuth, document.querySelector("#form-error"));
+  });
+  document.querySelector("#publish-created-event").addEventListener("click", () => {
+    void openLineGroupPicker(event, managerAuth, null, { publishNow: true, afterSave: () => closeModal() });
   });
 }
 
@@ -950,6 +966,8 @@ function linePanel(line) {
     <div class="line-status warning"><strong>LINE 機器人程式已完成，等待填入兩個 LINE 憑證</strong>
       <p>請依照 <a href="/line-bot-guide.html" target="_blank">LINE 機器人設定教學</a> 建立官方帳號，完成後即可產生群組綁定碼。</p></div>`;
   const binding = line.binding;
+  const groups = Array.isArray(line.groups) ? line.groups : (binding ? [binding] : []);
+  const groupNames = groups.map((group) => esc(group.groupName)).join("、");
   const managerTargetCount = Math.max(0, Number(line.managerTargetCount) || 0);
   const commandLogs = Array.isArray(line.commandLogs) ? line.commandLogs : [];
   const commandLogText = {
@@ -958,7 +976,7 @@ function linePanel(line) {
     failed: "傳送失敗",
     no_arrangement: "尚未建立安排",
   };
-  const commandCard = binding ? `<section class="line-command-card"><strong>群組內可直接輸入</strong><div><code>活動</code><span>查看近期活動與報名連結</span></div><div><code>原神啟動 日期</code><span>查看指定日期的報名名單</span></div><div><code>安排 日期</code><span>查看指定日期的安排圖卡</span></div><p>有多場活動時，小幫手會列出每場的日期指令；日期請用 <b>20261007</b> 這類格式。</p></section>` : "";
+  const commandCard = groups.length ? `<section class="line-command-card"><strong>群組內可直接輸入</strong><div><code>活動</code><span>查看近期活動、即時人數與報名連結</span></div><div><code>原神啟動 日期</code><span>查看指定日期的報名名單</span></div><div><code>安排 日期</code><span>查看指定日期的安排圖卡</span></div><p>有多場活動時，小幫手會列出每場的日期指令；日期請用 <b>20261007</b> 這類格式。</p></section>` : "";
   const logPanel = binding ? `<section class="line-command-log"><div><strong>小幫手最近紀錄</strong><span>只記錄指令結果，不保存聊天內容</span></div>${commandLogs.length ? `<ul>${commandLogs.map((item) => `<li><time>${esc(formatDateTime(item.createdAt))}</time><b>${esc(item.command)}</b><em class="line-log-${esc(item.outcome)}">${esc(commandLogText[item.outcome] || item.outcome)}</em><small>${esc(item.detail || "—")}</small></li>`).join("")}</ul>` : "<p>目前尚無可顯示的指令紀錄。</p>"}</section>` : "";
   return `
     <section class="manager-alert-panel ${managerTargetCount ? "connected" : ""}">
@@ -967,13 +985,13 @@ function linePanel(line) {
       <div id="manager-binding-code-area"></div>
       <div class="inline-actions"><button class="line-button" id="manager-alert-code">${managerTargetCount ? "新增／重新產生綁定碼" : "啟用私訊提醒"}</button>${managerTargetCount ? '<button class="text-danger" id="manager-alert-clear">停止所有私訊提醒</button>' : ""}</div>
     </section>
-    <div class="line-status ${binding ? "connected" : ""}">
+    <div class="line-status ${groups.length ? "connected" : ""}">
       <small class="line-panel-kind">群組內公開通知</small>
-      <strong>${binding ? `通知群組：${esc(binding.groupName)}` : "尚未選擇通知群組"}</strong>
-      <p>${binding ? "這個群組可重複用於多場未來活動；群組成員輸入「活動」會列出近期活動，輸入「安排」會顯示安排圖卡。這與上方的私訊提醒是兩個獨立設定。" : "若同一管理碼只有一個已綁定群組，系統會自動沿用到尚未開始的活動；多個群組時才需要自行選取。這不會啟用管理者私訊提醒。"}</p>
+      <strong>${groups.length ? `通知群組：${groupNames}` : "尚未選擇通知群組"}</strong>
+      <p>${groups.length ? "可為這場活動選擇多個群組；每個群組都會收到活動邀請與原本設定的行前提醒。群組成員輸入「活動」會列出即時人數，輸入「安排」會顯示安排圖卡。這與上方的私訊提醒是兩個獨立設定。" : "可從已綁定的群組庫選擇一或多個群組；測試群組需另外確認才會發送。這不會啟用管理者私訊提醒。"}</p>
       <div id="binding-code-area"></div>
       <div class="inline-actions">
-        ${binding ? '<button class="secondary" id="line-existing">改選既有群組</button><button class="secondary" id="line-publish">合併發布近期活動</button><button class="secondary" id="line-seven-day-test">測試 7 天提醒</button><button class="secondary" id="line-one-day-test">測試 1 天提醒</button><button class="secondary" id="line-two-hour-test">測試 2 小時提醒</button><button class="text-danger" id="line-unbind">移除此活動</button>' : '<button class="secondary" id="line-existing">使用既有通知群組</button><button class="line-button" id="line-code">綁定新群組</button>'}
+        ${groups.length ? '<button class="secondary" id="line-existing">選擇通知群組</button><button class="secondary" id="line-publish">合併發布近期活動</button><button class="secondary" id="line-seven-day-test">測試 7 天提醒</button><button class="secondary" id="line-one-day-test">測試 1 天提醒</button><button class="secondary" id="line-two-hour-test">測試 2 小時提醒</button><button class="text-danger" id="line-unbind">移除此活動</button>' : '<button class="secondary" id="line-existing">選擇既有通知群組</button><button class="line-button" id="line-code">綁定新群組</button>'}
       </div>
     </div>
     ${commandCard}
@@ -1011,22 +1029,38 @@ function lineEventLabel(event) {
   return `${formatShortDate(event.eventDate)} ${event.startTime}｜${event.title}`;
 }
 
-async function openLineGroupPicker(event, managerAuth, returnTo = null) {
+async function openLineGroupPicker(event, managerAuth, returnTo = null, options = {}) {
   try {
     const result = await requestJson("/admin/line", { action: "list_groups", ...managerPayload(event.id, managerAuth) });
     const groups = result.groups || [];
-    modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="line-groups-title"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">通知群組</p><h2 id="line-groups-title">選擇既有 LINE 群組</h2>${groups.length ? `<p>小幫手已在下列群組，不需要重新邀請。</p><div class="line-group-picker">${groups.map((group) => `<button class="secondary" data-line-group="${esc(group.groupId)}"><strong>${esc(group.groupName)}</strong><span>用作這場活動的通知群組</span></button>`).join("")}</div>` : '<p class="form-hint">目前沒有可使用的既有群組。請先在新群組加入小幫手，再回來產生綁定碼。</p>'}</section></div>`;
+    const selectedIds = new Set(result.selectedGroupIds || []);
+    const regular = groups.filter((group) => !group.isTest);
+    const testGroups = groups.filter((group) => group.isTest);
+    const groupChoice = (group) => `<div class="line-group-choice"><label class="choice"><input type="checkbox" name="groupIds" value="${esc(group.groupId)}" ${selectedIds.has(group.groupId) ? "checked" : ""}><span><strong>${esc(group.groupName)}</strong><small>${group.isTest ? "測試群組：不會在一般選擇中預設帶入" : "可用於這場活動的通知與行前提醒"}</small></span></label><button class="text-danger" type="button" data-line-group-test="${esc(group.groupId)}" data-is-test="${group.isTest ? "0" : "1"}">${group.isTest ? "取消測試標記" : "標記為測試群組"}</button></div>`;
+    modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="line-groups-title"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">通知群組</p><h2 id="line-groups-title">選擇這場活動要通知的群組</h2>${groups.length ? `<p>可選擇一或多個已綁定群組。${options.publishNow ? "儲存後會立即發送活動邀請卡。" : "儲存後，原有行前提醒會依設定發送。"}</p><form id="line-groups-form"><fieldset>${regular.map(groupChoice).join("") || '<p class="form-hint">尚無一般通知群組。</p>'}${testGroups.length ? `<details><summary>測試群組（${testGroups.length}）</summary>${testGroups.map(groupChoice).join("")}<label class="toggle"><input type="checkbox" name="allowTestGroups"><span>我確認要發送到測試群組</span></label></details>` : ""}</fieldset><label class="toggle"><input type="checkbox" name="publishNow" ${options.publishNow ? "checked" : ""}><span>儲存後立即發送活動邀請卡</span></label><p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button class="primary">儲存群組設定</button></div></form>` : '<p class="form-hint">目前沒有可使用的既有群組。請先在新群組加入小幫手，再回來產生綁定碼。</p>'}</section></div>`;
     activeModalClose = returnTo || closeModal;
-    document.querySelectorAll("[data-line-group]").forEach((button) => button.addEventListener("click", async () => {
+    document.querySelector("#line-groups-form")?.addEventListener("submit", async (submitEvent) => {
+      submitEvent.preventDefault();
+      const form = submitEvent.currentTarget;
+      const button = form.querySelector('[type="submit"]');
       button.disabled = true;
       try {
-        await requestJson("/admin/line", { action: "use_existing_group", groupId: button.dataset.lineGroup, ...managerPayload(event.id, managerAuth) });
-        if (returnTo) returnTo();
+        const data = new FormData(form);
+        await requestJson("/admin/line", { action: "set_event_groups", groupIds: data.getAll("groupIds"), allowTestGroups: data.get("allowTestGroups") === "on", publishNow: data.get("publishNow") === "on", ...managerPayload(event.id, managerAuth) });
+        if (options.afterSave) options.afterSave();
+        else if (returnTo) returnTo();
         else {
           const fresh = await requestJson("/admin/event", managerPayload(event.id, managerAuth));
           openAdminDashboard(fresh, managerAuth);
         }
-        showNotice("已選擇通知群組；之後不必再綁定一次");
+        showNotice(data.get("publishNow") === "on" ? "已設定通知群組並發送活動邀請" : "已儲存這場活動的通知群組");
+      } catch (error) { button.disabled = false; const box = form.querySelector(".form-error"); box.textContent = error.message; box.hidden = false; }
+    });
+    document.querySelectorAll("[data-line-group-test]").forEach((button) => button.addEventListener("click", async () => {
+      button.disabled = true;
+      try {
+        await requestJson("/admin/line", { action: "save_group_profile", groupId: button.dataset.lineGroupTest, isTest: button.dataset.isTest === "1", ...managerPayload(event.id, managerAuth) });
+        void openLineGroupPicker(event, managerAuth, returnTo, options);
       } catch (error) { button.disabled = false; showLineError(error.message); }
     }));
   } catch (error) { showLineError(error.message); }

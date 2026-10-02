@@ -1,6 +1,6 @@
 import { and, asc, eq, inArray, lt } from "drizzle-orm";
 import { getDb } from "../../../../db";
-import { events, lineBindCodes, lineBindings, lineCommandLogs, lineGroups, lineManagerBatchBindCodes, lineManagerBindCodes, lineManagerTargets, lineReminderSettings, lineWebhookDeliveries, mealTables, rsvps } from "../../../../db/schema";
+import { activityLineGroups, events, lineBindCodes, lineBindings, lineCommandLogs, lineGroups, lineManagerBatchBindCodes, lineManagerBindCodes, lineManagerTargets, lineReminderSettings, lineWebhookDeliveries, mealTables, rsvps } from "../../../../db/schema";
 import { normalizeLineCommand } from "../commands";
 import { activityArrangementImageUrl, activityListCard, activityShareMessage, getGroupName, lineConfig, lineDateLabel, replyMessages, replyText, rsvpSummaryMessage, verifyLineSignature } from "../lib";
 import { eventShareUrl } from "../../../../lib/event-share";
@@ -54,14 +54,28 @@ async function eventsForManagerBinding(eventIds: string[]) {
 }
 
 async function upcomingGroupEvents(groupId: string) {
-  const rows = await getDb().select({
+  const db = getDb();
+  const selectEvent = {
     id: events.id, title: events.title, eventDate: events.eventDate, startTime: events.startTime,
     location: events.location, address: events.address, description: events.description, shareToken: events.shareToken, shareCode: events.shareCode,
-  }).from(events).innerJoin(lineBindings, eq(events.id, lineBindings.eventId))
-    .where(and(eq(lineBindings.groupId, groupId), eq(events.status, "active")))
-    .orderBy(asc(events.eventDate), asc(events.startTime));
+  };
+  const [legacy, selected] = await Promise.all([
+    db.select(selectEvent).from(events).innerJoin(lineBindings, eq(events.id, lineBindings.eventId))
+      .where(and(eq(lineBindings.groupId, groupId), eq(events.status, "active"))),
+    db.select(selectEvent).from(events).innerJoin(activityLineGroups, eq(events.id, activityLineGroups.eventId))
+      .where(and(eq(activityLineGroups.groupId, groupId), eq(events.status, "active"))),
+  ]);
+  const rows = [...new Map([...legacy, ...selected].map((event) => [event.id, event])).values()]
+    .sort((left, right) => `${left.eventDate}${left.startTime}`.localeCompare(`${right.eventDate}${right.startTime}`));
   const now = Date.now();
-  return rows.filter((event) => Number.isFinite(eventStartsAt(event)) && eventStartsAt(event) > now);
+  const upcoming = rows.filter((event) => Number.isFinite(eventStartsAt(event)) && eventStartsAt(event) > now);
+  if (!upcoming.length) return upcoming;
+  const attendance = await db.select({ eventId: rsvps.eventId, partySize: rsvps.partySize }).from(rsvps)
+    .where(eq(rsvps.response, "attending"));
+  return upcoming.map((event) => ({
+    ...event,
+    attendingPeople: attendance.filter((rsvp) => rsvp.eventId === event.id).reduce((sum, rsvp) => sum + rsvp.partySize, 0),
+  }));
 }
 
 async function replyUpcomingActivities(
@@ -337,6 +351,9 @@ async function processWebhookEvents(lineEvents: LineEvent[], requestUrl: string)
         target: lineBindings.eventId,
         set: { groupId: chatId, groupName, boundAt: now },
       });
+      await db.insert(activityLineGroups).values({
+        eventId: bindingCode.eventId, groupId: chatId, groupName, boundAt: now,
+      }).onConflictDoNothing();
       await db.insert(lineReminderSettings).values({ eventId: bindingCode.eventId })
         .onConflictDoNothing({ target: lineReminderSettings.eventId });
       await db.delete(lineBindCodes).where(eq(lineBindCodes.code, bindingCode.code));

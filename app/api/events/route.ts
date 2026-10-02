@@ -2,13 +2,14 @@ import { and, asc, eq } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { ensureSchema } from "../../../db/init";
 import {
-  events, lineBindCodes, lineBindings, lineReminderDeliveries, lineReminderSettings, rsvps,
+  activityLineGroups, events, lineBindCodes, lineBindings, lineReminderDeliveries, lineReminderSettings, rsvps,
 } from "../../../db/schema";
 import { json, preflight } from "../cors";
 import { clean, hashCredential, requireEventManager } from "../admin/auth";
 import { lineConfig, pushText } from "../line/lib";
 import { rateLimit } from "../rate-limit";
 import { eventShareUrl, shortShareCode } from "../../../lib/event-share";
+import { eventNotificationGroups } from "../line/groups";
 
 const accessModes = new Set(["public", "unlisted", "private"]);
 const attendanceVisibilities = new Set(["count", "opt_in", "all"]);
@@ -41,8 +42,8 @@ function managerUrl(id: string, token: string) {
 async function notifyBoundGroup(event: typeof events.$inferSelect, message: string) {
   if (!lineConfig().token) return;
   try {
-    const [binding] = await getDb().select().from(lineBindings).where(eq(lineBindings.eventId, event.id)).limit(1);
-    if (binding) await pushText(binding.groupId, message);
+    const groups = await eventNotificationGroups(event.id);
+    await Promise.all(groups.map((group) => pushText(group.groupId, message)));
   } catch (error) {
     // A notification failure must not prevent the creator from cancelling or
     // deleting their activity. The status change still stops future reminders.
@@ -234,6 +235,7 @@ export async function DELETE(request: Request) {
     await db.delete(lineReminderDeliveries).where(eq(lineReminderDeliveries.eventId, access.event.id));
     await db.delete(lineReminderSettings).where(eq(lineReminderSettings.eventId, access.event.id));
     await db.delete(lineBindings).where(eq(lineBindings.eventId, access.event.id));
+    await db.delete(activityLineGroups).where(eq(activityLineGroups.eventId, access.event.id));
     await db.delete(rsvps).where(eq(rsvps.eventId, access.event.id));
     await db.delete(events).where(eq(events.id, access.event.id));
     return json(request, { ok: true });

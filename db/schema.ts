@@ -88,9 +88,23 @@ export const lineGroups = sqliteTable("line_groups", {
   groupId: text("group_id").primaryKey(),
   groupName: text("group_name").notNull().default("LINE 群組"),
   ownerCredentialHash: text("owner_credential_hash").notNull().default(""),
+  isTest: integer("is_test", { mode: "boolean" }).notNull().default(false),
   boundAt: text("bound_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
+
+// New activities may notify more than one already verified group. The older
+// line_bindings table remains as the first/legacy destination so existing
+// activities and reminder records keep working without a data migration.
+export const activityLineGroups = sqliteTable("activity_line_groups", {
+  eventId: text("event_id").notNull().references(() => events.id, { onDelete: "cascade" }),
+  groupId: text("group_id").notNull(),
+  groupName: text("group_name").notNull().default("LINE 群組"),
+  boundAt: text("bound_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  uniqueIndex("activity_line_groups_event_group_unique").on(table.eventId, table.groupId),
+  index("activity_line_groups_group_event").on(table.groupId, table.eventId),
+]);
 
 export const lineBindCodes = sqliteTable("line_bind_codes", {
   code: text("code").primaryKey(),

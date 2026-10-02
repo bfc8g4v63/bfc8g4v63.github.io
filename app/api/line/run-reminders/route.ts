@@ -2,9 +2,10 @@ import { and, eq, sql } from "drizzle-orm";
 import { ensureSchema } from "../../../../db/init";
 import { getDb } from "../../../../db";
 import {
-  events, lineBindings, lineReminderDeliveries, lineReminderSettings, rsvps,
+  activityLineGroups, events, lineBindings, lineReminderDeliveries, lineReminderSettings, rsvps,
 } from "../../../../db/schema";
 import { eventCard, lineConfig, pushMessages } from "../lib";
+import { eventNotificationGroups } from "../groups";
 
 const taipeiEvening = (eventDate: string, daysBefore: number) =>
   Date.parse(`${eventDate}T18:00:00+08:00`) - daysBefore * 24 * 60 * 60 * 1000;
@@ -49,18 +50,17 @@ export async function POST(request: Request) {
       await db.delete(lineReminderDeliveries).where(eq(lineReminderDeliveries.eventId, event.id));
       await db.delete(lineReminderSettings).where(eq(lineReminderSettings.eventId, event.id));
       await db.delete(lineBindings).where(eq(lineBindings.eventId, event.id));
+      await db.delete(activityLineGroups).where(eq(activityLineGroups.eventId, event.id));
       await db.delete(rsvps).where(eq(rsvps.eventId, event.id));
       await db.delete(events).where(eq(events.id, event.id));
     }
     const rows = await db.select({
       id: events.id, title: events.title, eventDate: events.eventDate,
       startTime: events.startTime, location: events.location, address: events.address, shareToken: events.shareToken, shareCode: events.shareCode, updatedAt: events.updatedAt,
-      groupId: lineBindings.groupId,
       sevenDays: lineReminderSettings.sevenDays,
       oneDay: lineReminderSettings.oneDay,
       twoHours: lineReminderSettings.twoHours,
     }).from(events)
-      .innerJoin(lineBindings, eq(events.id, lineBindings.eventId))
       .innerJoin(lineReminderSettings, eq(events.id, lineReminderSettings.eventId))
       .where(eq(events.status, "active"));
 
@@ -76,6 +76,8 @@ export async function POST(request: Request) {
       ));
       const attendingPeople = attending.reduce((sum, item) => sum + item.partySize, 0);
       const fingerprint = `${event.eventDate}T${event.startTime}|${event.updatedAt}`;
+      const groups = await eventNotificationGroups(event.id);
+      if (!groups.length) continue;
 
       for (const rule of rules) {
         if (!event[rule.setting]) continue;
@@ -88,7 +90,8 @@ export async function POST(request: Request) {
             eq(lineReminderDeliveries.eventFingerprint, fingerprint),
           )).limit(1);
         if (delivered) continue;
-        await pushMessages(event.groupId, [eventCard({ ...event, attendingPeople }, rule.label)]);
+        const card = eventCard({ ...event, attendingPeople }, rule.label);
+        await Promise.all(groups.map((group) => pushMessages(group.groupId, [card])));
         await db.insert(lineReminderDeliveries).values({
           id: crypto.randomUUID(), eventId: event.id,
           reminderKey: rule.key, eventFingerprint: fingerprint,
