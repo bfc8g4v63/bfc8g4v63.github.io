@@ -2,9 +2,9 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "好日子相聚",
+    name: "好日子｜家庭相聚活動管理",
     short_name: "好日子",
-    description: "全家人都會用的活動簿",
+    description: "讓家人朋友輕鬆相聚的活動管理工具",
     start_url: "/",
     display: "standalone",
     background_color: "#fffaf0",
