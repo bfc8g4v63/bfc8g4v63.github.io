@@ -183,11 +183,22 @@ async function claimWebhookEvent(event: LineEvent) {
   // In that case, retain the original handling behaviour.
   if (!event.webhookEventId) return true;
   try {
-    const [claimed] = await getDb().insert(lineWebhookDeliveries).values({
+    const db = getDb();
+    const [claimed] = await db.insert(lineWebhookDeliveries).values({
       id: event.webhookEventId,
       receivedAt: new Date().toISOString(),
     }).onConflictDoNothing().returning({ id: lineWebhookDeliveries.id });
-    return Boolean(claimed);
+    if (claimed) return true;
+
+    // LINE retries a callback when its connection was cancelled before it
+    // received our 2xx response. A stale in-progress claim must not suppress
+    // that retry forever; a fresh claim still prevents duplicate cards.
+    const retryCutoff = new Date(Date.now() - 15_000).toISOString();
+    const retried = await db.update(lineWebhookDeliveries)
+      .set({ receivedAt: new Date().toISOString() })
+      .where(and(eq(lineWebhookDeliveries.id, event.webhookEventId), lt(lineWebhookDeliveries.receivedAt, retryCutoff)))
+      .returning({ id: lineWebhookDeliveries.id });
+    return Boolean(retried[0]);
   } catch (error) {
     // Do not turn a diagnostics safeguard into a dropped family command.
     // LINE will retry this delivery when it could not receive our 2xx response.

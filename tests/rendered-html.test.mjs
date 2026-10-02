@@ -299,6 +299,8 @@ test("bound LINE groups can show a privacy-safe current activity arrangement ima
   assert.match(webhook, /webhookEventId/);
   assert.match(webhook, /lineWebhookDeliveries/);
   assert.match(webhook, /claimWebhookEvent/);
+  assert.match(webhook, /Date\.now\(\) - 15_000/);
+  assert.match(webhook, /stale in-progress claim must not suppress/);
   assert.match(webhook, /fallback_sent/);
   assert.match(lineLib, /export async function activityArrangementImageUrl/);
   assert.match(lineLib, /export async function pushMessages/);
