@@ -454,7 +454,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.81/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.82/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -483,9 +483,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.81/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.81/);
-  assert.match(worker, /good-days-github-v81/);
+  assert.match(page, /\/app\.js\?v=1\.2\.82/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.82/);
+  assert.match(worker, /good-days-github-v82/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -560,6 +560,7 @@ test("public pages provide crawl discovery while individual event pages remain p
   assert.match(page, /property="og:site_name" content="好日子"/);
   assert.match(page, /"@type":"WebSite","name":"好日子"/);
   assert.match(page, /"alternateName":\["相聚","好日子活動"\]/);
+  assert.match(page, /name="description" content="讓家人朋友輕鬆相聚的活動管理系統"/);
   assert.match(page, /<title>好日子｜相聚活動管理、聚會安排與 LINE 提醒<\/title>/);
   assert.match(page, /好日子，<br><em>讓相聚簡單成行。<\/em>/);
   assert.match(page, /WebApplication/);

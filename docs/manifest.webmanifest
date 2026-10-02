@@ -1,7 +1,7 @@
 {
   "name": "好日子相聚",
   "short_name": "好日子",
-  "description": "全家人都會用的活動簿",
+  "description": "讓家人朋友輕鬆相聚的活動管理系統",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#fffaf0",
