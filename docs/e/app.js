@@ -55,9 +55,9 @@ function googleMapsUrl(event) {
   return query ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}` : "";
 }
 
-async function post(path, body, method = "POST") {
+async function post(path, body, method = "POST", timeoutMs = 10_000) {
   const controller = new AbortController();
-  const timeout = window.setTimeout(() => controller.abort(), 10_000);
+  const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(`${API}${path}`, {
       method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: controller.signal,
@@ -75,6 +75,23 @@ async function post(path, body, method = "POST") {
   } finally {
     window.clearTimeout(timeout);
   }
+}
+
+const wait = (milliseconds) => new Promise((resolve) => window.setTimeout(resolve, milliseconds));
+
+async function loadEventData() {
+  const body = { shareToken, participantCode, attendeeToken };
+  let lastError;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      // LINE's in-app browser can take longer to establish its first cross-origin request.
+      return await post("/events/access", body, "POST", 20_000);
+    } catch (error) {
+      lastError = error;
+      if (attempt === 0) await wait(500);
+    }
+  }
+  throw lastError;
 }
 
 function showCodeGate(message = "這是一個需要參加碼的私人活動。") {
@@ -127,7 +144,7 @@ async function loadEvent() {
     return;
   }
   try {
-    const data = await post("/events/access", { shareToken, participantCode, attendeeToken });
+    const data = await loadEventData();
     currentEvent = data.event;
     renderEvent(currentEvent);
     if (currentEvent.status === "active") await loadCompanions();

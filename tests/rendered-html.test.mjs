@@ -469,7 +469,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.85/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.86/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -498,10 +498,18 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.85/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.85/);
-  assert.match(worker, /good-days-github-v85/);
+  assert.match(page, /\/app\.js\?v=1\.2\.86/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.86/);
+  assert.match(worker, /good-days-github-v86/);
   assert.match(worker, /self\.skipWaiting\(\)/);
+});
+
+test("the public event page retries a slow mobile access request before showing an error", async () => {
+  const client = await readFile(new URL("../docs/e/app.js", import.meta.url), "utf8");
+  assert.match(client, /async function loadEventData\(\)/);
+  assert.match(client, /attempt < 2/);
+  assert.match(client, /20_000/);
+  assert.match(client, /await wait\(500\)/);
 });
 
 test("activity date and time controls support direct editing, desktop wheel and touch adjustment", async () => {
