@@ -263,7 +263,7 @@ export async function verifyLineSignature(body: string, signature: string) {
 
 type ActivityLinkEvent = {
   id: string; title: string; eventDate: string; startTime: string;
-  location: string; address?: string; shareToken: string; shareCode: string; attendingPeople?: number;
+  location: string; address?: string; description?: string; shareToken: string; shareCode: string; attendingPeople?: number;
 };
 
 const weekdayLabels = ["日", "一", "二", "三", "四", "五", "六"];
@@ -299,6 +299,7 @@ function activityBubble(event: ActivityLinkEvent, eyebrow: string) {
         { type: "text", text: `時間｜${event.startTime}`, color: "#315C54", wrap: true },
         { type: "text", text: `地點｜${event.location.slice(0, 180)}`, color: "#315C54", wrap: true },
         ...(event.address?.trim() ? [{ type: "text", text: `地址｜${event.address.trim().slice(0, 180)}`, color: "#315C54", wrap: true }] : []),
+        ...(event.description?.trim() ? [{ type: "text", text: `行前資訊｜${event.description.trim().slice(0, 180)}`, color: "#315C54", wrap: true, margin: "md" }] : []),
         ...(people ? [{ type: "text", text: people, color: "#C65037", weight: "bold", margin: "md" }] : []),
       ],
     },

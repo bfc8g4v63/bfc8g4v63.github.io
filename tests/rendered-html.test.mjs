@@ -469,7 +469,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.86/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.87/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -498,9 +498,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.86/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.86/);
-  assert.match(worker, /good-days-github-v86/);
+  assert.match(page, /\/app\.js\?v=1\.2\.87/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.87/);
+  assert.match(worker, /good-days-github-v87/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -835,6 +835,25 @@ test("events can deliberately publish to several saved LINE groups while keeping
   assert.match(client, /set_event_groups/);
   assert.match(lineLib, /目前 \$\{event\.attendingPeople\} 人參加/);
   assert.match(lineLib, /在 Google 地圖開啟/);
+});
+
+test("managers can send a targeted announcement and reuse the pretrip information card", async () => {
+  const [adminLine, client, eventClient, lineLib, reminders] = await Promise.all([
+    readFile(new URL("../app/api/admin/line/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../docs/app.js", import.meta.url), "utf8"),
+    readFile(new URL("../docs/e/app.js", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/line/lib.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/line/run-reminders/route.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(adminLine, /action === "send_announcement"/);
+  assert.match(adminLine, /includePretripInfo/);
+  assert.match(adminLine, /eventNotificationGroups/);
+  assert.match(client, /發送群組公告/);
+  assert.match(client, /function openLineAnnouncement/);
+  assert.match(client, /行前資訊卡/);
+  assert.match(eventClient, /class="pretrip-card"/);
+  assert.match(lineLib, /行前資訊｜/);
+  assert.match(reminders, /description: events\.description/);
 });
 
 test("admin child panels return to the active dashboard and past reminders are skipped", async () => {

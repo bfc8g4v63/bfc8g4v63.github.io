@@ -124,7 +124,7 @@ function renderEvent(event) {
       <h1>${esc(event.title)}</h1>
       <p class="invitation-meta">日期｜${esc(formatShortDate(event.eventDate))}<br>時間｜${esc(event.startTime)}<br>地點｜${esc(event.location)}${event.address ? `<br>地址｜${esc(event.address)}` : ""}</p>
       ${mapUrl ? `<a class="secondary event-map-link" href="${esc(mapUrl)}" target="_blank" rel="noopener noreferrer">在 Google 地圖開啟</a>` : ""}
-      ${event.description ? `<p class="event-description">${esc(event.description)}</p>` : ""}
+      ${event.description ? `<section class="pretrip-card"><strong>行前資訊</strong><p>${esc(event.description)}</p></section>` : ""}
       <p class="attendance"><strong>${people} 人參加</strong>${event.capacity ? `<span>／上限 ${event.capacity} 人</span>` : ""}</p>
       ${event.feePerPerson > 0 ? `<p class="fee-note">活動費用：每人 ${formatMoney(event.feePerPerson)}</p>` : ""}
       ${event.status === "cancelled" ? '<p class="form-error">此活動已取消</p>' : isFull ? '<div class="rsvp-full-state"><button class="primary" id="rsvp">活動已額滿</button><p class="form-hint">目前已額滿；已報名者仍可更新內容、減少人數或改為不參加。</p></div>' : '<button class="primary" id="rsvp">我要參加</button>'}

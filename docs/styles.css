@@ -1,4 +1,5 @@
 :root { --ink:#173f3a; --ink-soft:#45645f; --paper:#fffaf0; --cream:#f7efd9; --coral:#e86f51; --coral-dark:#c94e34; --sage:#b9cbb8; --line:#ddd4bd; --white:#fffef9; }
+.pretrip-card { margin:18px 0; padding:15px 17px; border:1px solid #b8d4bd; border-radius:14px; background:#f2f8f0; }.pretrip-card strong { display:block; color:#176149; font-size:16px; }.pretrip-card p { margin:7px 0 0; white-space:pre-line; line-height:1.65; }
 * { box-sizing:border-box; }
 html { scroll-behavior:smooth; }
 body { margin:0; background:var(--paper); color:var(--ink); font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft JhengHei","Noto Sans TC",sans-serif; font-size:18px; line-height:1.65; }

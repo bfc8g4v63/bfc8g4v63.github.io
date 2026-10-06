@@ -56,7 +56,7 @@ export async function POST(request: Request) {
     }
     const rows = await db.select({
       id: events.id, title: events.title, eventDate: events.eventDate,
-      startTime: events.startTime, location: events.location, address: events.address, shareToken: events.shareToken, shareCode: events.shareCode, updatedAt: events.updatedAt,
+      startTime: events.startTime, location: events.location, address: events.address, description: events.description, shareToken: events.shareToken, shareCode: events.shareCode, updatedAt: events.updatedAt,
       sevenDays: lineReminderSettings.sevenDays,
       oneDay: lineReminderSettings.oneDay,
       twoHours: lineReminderSettings.twoHours,

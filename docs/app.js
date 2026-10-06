@@ -131,7 +131,7 @@ function eventCard(event) {
         <p class="event-meta"><span aria-hidden="true">▣</span>日期｜${esc(formatShortDate(event.eventDate))}</p>
         <p class="event-meta"><span aria-hidden="true">◷</span>時間｜${esc(event.startTime || "時間未定")}</p>
         ${eventLocationDetails(event)}
-        ${event.description ? `<p class="event-description">${esc(event.description)}</p>` : ""}
+        ${event.description ? `<section class="pretrip-card"><strong>行前資訊</strong><p>${esc(event.description)}</p></section>` : ""}
         <div class="attendance"><strong>${people} 人參加</strong><span>${event.capacity ? `／上限 ${event.capacity} 人` : "歡迎全家一起來"}</span></div>
         ${event.feePerPerson > 0 ? `<p class="fee-note">活動費用：每人 ${formatMoney(event.feePerPerson)}</p>` : ""}
         <p class="privacy-note">聯絡電話、姓名與飲食備註僅活動管理者可查看</p>
@@ -420,7 +420,7 @@ function openEventForm(event, managerAuth = null, returnTo = null) {
           </div>
           ${field('地點 <span>必填；填場館、店名或集合點</span>', "location", event?.location, 'required type="text" autocomplete="off" autocapitalize="sentences" autocorrect="off" spellcheck="false" inputmode="text" aria-autocomplete="none" data-form-type="other" data-1p-ignore="true" data-lpignore="true" placeholder="例如：台北 101"')}
           ${field('地址 <span>建議填寫；提供 Google 地圖導航</span>', "eventAddress", event?.address, 'type="text" autocomplete="off" autocapitalize="sentences" autocorrect="off" spellcheck="false" inputmode="text" aria-autocomplete="none" data-form-type="other" data-1p-ignore="true" data-lpignore="true" placeholder="例如：臺北市信義區西村里市府路45號"')}
-          <label>活動說明<textarea name="description" rows="3" placeholder="要帶什麼？在哪裡集合？">${esc(event?.description)}</textarea></label>
+          <label>行前資訊卡 <span>選填；例如集合點、停車、裝備與注意事項</span><textarea name="description" rows="3" placeholder="例如：18:40 在入口集合；請自備球拍與飲水。">${esc(event?.description)}</textarea></label>
           <details class="advanced-settings" ${editing ? "open" : ""}>
             <summary><strong>進階設定</strong><span>公開方式、名單、名額與費用</span></summary>
             <div class="advanced-settings-body">
@@ -991,7 +991,7 @@ function linePanel(line) {
       <p>${groups.length ? "可為這場活動選擇多個群組；每個群組都會收到活動邀請與原本設定的行前提醒。群組成員輸入「活動」會列出即時人數，輸入「安排」會顯示安排圖卡。這與上方的私訊提醒是兩個獨立設定。" : "可從已綁定的群組庫選擇一或多個群組；測試群組需另外確認才會發送。這不會啟用管理者私訊提醒。"}</p>
       <div id="binding-code-area"></div>
       <div class="inline-actions">
-        ${groups.length ? '<button class="secondary" id="line-existing">選擇通知群組</button><button class="secondary" id="line-publish">合併發布近期活動</button><button class="secondary" id="line-seven-day-test">測試 7 天提醒</button><button class="secondary" id="line-one-day-test">測試 1 天提醒</button><button class="secondary" id="line-two-hour-test">測試 2 小時提醒</button><button class="text-danger" id="line-unbind">移除此活動</button>' : '<button class="secondary" id="line-existing">選擇既有通知群組</button><button class="line-button" id="line-code">綁定新群組</button>'}
+        ${groups.length ? '<button class="line-button" id="line-announcement">發送群組公告</button><button class="secondary" id="line-existing">選擇通知群組</button><button class="secondary" id="line-publish">合併發布近期活動</button><button class="secondary" id="line-seven-day-test">測試 7 天提醒</button><button class="secondary" id="line-one-day-test">測試 1 天提醒</button><button class="secondary" id="line-two-hour-test">測試 2 小時提醒</button><button class="text-danger" id="line-unbind">移除此活動</button>' : '<button class="secondary" id="line-existing">選擇既有通知群組</button><button class="line-button" id="line-code">綁定新群組</button>'}
       </div>
     </div>
     ${commandCard}
@@ -1027,6 +1027,29 @@ async function autoReuseLineGroup(event, managerAuth, returnTo) {
 
 function lineEventLabel(event) {
   return `${formatShortDate(event.eventDate)} ${event.startTime}｜${event.title}`;
+}
+
+function openLineAnnouncement(event, managerAuth) {
+  activeModalClose = closeModal;
+  modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="line-announcement-title"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">LINE 群組公告</p><h2 id="line-announcement-title">通知這場活動的群組</h2><p>只會傳送到此活動已選定的通知群組。</p><form id="line-announcement-form"><label>公告內容<textarea name="message" rows="4" maxlength="1200" placeholder="例如：因天氣不穩，請大家改到一樓入口集合。"></textarea></label>${event.description ? '<label class="toggle"><input name="includePretripInfo" type="checkbox" checked><span>一併附上已儲存的行前資訊</span></label>' : '<p class="form-hint">尚未填寫行前資訊卡；可直接輸入公告內容後發送。</p>'}<p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button class="primary">發送公告</button></div></form></section></div>`;
+  document.querySelector("#line-announcement-form")?.addEventListener("submit", async (submitEvent) => {
+    submitEvent.preventDefault();
+    const form = submitEvent.currentTarget;
+    const button = form.querySelector('[type="submit"]');
+    button.disabled = true;
+    try {
+      const data = new FormData(form);
+      const result = await requestJson("/admin/line", {
+        action: "send_announcement", message: data.get("message"), includePretripInfo: data.get("includePretripInfo") === "on", ...managerPayload(event.id, managerAuth),
+      });
+      closeModal();
+      showNotice(`公告已傳送到 ${result.groups} 個通知群組`);
+    } catch (error) {
+      const box = form.querySelector(".form-error");
+      box.textContent = error.message || "公告發送失敗";
+      box.hidden = false;
+    } finally { button.disabled = false; }
+  });
 }
 
 async function openLineGroupPicker(event, managerAuth, returnTo = null, options = {}) {
@@ -1653,6 +1676,7 @@ function openAdminDashboard(data, managerAuth, returnTo = null) {
   document.querySelector("#line-seven-day-test")?.addEventListener("click", (clickEvent) => sendLineTest(clickEvent, "seven_days"));
   document.querySelector("#line-one-day-test")?.addEventListener("click", (clickEvent) => sendLineTest(clickEvent, "one_day"));
   document.querySelector("#line-two-hour-test")?.addEventListener("click", (clickEvent) => sendLineTest(clickEvent, "two_hours"));
+  document.querySelector("#line-announcement")?.addEventListener("click", () => openLineAnnouncement(event, managerAuth));
   document.querySelector("#line-unbind")?.addEventListener("click", async () => {
     if (!confirm("確定將這場活動移出通知群組？群組本身與其他活動不會受影響。")) return;
     try {
