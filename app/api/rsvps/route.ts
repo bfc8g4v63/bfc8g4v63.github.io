@@ -93,7 +93,7 @@ export async function POST(request: Request) {
       shareToken: events.shareToken, shareCode: events.shareCode, participantCodeHash: events.participantCodeHash,
     }).from(events).where(eq(events.id, eventId)).limit(1);
     if (!event) return json(request, { error: "找不到活動" }, 404);
-    if (event.status === "cancelled") return json(request, { error: "這個活動已取消" }, 400);
+    if (event.status !== "active") return json(request, { error: event.status === "completed" ? "這個活動已結束" : "這個活動已取消" }, 400);
     if (event.accessMode !== "public" && shareToken !== event.shareCode && shareToken !== event.shareToken) {
       return json(request, { error: "請從活動專屬連結參加" }, 403);
     }

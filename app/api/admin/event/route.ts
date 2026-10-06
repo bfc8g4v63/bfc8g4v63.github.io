@@ -2,13 +2,13 @@ import { and, asc, eq, sql } from "drizzle-orm";
 import { getRequestExecutionContext } from "vinext/shims/request-context";
 import { ensureSchema } from "../../../../db/init";
 import { getDb } from "../../../../db";
-import { lineBindings, lineCommandLogs, lineManagerTargets, lineReminderSettings, mealAssignments, mealTables, rsvps } from "../../../../db/schema";
+import { activityLineGroups, events, lineBindings, lineCommandLogs, lineManagerTargets, lineReminderSettings, mealAssignments, mealTables, rsvps } from "../../../../db/schema";
 import { json, preflight } from "../../cors";
 import { clean, hashCode, requireEventManager } from "../auth";
 import { lineConfig, managerRsvpMessage, pushText } from "../../line/lib";
 import { rateLimit } from "../../rate-limit";
 import { arrangementNameKey } from "../../../../lib/arrangement";
-import { eventShareUrl } from "../../../../lib/event-share";
+import { eventShareUrl, shortShareCode } from "../../../../lib/event-share";
 import { eventNotificationGroups } from "../../line/groups";
 
 export function OPTIONS(request: Request) {
@@ -145,6 +145,39 @@ export async function POST(request: Request) {
     if ("error" in access) return json(request, { error: access.error }, access.status);
     const db = getDb();
     const action = clean(body.action, 40);
+    if (action === "clone_event") {
+      const eventDate = clean(body.eventDate, 10);
+      const startTime = clean(body.startTime, 5);
+      const title = clean(body.title, 80) || `${access.event.title}（複製）`;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(eventDate) || !/^\d{2}:\d{2}$/.test(startTime)) {
+        return json(request, { error: "請選擇新活動的日期與時間" }, 400);
+      }
+      const id = crypto.randomUUID();
+      const shareToken = crypto.randomUUID();
+      const shareCode = shortShareCode(shareToken);
+      await db.insert(events).values({
+        id, title, eventDate, startTime,
+        location: access.event.location, address: access.event.address, description: access.event.description,
+        creatorName: access.event.creatorName, contactName: access.event.contactName, contactPhone: access.event.contactPhone,
+        capacity: access.event.capacity, feePerPerson: access.event.feePerPerson, accessMode: access.event.accessMode,
+        attendanceVisibility: access.event.attendanceVisibility, shareToken, shareCode,
+        participantCodeHash: access.event.participantCodeHash, editCodeHash: access.event.editCodeHash,
+        managerTokenHash: access.event.managerTokenHash,
+      });
+      const [settings] = await db.select().from(lineReminderSettings).where(eq(lineReminderSettings.eventId, access.event.id)).limit(1);
+      if (settings) await db.insert(lineReminderSettings).values({
+        eventId: id, sevenDays: settings.sevenDays, oneDay: settings.oneDay, twoHours: settings.twoHours,
+        includeDiet: settings.includeDiet, includeNote: settings.includeNote, updatedAt: new Date().toISOString(),
+      });
+      const groups = await eventNotificationGroups(access.event.id);
+      if (groups.length) await db.insert(activityLineGroups).values(groups.map((group) => ({ eventId: id, groupId: group.groupId, groupName: group.groupName })));
+      const sourceTables = await db.select().from(mealTables).where(eq(mealTables.eventId, access.event.id)).orderBy(asc(mealTables.sortOrder));
+      if (sourceTables.length) await db.insert(mealTables).values(sourceTables.map((table) => ({
+        id: crypto.randomUUID(), eventId: id, name: table.name, nameKey: table.nameKey, capacity: table.capacity,
+        isReserve: table.isReserve, note: table.note, sortOrder: table.sortOrder, updatedAt: new Date().toISOString(),
+      })));
+      return json(request, { ok: true, id, shareUrl: eventShareUrl(shareCode, shareToken) });
+    }
     if (action === "save_meal_seating") {
       const rows = await db.select({ id: rsvps.id, partySize: rsvps.partySize, response: rsvps.response })
         .from(rsvps).where(eq(rsvps.eventId, access.event.id));
@@ -152,6 +185,7 @@ export async function POST(request: Request) {
       return json(request, { ok: true, message: "餐桌安排已儲存" });
     }
     if (action === "create_rsvp") {
+      if (access.event.status !== "active") return json(request, { error: access.event.status === "completed" ? "活動已結束，不能再新增報名" : "活動已取消，不能再新增報名" }, 400);
       const name = clean(body.name, 60);
       const response = body.response === "not_attending" ? "not_attending" : "attending";
       const partySize = wholeNumber(body.partySize, 1, 999);

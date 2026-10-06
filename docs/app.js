@@ -124,10 +124,10 @@ function eventCard(event) {
   const contact = event.contactName
     ? `<p class="contact">活動聯絡人：${esc(event.contactName)}</p>` : "";
   return `
-    <article class="event-card ${event.status === "cancelled" ? "cancelled" : ""}" id="event-${esc(event.id)}">
+    <article class="event-card ${event.status !== "active" ? "cancelled" : ""}" id="event-${esc(event.id)}">
       <div class="date-block"><span>${esc(parts.month)}</span><strong>${esc(parts.day)}</strong></div>
       <div class="event-body">
-        <div class="event-title-row"><h3>${esc(event.title)}</h3>${event.status === "cancelled" ? '<span class="status-cancelled">已取消</span>' : ""}</div>
+        <div class="event-title-row"><h3>${esc(event.title)}</h3>${event.status === "cancelled" ? '<span class="status-cancelled">已取消</span>' : event.status === "completed" ? '<span class="status-cancelled">已結束</span>' : ""}</div>
         <p class="event-meta"><span aria-hidden="true">▣</span>日期｜${esc(formatShortDate(event.eventDate))}</p>
         <p class="event-meta"><span aria-hidden="true">◷</span>時間｜${esc(event.startTime || "時間未定")}</p>
         ${eventLocationDetails(event)}
@@ -136,7 +136,7 @@ function eventCard(event) {
         ${event.feePerPerson > 0 ? `<p class="fee-note">活動費用：每人 ${formatMoney(event.feePerPerson)}</p>` : ""}
         <p class="privacy-note">聯絡電話、姓名與飲食備註僅活動管理者可查看</p>
         <div class="card-actions">
-          <button class="primary" data-action="rsvp" data-id="${esc(event.id)}" ${event.status === "cancelled" ? "disabled" : ""}>${isFull ? "活動已額滿" : "我要參加"}</button>
+          <button class="primary" data-action="rsvp" data-id="${esc(event.id)}" ${event.status !== "active" ? "disabled" : ""}>${event.status === "completed" ? "活動已結束" : isFull ? "活動已額滿" : "我要參加"}</button>
           <button class="icon-button" data-action="share" data-id="${esc(event.id)}">分享</button>
           <button class="icon-button" data-action="admin" data-id="${esc(event.id)}">管理</button>
         </div>
@@ -391,9 +391,9 @@ function selectedStartTime(form) {
   return `${String(hour24).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
 }
 
-async function requestJson(path, body) {
+async function requestJson(path, body, method = "POST") {
   const response = await fetch(`${API}${path}`, {
-    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
   });
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || "操作失敗");
@@ -453,7 +453,7 @@ function openEventForm(event, managerAuth = null, returnTo = null) {
           ${editing ? "" : '<p class="form-hint">建立後會提供專屬管理連結；也可從首頁「管理我的活動」用管理者名稱與管理碼回來。</p>'}
           <p class="form-error" id="form-error" role="alert" hidden></p>
           <div class="form-actions">
-            ${editing ? `<button type="button" class="danger" id="toggle-event">${event.status === "cancelled" ? "恢復活動" : "取消活動"}</button>` : ""}
+            ${editing ? `<button type="button" class="danger" id="toggle-event">${event.status === "active" ? "取消活動" : "恢復活動"}</button>` : ""}
             ${editing ? '<button type="button" class="text-danger" id="delete-event">永久刪除</button>' : ""}
             <button type="button" class="secondary" data-close>${returnTo ? "返回管理後台" : "取消"}</button>
             <button type="submit" class="primary">${editing ? "儲存修改" : "建立活動"}</button>
@@ -531,8 +531,8 @@ function openEventForm(event, managerAuth = null, returnTo = null) {
 
   document.querySelector("#toggle-event")?.addEventListener("click", async () => {
     await save(`${API}/events`, "PATCH", {
-      ...eventManagerPayload(event.id, managerAuth), status: event.status === "cancelled" ? "active" : "cancelled",
-    }, event.status === "cancelled" ? "活動已恢復" : "活動已取消", form);
+      ...eventManagerPayload(event.id, managerAuth), status: event.status === "active" ? "cancelled" : "active",
+    }, event.status === "active" ? "活動已取消" : "活動已恢復", form);
   });
 
   document.querySelector("#delete-event")?.addEventListener("click", async () => {
@@ -783,7 +783,7 @@ function openRecoveredActivities(activities, editCode, creatorName) {
   activeModalClose = closeModal;
   const upcoming = activities.filter(isUpcomingRecoveryActivity);
   const history = activities.filter((event) => !isUpcomingRecoveryActivity(event));
-  const activityCard = (event) => `<article class="recovered-activity"><div>${isUpcomingRecoveryActivity(event) ? `<label class="recovery-manager-choice"><input type="checkbox" data-recovery-manager-event="${esc(event.id)}" checked><span>啟用私訊提醒</span></label>` : ""}<strong>${esc(event.title)}</strong><span>${esc(formatDate(event.eventDate))} · ${esc(event.startTime)}${event.status === "cancelled" ? " · 已取消" : ""}</span>${recoveryCapacityLabel(event)}${recoveryOperationalStatus(event)}</div><div class="inline-actions"><button class="secondary" data-recovery-share="${esc(event.id)}">分享連結／QR</button><button class="primary" data-recovery-manage="${esc(event.id)}">管理活動</button></div></article>`;
+  const activityCard = (event) => `<article class="recovered-activity"><div>${isUpcomingRecoveryActivity(event) ? `<label class="recovery-manager-choice"><input type="checkbox" data-recovery-manager-event="${esc(event.id)}" checked><span>啟用私訊提醒</span></label>` : ""}<strong>${esc(event.title)}</strong><span>${esc(formatDate(event.eventDate))} · ${esc(event.startTime)}${event.status === "cancelled" ? " · 已取消" : event.status === "completed" ? " · 已結束" : ""}</span>${recoveryCapacityLabel(event)}${recoveryOperationalStatus(event)}</div><div class="inline-actions"><button class="secondary" data-recovery-share="${esc(event.id)}">分享連結／QR</button><button class="primary" data-recovery-manage="${esc(event.id)}">管理活動</button></div></article>`;
   const upcomingCards = upcoming.map(activityCard).join("");
   const historyCards = history.map(activityCard).join("");
   const batchPanel = upcoming.length ? `
@@ -1473,6 +1473,28 @@ async function refreshAdminDashboard(eventId, managerAuth, returnTo = null) {
   }
 }
 
+function openCloneEvent(event, managerAuth) {
+  activeModalClose = closeModal;
+  modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="clone-event-title"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">重複活動</p><h2 id="clone-event-title">複製成新活動</h2><p>會帶入活動設定、通知群組、提醒與安排區；不會複製報名名單、安排結果或已發送通知。</p><form id="clone-event-form"><label>活動名稱<input name="title" maxlength="80" value="${esc(`${event.title}（複製）`)}" required></label><div class="form-row"><label>新日期<input name="eventDate" type="date" value="${esc(event.eventDate)}" required></label><label>新時間<input name="startTime" type="time" value="${esc(event.startTime)}" required></label></div><p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button class="primary">建立複製活動</button></div></form></section></div>`;
+  document.querySelector("#clone-event-form")?.addEventListener("submit", async (submitEvent) => {
+    submitEvent.preventDefault();
+    const form = submitEvent.currentTarget;
+    const button = form.querySelector('[type="submit"]');
+    button.disabled = true;
+    try {
+      const values = Object.fromEntries(new FormData(form));
+      const result = await requestJson("/admin/event", { action: "clone_event", ...values, ...managerPayload(event.id, managerAuth) });
+      const fresh = await requestJson("/admin/event", managerPayload(result.id, managerAuth));
+      openAdminDashboard(fresh, managerAuth);
+      showNotice("已建立複製活動；請確認日期、時間後，再自行發布到 LINE 群組");
+    } catch (error) {
+      const box = form.querySelector(".form-error");
+      box.textContent = error.message || "無法複製活動";
+      box.hidden = false;
+    } finally { button.disabled = false; }
+  });
+}
+
 function openAdminDashboard(data, managerAuth, returnTo = null) {
   const event = data.event;
   const returnToAdmin = () => { void refreshAdminDashboard(event.id, managerAuth, returnTo); };
@@ -1511,7 +1533,7 @@ function openAdminDashboard(data, managerAuth, returnTo = null) {
     <div class="modal-backdrop admin-backdrop">
       <section class="modal admin-modal" role="dialog" aria-modal="true" aria-labelledby="admin-title">
         <button class="modal-close" data-close aria-label="關閉">×</button>
-        <p class="eyebrow">活動管理後台</p><h2 id="admin-title">${esc(event.title)}</h2>
+        <p class="eyebrow">活動管理後台${event.status === "completed" ? "・已結束" : event.status === "cancelled" ? "・已取消" : ""}</p><h2 id="admin-title">${esc(event.title)}</h2>
         <p class="modal-event-meta">${esc(formatShortDate(event.eventDate))} · ${esc(event.startTime)}<br>地點｜${esc(event.location)}${event.address ? `<br>地址｜${esc(event.address)}` : ""}</p>
         <div class="stats-grid">
           <div><strong>${data.summary.attendingPeople}</strong><span>參加人數</span></div>
@@ -1522,6 +1544,8 @@ function openAdminDashboard(data, managerAuth, returnTo = null) {
         ${arrangementStatus}
         <div class="admin-toolbar">
           <button class="primary" id="edit-from-admin">修改活動</button>
+          <button class="secondary" id="clone-event">複製為新活動</button>
+          ${event.status === "active" ? '<button class="secondary" id="end-event">結束活動</button>' : event.status === "completed" ? '<button class="secondary" id="resume-event">恢復為進行中</button>' : ""}
           <button class="secondary" id="show-share">分享連結與 QR Code</button>
           ${managerAuth.type === "token" ? '<button class="secondary" id="show-manager-link">複製管理連結</button>' : ""}
         </div>
@@ -1529,7 +1553,7 @@ function openAdminDashboard(data, managerAuth, returnTo = null) {
         ${paymentOverview}
         <section class="admin-section" id="participant-list">
           <div class="admin-section-title"><div><p class="eyebrow">僅管理者可見</p><h3>參與者名單</h3></div><span>${data.rsvps.length} 筆回覆</span></div>
-          <div class="admin-toolbar"><button class="primary" id="create-rsvp">＋ 代為新增報名</button></div>
+          ${event.status === "active" ? '<div class="admin-toolbar"><button class="primary" id="create-rsvp">＋ 代為新增報名</button></div>' : '<p class="form-hint">這場活動已不再接受新報名；既有名單、收款與安排仍可查看或整理。</p>'}
           <p class="form-hint">可直接按「代為新增報名」替多位親友登記；要更正既有回覆時，請按該列「修改回覆」。受託取消可按「取消參加」；只有誤登或重複資料才使用「刪除」。</p>
           <div class="table-scroll"><table><thead><tr><th>姓名</th><th>回覆</th><th>人數</th><th>飲食</th><th>備註</th><th>更新時間</th>${fee.feePerPerson > 0 ? "<th>應收</th><th>收款狀態</th>" : ""}<th>管理</th></tr></thead><tbody>${adminRows(data.rsvps, fee.feePerPerson)}</tbody></table></div>
           <p class="form-error" id="rsvp-error" role="alert" hidden></p>
@@ -1540,7 +1564,7 @@ function openAdminDashboard(data, managerAuth, returnTo = null) {
           <div id="meal-seating-root"></div>
         </section>
         <section class="admin-section line-section" id="line-notifications">
-          <div class="admin-section-title"><div><p class="eyebrow line-eyebrow">LINE 群組</p><h3>自動提醒機器人</h3></div><a href="/line-bot-guide.html" target="_blank">查看設定教學</a></div>
+          <div class="admin-section-title"><div><p class="eyebrow line-eyebrow">LINE 通知中心</p><h3>群組公告與自動提醒</h3></div><a href="/line-bot-guide.html" target="_blank">查看設定教學</a></div>
           ${linePanel(data.line)}
           <p class="form-error" id="line-error" role="alert" hidden></p>
         </section>
@@ -1548,6 +1572,22 @@ function openAdminDashboard(data, managerAuth, returnTo = null) {
     </div>`;
 
   document.querySelector("#edit-from-admin").addEventListener("click", () => openEventForm(event, managerAuth, returnToAdmin));
+  document.querySelector("#clone-event")?.addEventListener("click", () => openCloneEvent(event, managerAuth));
+  document.querySelector("#end-event")?.addEventListener("click", async () => {
+    if (!confirm("結束後會停止後續提醒，並保留名單與安排供查看。確定結束這場活動？")) return;
+    try {
+      await requestJson("/events", { ...eventManagerPayload(event.id, managerAuth), status: "completed" }, "PATCH");
+      showNotice("活動已結束並移入歷史紀錄");
+      await refreshAdminDashboard(event.id, managerAuth, returnTo);
+    } catch (error) { showNotice(error.message || "無法結束活動"); }
+  });
+  document.querySelector("#resume-event")?.addEventListener("click", async () => {
+    try {
+      await requestJson("/events", { ...eventManagerPayload(event.id, managerAuth), status: "active" }, "PATCH");
+      showNotice("活動已恢復為進行中");
+      await refreshAdminDashboard(event.id, managerAuth, returnTo);
+    } catch (error) { showNotice(error.message || "無法恢復活動"); }
+  });
   document.querySelector("#show-share").addEventListener("click", () => openSharePanel(event, returnToAdmin));
   document.querySelector("#show-manager-link")?.addEventListener("click", async () => {
     await navigator.clipboard.writeText(managerUrl(event.id, managerAuth.value));

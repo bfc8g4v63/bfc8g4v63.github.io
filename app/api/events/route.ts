@@ -164,7 +164,7 @@ export async function PATCH(request: Request) {
     if ("error" in access) return json(request, { error: access.error }, access.status);
     const existing = access.event;
     const id = existing.id;
-    const status = body.status === "cancelled" || body.status === "active" ? body.status : existing.status;
+    const status = body.status === "cancelled" || body.status === "completed" || body.status === "active" ? body.status : existing.status;
     const title = body.title === undefined ? existing.title : clean(body.title, 80);
     const eventDate = body.eventDate === undefined ? existing.eventDate : clean(body.eventDate, 10);
     const startTime = body.startTime === undefined ? existing.startTime : clean(body.startTime, 5);

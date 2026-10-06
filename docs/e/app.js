@@ -111,6 +111,7 @@ function showCodeGate(message = "這是一個需要參加碼的私人活動。")
 function renderEvent(event) {
   const people = event.summary?.attendingPeople || 0;
   const isFull = Boolean(event.capacity && people >= event.capacity);
+  const isClosed = event.status === "cancelled" || event.status === "completed";
   const roster = event.roster?.names;
   const rosterHtml = Array.isArray(roster) ? `
     <section class="attendee-roster"><h2>同場參加者</h2>
@@ -119,7 +120,7 @@ function renderEvent(event) {
       ? '<p class="privacy-note">完成報名後，可在這裡查看依活動設定公開的參加者名稱。</p>' : "";
   const mapUrl = googleMapsUrl(event);
   root.innerHTML = `
-    <article class="event-invitation ${event.status === "cancelled" ? "cancelled" : ""}">
+    <article class="event-invitation ${isClosed ? "cancelled" : ""}">
       <p class="eyebrow">${event.accessMode === "public" ? "公開活動" : "活動邀請"}</p>
       <h1>${esc(event.title)}</h1>
       <p class="invitation-meta">日期｜${esc(formatShortDate(event.eventDate))}<br>時間｜${esc(event.startTime)}<br>地點｜${esc(event.location)}${event.address ? `<br>地址｜${esc(event.address)}` : ""}</p>
@@ -127,9 +128,8 @@ function renderEvent(event) {
       ${event.description ? `<section class="pretrip-card"><strong>行前資訊</strong><p>${esc(event.description)}</p></section>` : ""}
       <p class="attendance"><strong>${people} 人參加</strong>${event.capacity ? `<span>／上限 ${event.capacity} 人</span>` : ""}</p>
       ${event.feePerPerson > 0 ? `<p class="fee-note">活動費用：每人 ${formatMoney(event.feePerPerson)}</p>` : ""}
-      ${event.status === "cancelled" ? '<p class="form-error">此活動已取消</p>' : isFull ? '<div class="rsvp-full-state"><button class="primary" id="rsvp">活動已額滿</button><p class="form-hint">目前已額滿；已報名者仍可更新內容、減少人數或改為不參加。</p></div>' : '<button class="primary" id="rsvp">我要參加</button>'}
+      ${event.status === "cancelled" ? '<p class="form-error">此活動已取消</p>' : event.status === "completed" ? '<p class="form-hint">此活動已結束，報名名單與活動資訊保留供查看。</p>' : isFull ? '<div class="rsvp-full-state"><button class="primary" id="rsvp">活動已額滿</button><p class="form-hint">目前已額滿；已報名者仍可更新內容、減少人數或改為不參加。</p></div>' : '<button class="primary" id="rsvp">我要參加</button>'}
       ${rosterHtml}
-      ${event.status === "active" ? '<section id="companions-root" class="companions-section" aria-live="polite"></section>' : ""}
       ${event.contactName ? `<p class="contact">活動聯絡人：${esc(event.contactName)}</p>` : ""}
       <p class="privacy-note">電話、飲食、備註與管理資訊只會讓活動管理者看到。</p>
       <button class="text-link manage-link" id="manager">管理這場活動</button>
@@ -147,7 +147,6 @@ async function loadEvent() {
     const data = await loadEventData();
     currentEvent = data.event;
     renderEvent(currentEvent);
-    if (currentEvent.status === "active") await loadCompanions();
   } catch (error) {
     if (error.requiresParticipantCode) showCodeGate(error.message);
     else {

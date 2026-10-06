@@ -469,7 +469,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.87/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.88/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -498,9 +498,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.87/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.87/);
-  assert.match(worker, /good-days-github-v87/);
+  assert.match(page, /\/app\.js\?v=1\.2\.88/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.88/);
+  assert.match(worker, /good-days-github-v88/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -854,6 +854,31 @@ test("managers can send a targeted announcement and reuse the pretrip informatio
   assert.match(eventClient, /class="pretrip-card"/);
   assert.match(lineLib, /行前資訊｜/);
   assert.match(reminders, /description: events\.description/);
+});
+
+test("completed activities keep their history while repeat activities start clean", async () => {
+  const [eventsRoute, rsvpRoute, adminRoute, client, eventClient, reminders] = await Promise.all([
+    readFile(new URL("../app/api/events/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/rsvps/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/event/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../docs/app.js", import.meta.url), "utf8"),
+    readFile(new URL("../docs/e/app.js", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/line/run-reminders/route.ts", import.meta.url), "utf8"),
+  ]);
+  assert.match(eventsRoute, /body\.status === "completed"/);
+  assert.match(rsvpRoute, /event\.status !== "active"/);
+  assert.match(rsvpRoute, /這個活動已結束/);
+  assert.match(adminRoute, /action === "clone_event"/);
+  assert.match(adminRoute, /activityLineGroups/);
+  assert.match(adminRoute, /sourceTables/);
+  assert.match(adminRoute, /活動已結束，不能再新增報名/);
+  assert.match(client, /複製為新活動/);
+  assert.match(client, /結束活動/);
+  assert.match(client, /LINE 通知中心/);
+  assert.match(client, /已結束並移入歷史紀錄/);
+  assert.match(eventClient, /此活動已結束/);
+  assert.doesNotMatch(eventClient, /id="companions-root"/);
+  assert.match(reminders, /eq\(events\.status, "active"\)/);
 });
 
 test("admin child panels return to the active dashboard and past reminders are skipped", async () => {
