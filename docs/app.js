@@ -190,7 +190,7 @@ function timeParts(value) {
   return { period: hour24 < 12 ? "am" : "pm", hour: String(hour24 % 12 || 12), minute: String(minute).padStart(2, "0") };
 }
 
-function timePicker(value = "") {
+function timePicker(value = "", label = "時間") {
   const selected = timeParts(value);
   const options = {
     period: [["am", "上午"], ["pm", "下午"]],
@@ -211,8 +211,8 @@ function timePicker(value = "") {
       <span class="time-wheel-arrow" aria-hidden="true">⌃</span><span class="time-wheel-value">${current ? current[1] : placeholder}</span><span class="time-wheel-arrow" aria-hidden="true">⌄</span>
     </button><input type="hidden" name="time${name[0].toUpperCase()}${name.slice(1)}" value="${esc(selected[name])}">`;
   };
-  return `<div class="time-picker" role="group" aria-labelledby="time-picker-label">
-    <span class="time-picker-label" id="time-picker-label">時間</span>
+  return `<div class="time-picker" role="group" aria-label="${esc(label)}">
+    <span class="time-picker-label">${esc(label)}</span>
     <span class="time-picker-required">必填</span>
     ${wheel("period", "午別")}
     ${wheel("hour", "時")}
@@ -1475,14 +1475,22 @@ async function refreshAdminDashboard(eventId, managerAuth, returnTo = null) {
 
 function openCloneEvent(event, managerAuth) {
   activeModalClose = closeModal;
-  modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="clone-event-title"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">重複活動</p><h2 id="clone-event-title">複製成新活動</h2><p>會帶入活動設定、通知群組、提醒與安排區；不會複製報名名單、安排結果或已發送通知。</p><form id="clone-event-form"><label>活動名稱<input name="title" maxlength="80" value="${esc(`${event.title}（複製）`)}" required></label><div class="form-row"><label>新日期<input name="eventDate" type="date" value="${esc(event.eventDate)}" required></label><label>新時間<input name="startTime" type="time" value="${esc(event.startTime)}" required></label></div><p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button class="primary">建立複製活動</button></div></form></section></div>`;
-  document.querySelector("#clone-event-form")?.addEventListener("submit", async (submitEvent) => {
+  modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="clone-event-title"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">重複活動</p><h2 id="clone-event-title">複製成新活動</h2><p>會帶入活動設定、通知群組、提醒與安排區；不會複製報名名單、安排結果或已發送通知。</p><form id="clone-event-form"><label>活動名稱<input name="title" maxlength="80" value="${esc(`${event.title}（複製）`)}" required></label><div class="form-row"><label>新日期 <span>點選年、月、日後可用滑鼠滾輪調整</span><input name="eventDate" type="date" data-date-wheel aria-label="新日期；點選年、月、日後可用滑鼠滾輪調整" value="${esc(event.eventDate)}" required></label>${timePicker(event.startTime, "新時間")}</div><p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button class="primary">建立複製活動</button></div></form></section></div>`;
+  const form = document.querySelector("#clone-event-form");
+  enableTimeWheels(form);
+  enableDateWheels(form);
+  form?.addEventListener("submit", async (submitEvent) => {
     submitEvent.preventDefault();
     const form = submitEvent.currentTarget;
     const button = form.querySelector('[type="submit"]');
     button.disabled = true;
     try {
       const values = Object.fromEntries(new FormData(form));
+      values.startTime = selectedStartTime(form);
+      if (!values.startTime) throw new Error("請完成新時間的上午／下午、時與分。");
+      delete values.timePeriod;
+      delete values.timeHour;
+      delete values.timeMinute;
       const result = await requestJson("/admin/event", { action: "clone_event", ...values, ...managerPayload(event.id, managerAuth) });
       const fresh = await requestJson("/admin/event", managerPayload(result.id, managerAuth));
       openAdminDashboard(fresh, managerAuth);

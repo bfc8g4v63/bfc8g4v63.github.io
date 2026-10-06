@@ -469,7 +469,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.88/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.90/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -498,9 +498,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.88/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.88/);
-  assert.match(worker, /good-days-github-v88/);
+  assert.match(page, /\/app\.js\?v=1\.2\.90/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.90/);
+  assert.match(worker, /good-days-github-v90/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -873,6 +873,9 @@ test("completed activities keep their history while repeat activities start clea
   assert.match(adminRoute, /sourceTables/);
   assert.match(adminRoute, /活動已結束，不能再新增報名/);
   assert.match(client, /複製為新活動/);
+  assert.match(client, /timePicker\(event\.startTime, "新時間"\)/);
+  assert.match(client, /name="eventDate" type="date" data-date-wheel/);
+  assert.match(client, /enableTimeWheels\(form\);[\s\S]*enableDateWheels\(form\);/);
   assert.match(client, /結束活動/);
   assert.match(client, /LINE 通知中心/);
   assert.match(client, /已結束並移入歷史紀錄/);
