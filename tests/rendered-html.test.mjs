@@ -881,6 +881,15 @@ test("completed activities keep their history while repeat activities start clea
   assert.match(reminders, /eq\(events\.status, "active"\)/);
 });
 
+test("manager alert binding acknowledges LINE immediately before completing its database work", async () => {
+  const webhook = await readFile(new URL("../app/api/line/webhook/route.ts", import.meta.url), "utf8");
+  assert.match(webhook, /已收到管理提醒綁定指令，正在確認活動/);
+  assert.match(webhook, /await replyText\(event\.replyToken, "已收到管理提醒綁定指令/);
+  assert.match(webhook, /await pairManagerAlert\(event, match!\[1\]\)/);
+  assert.match(webhook, /pushText\(lineUserId, `管理者私訊提醒已綁定/);
+  assert.match(webhook, /管理提醒綁定碼無效或已超過 10 分鐘/);
+});
+
 test("admin child panels return to the active dashboard and past reminders are skipped", async () => {
   const [client, reminders] = await Promise.all([
     readFile(new URL("../docs/app.js", import.meta.url), "utf8"),
