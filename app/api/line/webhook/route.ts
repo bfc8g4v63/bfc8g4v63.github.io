@@ -1,4 +1,5 @@
 import { and, asc, eq, inArray, lt } from "drizzle-orm";
+import { getRequestExecutionContext } from "vinext/shims/request-context";
 import { getDb } from "../../../../db";
 import { activityLineGroups, events, lineBindCodes, lineBindings, lineCommandLogs, lineGroups, lineManagerBatchBindCodes, lineManagerBindCodes, lineManagerTargets, lineReminderSettings, lineWebhookDeliveries, mealTables, rsvps } from "../../../../db/schema";
 import { normalizeLineCommand } from "../commands";
@@ -232,9 +233,17 @@ async function processWebhookEvents(lineEvents: LineEvent[], requestUrl: string)
         // 回覆 Token 必須盡快使用，避免綁定時的資料庫驗證使 LINE 先
         // 中斷連線。實際結果則以後續私訊推送，讓使用者不會只看到空白。
         await replyText(event.replyToken, "已收到管理提醒綁定指令，正在確認活動…");
-        // 「活動」與「安排」不可延後處理；這裡同樣保留在同一個請求中
-        // 完成綁定。由於回覆 Token 已經優先使用，使用者不會再看到空白等待。
-        await pairManagerAlert(event, match![1]);
+        // 僅將已使用 reply token 的管理綁定留在背景完成；群組的「活動」
+        // 與「安排」仍必須在目前請求中處理，才不會延遲回覆。
+        const bindingTask = pairManagerAlert(event, match![1]).catch(async (error) => {
+          console.error("Unable to finish LINE manager binding", error);
+          if (event.source?.userId) {
+            try { await pushText(event.source.userId, "管理提醒綁定暫時無法完成，請回網站重新產生綁定碼後再試一次。"); } catch {}
+          }
+        });
+        const context = getRequestExecutionContext();
+        if (context) context.waitUntil(bindingTask);
+        else await bindingTask;
         continue;
       }
 

@@ -72,8 +72,8 @@ test("LINE webhook verifies signatures and reminder workflow uses a secret", asy
   assert.match(ingress, /getRequestExecutionContext/);
   assert.match(ingress, /api\/line\/webhook/);
   assert.match(webhook, /x-line-signature|signature/i);
-  assert.doesNotMatch(webhook, /getRequestExecutionContext/);
   assert.doesNotMatch(webhook, /context\.waitUntil\(processing\)/);
+  assert.match(webhook, /context\.waitUntil\(bindingTask\)/);
   assert.match(webhook, /await processWebhookEvents\(payload\.events \|\| \[\], request\.url\)/);
   assert.match(webhook, /「管理綁定」只能在你與好日子小幫手的一對一私訊使用/);
   assert.match(webhook, /也不會推送到活動群組/);
@@ -888,7 +888,8 @@ test("manager alert binding acknowledges LINE immediately before completing its 
   const webhook = await readFile(new URL("../app/api/line/webhook/route.ts", import.meta.url), "utf8");
   assert.match(webhook, /已收到管理提醒綁定指令，正在確認活動/);
   assert.match(webhook, /await replyText\(event\.replyToken, "已收到管理提醒綁定指令/);
-  assert.match(webhook, /await pairManagerAlert\(event, match!\[1\]\)/);
+  assert.match(webhook, /pairManagerAlert\(event, match!\[1\]\)\.catch/);
+  assert.match(webhook, /context\.waitUntil\(bindingTask\)/);
   assert.match(webhook, /pushText\(lineUserId, `管理者私訊提醒已綁定/);
   assert.match(webhook, /管理提醒綁定碼無效或已超過 10 分鐘/);
 });
