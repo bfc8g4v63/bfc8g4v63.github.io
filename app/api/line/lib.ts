@@ -304,7 +304,7 @@ function activityBubble(event: ActivityLinkEvent, eyebrow: string) {
       ],
     },
     footer: {
-      type: "box", layout: "vertical", paddingAll: "12px",
+      type: "box", layout: "vertical", paddingAll: "12px", spacing: "sm",
       contents: [{
         type: "button", style: "primary", color: "#2F6656", height: "sm",
         action: { type: "uri", label: "查看／回覆", uri: shareUrl },
@@ -312,6 +312,48 @@ function activityBubble(event: ActivityLinkEvent, eyebrow: string) {
         type: "button", style: "secondary", height: "sm",
         action: { type: "uri", label: "在 Google 地圖開啟", uri: mapUrl },
       }] : [])],
+    },
+  };
+}
+
+type ManagerBindingEvent = Pick<ActivityLinkEvent, "title" | "eventDate" | "startTime">;
+
+/** A compact confirmation card for a private manager-alert pairing. */
+export function managerBindingCard(events: ManagerBindingEvent[]): LineReplyMessage {
+  const visible = events.slice(0, 5);
+  const remaining = events.length - visible.length;
+  return {
+    type: "flex",
+    altText: `管理者私訊提醒已綁定 ${events.length} 場活動：${visible.map((event) => event.title).join("、")}`.slice(0, 400),
+    contents: {
+      type: "bubble",
+      size: "mega",
+      header: {
+        type: "box", layout: "vertical", backgroundColor: "#EEF5EF", paddingAll: "16px",
+        contents: [
+          { type: "text", text: "管理者私訊提醒", color: "#5B786D", size: "sm", weight: "bold" },
+          { type: "text", text: `已綁定 ${events.length} 場活動`, color: "#153F36", size: "xl", weight: "bold", margin: "sm" },
+        ],
+      },
+      body: {
+        type: "box", layout: "vertical", spacing: "sm", paddingAll: "16px",
+        contents: [
+          { type: "text", text: "有人報名、取消或更動人數時，小幫手會在這個私訊通知你。", color: "#315C54", wrap: true },
+          { type: "separator", margin: "md" },
+          ...visible.map((event) => ({
+            type: "box", layout: "vertical", backgroundColor: "#F5F8F4", cornerRadius: "10px", paddingAll: "10px", margin: "sm",
+            contents: [
+              { type: "text", text: event.title.slice(0, 40), color: "#153F36", weight: "bold", wrap: true },
+              { type: "text", text: `${lineDateLabel(event.eventDate)}｜${event.startTime}`, color: "#5B786D", size: "sm", wrap: true, margin: "sm" },
+            ],
+          })),
+          ...(remaining > 0 ? [{ type: "text", text: `另有 ${remaining} 場活動已綁定`, color: "#5B786D", size: "sm", margin: "sm" }] : []),
+        ],
+      },
+      footer: {
+        type: "box", layout: "vertical", paddingAll: "12px",
+        contents: [{ type: "text", text: "這只會啟用管理者私訊提醒；群組通知需在各 LINE 群組另行綁定。", color: "#5B786D", size: "xs", wrap: true }],
+      },
     },
   };
 }

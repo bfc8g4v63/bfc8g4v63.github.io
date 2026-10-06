@@ -3,7 +3,7 @@ import { getRequestExecutionContext } from "vinext/shims/request-context";
 import { getDb } from "../../../../db";
 import { activityLineGroups, events, lineBindCodes, lineBindings, lineCommandLogs, lineGroups, lineManagerBatchBindCodes, lineManagerBindCodes, lineManagerTargets, lineReminderSettings, lineWebhookDeliveries, mealTables, rsvps } from "../../../../db/schema";
 import { normalizeLineCommand } from "../commands";
-import { activityArrangementImageUrl, activityListCard, activityShareMessage, getGroupName, lineConfig, lineDateLabel, pushText, replyMessages, replyText, rsvpSummaryMessage, verifyLineSignature } from "../lib";
+import { activityArrangementImageUrl, activityListCard, activityShareMessage, getGroupName, lineConfig, lineDateLabel, managerBindingCard, pushMessages, pushText, replyMessages, replyText, rsvpSummaryMessage, verifyLineSignature } from "../lib";
 import { eventShareUrl } from "../../../../lib/event-share";
 
 type LineEvent = {
@@ -146,9 +146,7 @@ async function pairManagerAlert(event: LineEvent, code: string) {
   }
   if (bindingCode) await db.delete(lineManagerBindCodes).where(eq(lineManagerBindCodes.code, bindingCode.code));
   if (batchBindingCode) await db.delete(lineManagerBatchBindCodes).where(eq(lineManagerBatchBindCodes.code, batchBindingCode.code));
-  const listedTitles = activeEvents.slice(0, 5).map((targetEvent) => targetEvent.title).join("、");
-  const titles = activeEvents.length > 5 ? `${listedTitles} 等 ${activeEvents.length} 場` : listedTitles;
-  await pushText(lineUserId, `管理者私訊提醒已綁定 ${activeEvents.length} 場活動：${titles}\n之後有人報名、取消或更動人數時，小幫手會在這個私訊通知你；不會依管理者名稱判斷身分，也不會推送到活動群組。`);
+  await pushMessages(lineUserId, [managerBindingCard(activeEvents)]);
 }
 
 export async function POST(request: Request) {

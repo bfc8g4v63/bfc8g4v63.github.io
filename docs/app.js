@@ -771,7 +771,7 @@ function recoveryOperationalStatus(event) {
   }
   statuses.push(event.lineGroupName
     ? `<span class="recovery-status ready" title="${esc(event.lineGroupName)}">通知群組已綁定</span>`
-    : '<span class="recovery-status muted">尚未設定通知群組</span>');
+    : '<span class="recovery-status muted" title="群組通知與管理者私訊提醒分開設定">尚未設定群組通知</span>');
   const managerTargetCount = Math.max(0, Number(event.managerTargetCount) || 0);
   statuses.push(managerTargetCount
     ? `<span class="recovery-status ready">私訊提醒 ${managerTargetCount} 人</span>`

@@ -76,7 +76,7 @@ test("LINE webhook verifies signatures and reminder workflow uses a secret", asy
   assert.match(webhook, /context\.waitUntil\(bindingTask\)/);
   assert.match(webhook, /await processWebhookEvents\(payload\.events \|\| \[\], request\.url\)/);
   assert.match(webhook, /「管理綁定」只能在你與好日子小幫手的一對一私訊使用/);
-  assert.match(webhook, /也不會推送到活動群組/);
+  assert.match(lineLib, /群組通知需在各 LINE 群組另行綁定/);
   assert.match(workflow, /secrets\.REMINDER_SECRET/);
   assert.match(workflow, /Authorization: Bearer/);
   assert.match(lineLib, /SCHEDULER_SECRET/);
@@ -469,7 +469,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.90/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.92/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -498,9 +498,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.90/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.90/);
-  assert.match(worker, /good-days-github-v90/);
+  assert.match(page, /\/app\.js\?v=1\.2\.92/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.92/);
+  assert.match(worker, /good-days-github-v92/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -890,7 +890,8 @@ test("manager alert binding acknowledges LINE immediately before completing its 
   assert.match(webhook, /await replyText\(event\.replyToken, "已收到管理提醒綁定指令/);
   assert.match(webhook, /pairManagerAlert\(event, match!\[1\]\)\.catch/);
   assert.match(webhook, /context\.waitUntil\(bindingTask\)/);
-  assert.match(webhook, /pushText\(lineUserId, `管理者私訊提醒已綁定/);
+  assert.match(webhook, /pushMessages\(lineUserId, \[managerBindingCard\(activeEvents\)\]\)/);
+  assert.match(webhook, /managerBindingCard/);
   assert.match(webhook, /管理提醒綁定碼無效或已超過 10 分鐘/);
 });
 
