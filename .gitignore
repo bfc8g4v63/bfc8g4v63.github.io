@@ -42,4 +42,5 @@ next-env.d.ts
 /.wrangler/
 /outputs/
 /work/
+/.sites-release-*.tar
 .codex-dev.log
