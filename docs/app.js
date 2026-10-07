@@ -245,6 +245,7 @@ const timeWheelOptions = {
 function updateTimeWheel(form, name, direction) {
   const options = timeWheelOptions[name];
   const input = form.elements[`time${name[0].toUpperCase()}${name.slice(1)}`];
+  const previousValue = input.value;
   const current = options.findIndex(([value]) => value === input.value);
   const next = current < 0 ? (direction > 0 ? 0 : options.length - 1) : (current + direction + options.length) % options.length;
   input.value = options[next][0];
@@ -252,6 +253,16 @@ function updateTimeWheel(form, name, direction) {
   const editable = control.querySelector(".time-wheel-input");
   if (editable) editable.value = options[next][0];
   else control.querySelector(".time-wheel-value").textContent = options[next][1];
+  if (name === "hour" && previousValue !== "12" && options[next][0] === "12") {
+    const periodInput = form.elements.timePeriod;
+    const nextPeriod = periodInput.value === "am" ? "pm" : periodInput.value === "pm" ? "am" : "";
+    if (nextPeriod) {
+      periodInput.value = nextPeriod;
+      const periodControl = form.querySelector('[data-time-wheel="period"]');
+      periodControl.querySelector(".time-wheel-value").textContent = nextPeriod === "pm" ? "下午" : "上午";
+      periodControl.classList.add("is-selected");
+    }
+  }
   control.classList.add("is-selected");
   form.elements.startTime.value = selectedStartTime(form);
 }
@@ -452,9 +463,9 @@ function openEventForm(event, managerAuth = null, returnTo = null) {
             <label class="choice"><input type="radio" name="attendanceVisibility" value="all" ${event?.attendanceVisibility === "all" ? "checked" : ""}><span><strong>全部名單</strong><small>所有已參加者的顯示名稱皆可見，適合熟人小群組。</small></span></label>
           </fieldset>
           <label id="participant-code-field" ${event?.accessMode === "private" ? "" : "hidden"}>參加碼 <span>私人活動必填</span><input type="text" name="participantCode" data-secret minlength="4" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="text" aria-autocomplete="none" data-form-type="other" data-1p-ignore="true" data-lpignore="true" placeholder="自訂至少 4 碼；留白代表不變"></label>
-          <div class="form-row">
-            ${field("聯絡人", "contactName", event?.contactName, 'placeholder="王小明"')}
-            ${field("聯絡電話（僅管理者可見） <span>台灣手機 10 碼；海外請加 +國碼</span>", "contactPhone", event?.contactPhone, 'inputmode="tel" maxlength="20" placeholder="0912 345 678 或 +886 972 111 111"')}
+          <div class="form-row contact-fields">
+            <label class="contact-field"><span class="contact-field-label">聯絡人</span><input name="contactName" value="${esc(event?.contactName)}" placeholder="王小明"><small class="contact-field-hint" aria-hidden="true">&nbsp;</small></label>
+            <label class="contact-field"><span class="contact-field-label">聯絡電話（僅管理者可見）</span><input name="contactPhone" value="${esc(event?.contactPhone)}" inputmode="tel" maxlength="20" placeholder="0912 345 678 或 +國碼"><small class="contact-field-hint">台灣手機 10 碼；海外請加 +國碼，例如 +886 972 111 111</small></label>
           </div>
           ${field("人數上限", "capacity", event?.capacity || "", 'type="number" min="1" max="999" placeholder="不限可留白"')}
           <fieldset class="access-options" id="fee-options"><legend>活動費用</legend>
@@ -706,13 +717,15 @@ function openCreatorNextSteps(event, managerAuth, issuedManagerUrl = "") {
   activeModalClose = closeModal;
   const shareUrl = event.shareUrl;
   const privateManagerUrl = issuedManagerUrl || (managerAuth.type === "token" ? managerUrl(event.id, managerAuth.value) : "");
+  const returnToCreatorNextSteps = () => openCreatorNextSteps(event, managerAuth, privateManagerUrl);
   modalRoot.innerHTML = `
     <div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="created-title">
       <button class="modal-close" data-close aria-label="關閉">×</button>
       <p class="eyebrow">活動已建立</p><h2 id="created-title">下一步：分享或綁定 LINE</h2>
       <p>活動邀請已建立完成。可直接選擇已綁定的群組發送邀請，或進入後台建立新的群組綁定。</p>
       <label>活動分享連結<input id="created-share-url" value="${esc(shareUrl)}" readonly></label>
-      ${privateManagerUrl ? `<div class="line-status warning"><strong>請保存管理連結</strong><p>這個連結可修改、取消或永久刪除活動，也可管理 LINE 小幫手；請勿分享給參加者。可選擇只儲存在目前這台裝置。</p><label>管理連結<input id="created-manager-url" value="${esc(privateManagerUrl)}" readonly></label><div class="inline-actions"><button class="secondary" id="copy-manager-link">複製管理連結</button><button class="secondary" id="save-manager-return">儲存在這台裝置</button></div></div>` : ""}
+      <div id="creator-existing-group" hidden></div>
+      ${privateManagerUrl ? `<div class="line-status warning"><strong>請保存管理連結</strong><p>這個連結可修改、取消或永久刪除活動，也可管理 LINE 小幫手；請勿分享給參加者。可選擇只儲存在目前這台裝置。</p><label>管理連結<input id="created-manager-url" value="${esc(privateManagerUrl)}" readonly></label><div class="inline-actions creator-manager-actions"><button class="secondary" id="copy-manager-link">複製管理連結</button><button class="secondary" id="save-manager-return">儲存在這台裝置</button></div></div>` : ""}
       <p class="form-error" id="form-error" role="alert" hidden></p>
       <div class="form-actions creator-next-actions"><button class="secondary" id="copy-created-share">複製分享連結</button><button class="primary" id="publish-created-event">選群組並發布</button><button class="secondary" id="start-line-binding">設定 LINE 小幫手</button></div>
     </section></div>`;
@@ -733,8 +746,31 @@ function openCreatorNextSteps(event, managerAuth, issuedManagerUrl = "") {
     void openAdminFromCredential(event.id, managerAuth, document.querySelector("#form-error"));
   });
   document.querySelector("#publish-created-event").addEventListener("click", () => {
-    void openLineGroupPicker(event, managerAuth, null, { publishNow: true, afterSave: () => closeModal() });
+    void openLineGroupPicker(event, managerAuth, returnToCreatorNextSteps, { publishNow: true, afterSave: () => closeModal() });
   });
+  void offerExistingLineGroups(event, managerAuth, privateManagerUrl);
+}
+
+async function offerExistingLineGroups(event, managerAuth, issuedManagerUrl = "") {
+  const holder = document.querySelector("#creator-existing-group");
+  if (!holder) return;
+  try {
+    const result = await requestJson("/admin/line", { action: "list_groups", ...managerPayload(event.id, managerAuth) });
+    if (!holder.isConnected) return;
+    const groups = (result.groups || []).filter((group) => !group.isTest);
+    if (!groups.length) return;
+    const groupLabel = groups.length === 1 ? "1 個既有通知群組" : `${groups.length} 個既有通知群組`;
+    holder.hidden = false;
+    holder.innerHTML = `<section class="creator-existing-group"><strong>要把這場也加入通知群組嗎？</strong><p>已找到同一組建立者名稱與管理碼曾使用的 ${groupLabel}。加入後只會套用群組與原有提醒，並不會立即發送邀請。</p><div class="creator-existing-group-actions"><button class="primary" type="button" id="reuse-existing-group">這場也加入通知群組</button><button class="secondary" type="button" id="skip-existing-group">這次先不要</button></div></section>`;
+    document.querySelector("#reuse-existing-group")?.addEventListener("click", () => {
+      void openLineGroupPicker(event, managerAuth, () => openCreatorNextSteps(event, managerAuth, issuedManagerUrl), {
+        preselectSingleGroup: groups.length === 1,
+        publishNow: false,
+        afterSave: () => closeModal(),
+      });
+    });
+    document.querySelector("#skip-existing-group")?.addEventListener("click", () => { holder.hidden = true; });
+  } catch {}
 }
 
 function openCreatorRecovery() {
@@ -1131,6 +1167,7 @@ async function openLineGroupPicker(event, managerAuth, returnTo = null, options 
     const selectedIds = new Set(result.selectedGroupIds || []);
     const regular = groups.filter((group) => !group.isTest);
     const testGroups = groups.filter((group) => group.isTest);
+    if (options.preselectSingleGroup && !selectedIds.size && regular.length === 1) selectedIds.add(regular[0].groupId);
     const groupChoice = (group) => `<div class="line-group-choice"><label class="choice"><input type="checkbox" name="groupIds" value="${esc(group.groupId)}" ${selectedIds.has(group.groupId) ? "checked" : ""}><span><strong>${esc(group.groupName)}</strong><small>${group.isTest ? "測試群組：不會在一般選擇中預設帶入" : "可用於這場活動的通知與行前提醒"}</small></span></label><button class="text-danger" type="button" data-line-group-test="${esc(group.groupId)}" data-is-test="${group.isTest ? "0" : "1"}">${group.isTest ? "取消測試標記" : "標記為測試群組"}</button></div>`;
     modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="line-groups-title"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">通知群組</p><h2 id="line-groups-title">選擇這場活動要通知的群組</h2>${groups.length ? `<p>可選擇一或多個已綁定群組。${options.publishNow ? "儲存後會立即發送活動邀請卡。" : "儲存後，原有行前提醒會依設定發送。"}</p><form id="line-groups-form"><fieldset>${regular.map(groupChoice).join("") || '<p class="form-hint">尚無一般通知群組。</p>'}${testGroups.length ? `<details><summary>測試群組（${testGroups.length}）</summary>${testGroups.map(groupChoice).join("")}<label class="toggle"><input type="checkbox" name="allowTestGroups"><span>我確認要發送到測試群組</span></label></details>` : ""}</fieldset><label class="toggle"><input type="checkbox" name="publishNow" ${options.publishNow ? "checked" : ""}><span>儲存後立即發送活動邀請卡</span></label><p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button class="primary">儲存群組設定</button></div></form>` : '<p class="form-hint">目前沒有可使用的既有群組。請先在新群組加入小幫手，再回來產生綁定碼。</p>'}</section></div>`;
     activeModalClose = returnTo || closeModal;
@@ -1806,7 +1843,6 @@ function openAdminDashboard(data, managerAuth, returnTo = null) {
       showNotice("這場活動已移出通知群組");
     } catch (error) { showLineError(error.message); }
   });
-  if (data.line.configured && !data.line.binding) void autoReuseLineGroup(event, managerAuth, returnTo);
 }
 
 function showLineError(message) {

@@ -41,6 +41,9 @@ test("contact phone accepts Taiwan numbers and international E.164 while rejecti
   assert.match(route, /contactPhone === null/);
   assert.match(client, /function normalizeContactPhone/);
   assert.match(client, /台灣手機 10 碼；海外請加 \+國碼/);
+  assert.match(client, /placeholder="0912 345 678 或 \+國碼"/);
+  assert.match(client, /海外請加 \+國碼，例如 \+886 972 111 111/);
+  assert.match(client, /class="form-row contact-fields"/);
   assert.match(client, /body\.contactPhone = phone\.value/);
 });
 
@@ -486,7 +489,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.99/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.103/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -515,9 +518,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.99/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.99/);
-  assert.match(worker, /good-days-github-v99/);
+  assert.match(page, /\/app\.js\?v=1\.2\.103/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.103/);
+  assert.match(worker, /good-days-github-v103/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -544,6 +547,9 @@ test("activity date and time controls support direct editing, desktop wheel and 
   assert.match(client, /convertedHour = number === 0 \? 12 : number - 12/);
   assert.match(client, /輸入 13 到 23 會自動轉為下午/);
   assert.match(client, /function enableTimeWheels/);
+  assert.match(client, /const previousValue = input\.value/);
+  assert.match(client, /name === "hour" && previousValue !== "12" && options\[next\]\[0\] === "12"/);
+  assert.match(client, /periodInput\.value === "am" \? "pm" : periodInput\.value === "pm" \? "am" : ""/);
   assert.match(client, /function enableDateWheels/);
   assert.match(client, /data-date-wheel/);
   assert.match(client, /function dateWheelSegment/);
@@ -805,6 +811,10 @@ test("one LINE group can serve several upcoming activities without sending ended
   assert.match(migration, /DROP INDEX `line_bindings_group_unique`/);
   assert.match(migration, /owner_credential_hash/);
   assert.match(adminLine, /action === "list_groups"/);
+  assert.match(adminLine, /groupsPreviouslyUsedByCreator/);
+  assert.match(adminLine, /sharedEditCode/);
+  assert.match(adminLine, /verifyCredential\(editCode, event\.editCodeHash\)/);
+  assert.match(adminLine, /inArray\(activityLineGroups\.eventId, matchingEventIds\)/);
   assert.match(adminLine, /action === "auto_reuse_group"/);
   assert.match(adminLine, /action === "use_existing_group"/);
   assert.match(adminLine, /reuseGroupForUnboundUpcomingEvents/);
@@ -816,6 +826,11 @@ test("one LINE group can serve several upcoming activities without sending ended
   assert.match(webhook, /totalPages > 5/);
   assert.match(webhook, /安排 20260930/);
   assert.match(client, /選擇既有通知群組/);
+  assert.match(client, /function offerExistingLineGroups/);
+  assert.match(client, /要把這場也加入通知群組嗎？/);
+  assert.match(client, /這場也加入通知群組/);
+  assert.match(client, /preselectSingleGroup: groups\.length === 1/);
+  assert.match(client, /publishNow: false/);
   assert.match(client, /autoReuseLineGroup/);
   assert.match(client, /合併發布近期活動/);
   assert.match(guide, /群組庫/);
@@ -848,6 +863,8 @@ test("events can deliberately publish to several saved LINE groups while keeping
   assert.match(webhook, /activityLineGroups/);
   assert.match(reminders, /eventNotificationGroups/);
   assert.match(client, /publish-created-event/);
+  assert.match(client, /const returnToCreatorNextSteps = \(\) => openCreatorNextSteps\(event, managerAuth, privateManagerUrl\)/);
+  assert.match(client, /openLineGroupPicker\(event, managerAuth, returnToCreatorNextSteps, \{ publishNow: true/);
   assert.match(client, /測試群組/);
   assert.match(client, /set_event_groups/);
   assert.match(lineLib, /目前 \$\{event\.attendingPeople\} 人參加/);
@@ -990,7 +1007,18 @@ test("the guide uses scan-friendly cards and separates group notices from manage
 
 test("creator next-step actions stay aligned across desktop and mobile layouts", async () => {
   const styles = await readFile(new URL("../docs/styles.css", import.meta.url), "utf8");
-  assert.match(styles, /\.creator-next-actions \{ display:grid; grid-template-columns:repeat\(3,minmax\(0,1fr\)\); align-items:stretch; width:100%; \}/);
+  assert.match(styles, /\.creator-next-actions \{ display:grid; grid-template-columns:repeat\(3,minmax\(0,1fr\)\); align-items:stretch; width:100%; gap:12px; margin-top:20px; \}/);
   assert.match(styles, /\.creator-next-actions>button \{ display:inline-flex; align-items:center; justify-content:center; width:100%; min-height:58px/);
-  assert.match(styles, /\.creator-next-actions \{ grid-template-columns:1fr; \}\.creator-next-actions \.primary,\.creator-next-actions \.secondary \{ grid-column:auto; grid-row:auto; \}/);
+  assert.match(styles, /\.creator-manager-actions \{ display:grid; grid-template-columns:repeat\(2,minmax\(0,1fr\)\); width:100%; margin-top:12px; \}/);
+  assert.match(styles, /\.creator-existing-group-actions \{ display:grid; grid-template-columns:repeat\(2,minmax\(0,1fr\)\); gap:12px; \}/);
+  assert.match(styles, /\.creator-next-actions,\.creator-manager-actions,\.creator-existing-group-actions \{ grid-template-columns:1fr; \}/);
+  assert.match(styles, /\.creator-next-actions>button,\.creator-manager-actions>button,\.creator-existing-group-actions>button \{ min-height:58px; \}/);
+});
+
+test("contact details keep matching field heights and preserve the international-phone guidance", async () => {
+  const styles = await readFile(new URL("../docs/styles.css", import.meta.url), "utf8");
+  assert.match(styles, /\.contact-fields \{ align-items:start; \}/);
+  assert.match(styles, /\.contact-field \{ grid-template-rows:auto 54px minmax\(2\.8em,auto\); align-content:start; min-width:0; \}/);
+  assert.match(styles, /\.contact-field input \{ min-height:54px; height:54px; \}/);
+  assert.match(styles, /\.contact-field-hint \{ display:block; min-height:2\.8em;[\s\S]*?overflow-wrap:anywhere; \}/);
 });

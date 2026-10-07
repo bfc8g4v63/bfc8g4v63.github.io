@@ -1,4 +1,4 @@
-import { and, asc, eq, gt } from "drizzle-orm";
+import { and, asc, eq, gt, inArray } from "drizzle-orm";
 import { ensureSchema } from "../../../../db/init";
 import { getDb } from "../../../../db";
 import { activityLineGroups, events, lineBindCodes, lineBindings, lineGroups, lineManagerBatchBindCodes, lineManagerBindCodes, lineManagerTargets, lineReminderSettings, rsvps } from "../../../../db/schema";
@@ -57,6 +57,35 @@ async function ownedGroups(credential: string) {
     if (group.ownerCredentialHash && await verifyCredential(credential, group.ownerCredentialHash)) result.push(group);
   }
   return result;
+}
+
+async function groupsPreviouslyUsedByCreator(editCode: string, creatorName: string) {
+  if (!editCode || !creatorName) return [];
+  const db = getDb();
+  const creatorEvents = await db.select({ id: events.id, editCodeHash: events.editCodeHash })
+    .from(events).where(eq(events.creatorName, creatorName));
+  const matchingEventIds: string[] = [];
+  for (const event of creatorEvents) {
+    if (await verifyCredential(editCode, event.editCodeHash)) matchingEventIds.push(event.id);
+  }
+  if (!matchingEventIds.length) return [];
+  const [activityGroups, primaryGroups] = await Promise.all([
+    db.select({ groupId: activityLineGroups.groupId }).from(activityLineGroups)
+      .where(inArray(activityLineGroups.eventId, matchingEventIds)),
+    db.select({ groupId: lineBindings.groupId }).from(lineBindings)
+      .where(inArray(lineBindings.eventId, matchingEventIds)),
+  ]);
+  const groupIds = [...new Set([...activityGroups, ...primaryGroups].map((group) => group.groupId))];
+  if (!groupIds.length) return [];
+  return db.select().from(lineGroups).where(inArray(lineGroups.groupId, groupIds)).orderBy(asc(lineGroups.groupName));
+}
+
+async function availableGroups(credential: string, editCode: string, creatorName: string) {
+  const [owned, previouslyUsed] = await Promise.all([
+    ownedGroups(credential),
+    groupsPreviouslyUsedByCreator(editCode, creatorName),
+  ]);
+  return [...new Map([...owned, ...previouslyUsed].map((group) => [group.groupId, group])).values()];
 }
 
 async function saveEventGroups(eventId: string, groups: NotificationGroup[]) {
@@ -148,12 +177,14 @@ export async function POST(request: Request) {
     const db = getDb();
     const action = body.action;
     const credential = credentialFrom(body);
+    const sharedEditCode = clean(body.editCode, 80);
+    const availableGroupsForEvent = () => availableGroups(credential, sharedEditCode, access.event.creatorName);
     const currentGroups = await eventNotificationGroups(access.event.id);
     const currentBinding = currentGroups[0] || null;
     await adoptCurrentGroup(credential, currentBinding);
 
     if (action === "list_groups") {
-      const groups = await ownedGroups(credential);
+      const groups = await availableGroupsForEvent();
       return json(request, {
         groups: groups.map((group) => ({ groupId: group.groupId, groupName: group.groupName, isTest: Boolean(group.isTest) })),
         selectedGroupIds: currentGroups.map((group) => group.groupId),
@@ -161,7 +192,7 @@ export async function POST(request: Request) {
     }
 
     if (action === "auto_reuse_group") {
-      const groups = await ownedGroups(credential);
+      const groups = await availableGroupsForEvent();
       if (groups.length !== 1 || groups[0].isTest) return json(request, { ok: true, binding: null, linked: 0 });
       const group = groups[0];
       const linked = await reuseGroupForUnboundUpcomingEvents(credential, group);
@@ -201,7 +232,7 @@ export async function POST(request: Request) {
 
     if (action === "save_group_profile") {
       const groupId = clean(body.groupId, 160);
-      const groups = await ownedGroups(credential);
+      const groups = await availableGroupsForEvent();
       const group = groups.find((item) => item.groupId === groupId);
       if (!group) return json(request, { error: "找不到可管理的通知群組" }, 404);
       await db.update(lineGroups).set({ isTest: boolean(body.isTest), updatedAt: new Date().toISOString() })
@@ -213,7 +244,7 @@ export async function POST(request: Request) {
       const groupIds = Array.isArray(body.groupIds)
         ? [...new Set(body.groupIds.filter((value): value is string => typeof value === "string").map((value) => clean(value, 160)).filter(Boolean))].slice(0, 5)
         : [];
-      const groups = await ownedGroups(credential);
+      const groups = await availableGroupsForEvent();
       const selected = groupIds.map((id) => groups.find((group) => group.groupId === id)).filter((group): group is typeof groups[number] => Boolean(group));
       if (!selected.length || selected.length !== groupIds.length) return json(request, { error: "請從你已綁定的通知群組中選擇" }, 400);
       if (!boolean(body.allowTestGroups) && selected.some((group) => group.isTest)) {
@@ -233,7 +264,7 @@ export async function POST(request: Request) {
 
     if (action === "use_existing_group") {
       const groupId = clean(body.groupId, 160);
-      const groups = await ownedGroups(credential);
+      const groups = await availableGroupsForEvent();
       const group = groups.find((item) => item.groupId === groupId);
       if (!group) return json(request, { error: "找不到可使用的通知群組" }, 404);
       await saveEventGroups(access.event.id, [{ groupId: group.groupId, groupName: group.groupName }]);
