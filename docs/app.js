@@ -444,7 +444,7 @@ function openEventForm(event, managerAuth = null, returnTo = null) {
             ${field('日期 <span>必填；點選年、月、日後可用滑鼠滾輪調整</span>', "eventDate", event?.eventDate || localToday(), 'required type="date" data-date-wheel aria-label="日期；點選年、月、日後可用滑鼠滾輪調整"')}
             ${timePicker(event?.startTime)}
           </div>
-          <div class="location-lookup"><label>地點 <span>必填；填場館、店名或集合點</span><input name="location" value="${esc(event?.location)}" required type="text" autocomplete="off" autocapitalize="sentences" autocorrect="off" spellcheck="false" inputmode="text" aria-autocomplete="none" data-form-type="other" data-1p-ignore="true" data-lpignore="true" placeholder="例如：101、中壢 SOGO"></label><div class="location-lookup-actions"><button class="secondary" type="button" id="location-search">搜尋地址</button><span>輸入地標後搜尋，點選候選即可帶入地址。</span></div><div id="location-suggestions" class="location-suggestions" aria-live="polite" hidden></div></div>
+          <div class="location-lookup"><label>地點 <span>必填；填場館、店名或集合點</span><input name="location" value="${esc(event?.location)}" required type="text" autocomplete="off" autocapitalize="sentences" autocorrect="off" spellcheck="false" inputmode="text" aria-autocomplete="list" aria-controls="location-suggestions" aria-expanded="false" data-form-type="other" data-1p-ignore="true" data-lpignore="true" placeholder="例如：101、中壢 SOGO"></label><small class="location-lookup-hint">輸入至少 3 個字，停一下就會顯示地址建議；點選即可帶入。</small><div id="location-suggestions" class="location-suggestions" role="listbox" aria-live="polite" hidden></div></div>
           ${field('地址 <span>建議填寫；提供 Google 地圖導航</span>', "eventAddress", event?.address, 'type="text" autocomplete="off" autocapitalize="sentences" autocorrect="off" spellcheck="false" inputmode="text" aria-autocomplete="none" data-form-type="other" data-1p-ignore="true" data-lpignore="true" placeholder="例如：臺北市信義區西村里市府路45號"')}
           <label>行前資訊卡 <span>選填；例如集合點、停車、裝備與注意事項</span><textarea name="description" rows="3" placeholder="例如：18:40 在入口集合；請自備球拍與飲水。">${esc(event?.description)}</textarea></label>
           <details class="advanced-settings" ${editing ? "open" : ""}>
@@ -491,37 +491,73 @@ function openEventForm(event, managerAuth = null, returnTo = null) {
   const form = document.querySelector("#event-form");
   const locationInput = form.elements.location;
   const addressInput = form.elements.eventAddress;
-  const locationSearch = document.querySelector("#location-search");
   const locationSuggestions = document.querySelector("#location-suggestions");
   let locationResults = [];
-  const clearLocationSuggestions = () => { locationResults = []; locationSuggestions.hidden = true; locationSuggestions.innerHTML = ""; };
-  locationSearch?.addEventListener("click", async () => {
+  let locationSearchTimer = null;
+  let locationSearchSequence = 0;
+  let activeLocationSuggestion = -1;
+  const clearLocationSuggestions = () => {
+    clearTimeout(locationSearchTimer);
+    locationSearchSequence += 1;
+    locationResults = [];
+    activeLocationSuggestion = -1;
+    locationInput.setAttribute("aria-expanded", "false");
+    locationInput.removeAttribute("aria-activedescendant");
+    locationSuggestions.hidden = true;
+    locationSuggestions.innerHTML = "";
+  };
+  const selectLocationSuggestion = (index) => {
+    const place = locationResults[index];
+    if (!place) return;
+    locationInput.value = place.name;
+    addressInput.value = place.address;
+    clearLocationSuggestions();
+    addressInput.focus();
+  };
+  const setActiveLocationSuggestion = (index) => {
+    const buttons = [...locationSuggestions.querySelectorAll("[data-location-suggestion]")];
+    if (!buttons.length) return;
+    activeLocationSuggestion = (index + buttons.length) % buttons.length;
+    buttons.forEach((button, buttonIndex) => {
+      const active = buttonIndex === activeLocationSuggestion;
+      button.classList.toggle("is-active", active);
+      button.setAttribute("aria-selected", String(active));
+    });
+    locationInput.setAttribute("aria-activedescendant", buttons[activeLocationSuggestion].id);
+  };
+  const searchLocationSuggestions = async () => {
     const query = locationInput.value.trim();
-    if (query.length < 2) return showFormError(form, "請輸入至少兩個字再搜尋地點");
-    locationSearch.disabled = true;
-    locationSearch.textContent = "搜尋中…";
+    if (query.length < 3) return;
+    const searchSequence = ++locationSearchSequence;
+    locationSuggestions.innerHTML = '<p class="form-hint">正在尋找地址建議…</p>';
+    locationSuggestions.hidden = false;
+    locationInput.setAttribute("aria-expanded", "true");
     try {
       const data = await requestJson("/location-search", { query });
+      if (searchSequence !== locationSearchSequence || query !== locationInput.value.trim()) return;
       locationResults = data.results || [];
       if (!locationResults.length) {
         locationSuggestions.innerHTML = '<p class="form-hint">找不到相符地點，請自行填寫地址。</p>';
-        locationSuggestions.hidden = false;
         return;
       }
-      locationSuggestions.innerHTML = `${locationResults.map((place, index) => `<button class="location-suggestion" type="button" data-location-suggestion="${index}"><strong>${esc(place.name)}</strong><small>${esc(place.address)}</small></button>`).join("")}<small class="location-attribution">地址建議資料 © OpenStreetMap contributors</small>`;
-      locationSuggestions.hidden = false;
-      locationSuggestions.querySelectorAll("[data-location-suggestion]").forEach((button) => button.addEventListener("click", () => {
-        const place = locationResults[Number(button.dataset.locationSuggestion)];
-        if (!place) return;
-        locationInput.value = place.name;
-        addressInput.value = place.address;
-        clearLocationSuggestions();
-        addressInput.focus();
-      }));
-    } catch (error) { showFormError(form, error.message || "目前無法搜尋地點，請自行填寫地址"); }
-    finally { locationSearch.disabled = false; locationSearch.textContent = "搜尋地址"; }
+      locationSuggestions.innerHTML = `${locationResults.map((place, index) => `<button class="location-suggestion" id="location-suggestion-${index}" type="button" role="option" aria-selected="false" data-location-suggestion="${index}"><strong>${esc(place.name)}</strong><small>${esc(place.address)}</small></button>`).join("")}<small class="location-attribution">地址建議資料 © OpenStreetMap contributors</small>`;
+      locationSuggestions.querySelectorAll("[data-location-suggestion]").forEach((button) => button.addEventListener("click", () => selectLocationSuggestion(Number(button.dataset.locationSuggestion))));
+    } catch (error) {
+      if (searchSequence !== locationSearchSequence) return;
+      locationSuggestions.innerHTML = `<p class="form-hint">${esc(error.message || "目前無法搜尋地點，請自行填寫地址")}</p>`;
+    }
+  };
+  locationInput.addEventListener("input", () => {
+    clearLocationSuggestions();
+    if (locationInput.value.trim().length >= 3) locationSearchTimer = setTimeout(searchLocationSuggestions, 650);
   });
-  locationInput.addEventListener("input", clearLocationSuggestions);
+  locationInput.addEventListener("keydown", (event) => {
+    if (!locationResults.length) return;
+    if (event.key === "ArrowDown") { event.preventDefault(); setActiveLocationSuggestion(activeLocationSuggestion + 1); }
+    if (event.key === "ArrowUp") { event.preventDefault(); setActiveLocationSuggestion(activeLocationSuggestion - 1); }
+    if (event.key === "Enter" && activeLocationSuggestion >= 0) { event.preventDefault(); selectLocationSuggestion(activeLocationSuggestion); }
+    if (event.key === "Escape") { clearLocationSuggestions(); }
+  });
   const participantCodeField = form.querySelector("#participant-code-field");
   const feePerPersonField = form.querySelector("#fee-per-person-field");
   enableTimeWheels(form);

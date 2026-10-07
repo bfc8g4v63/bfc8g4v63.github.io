@@ -7,12 +7,33 @@ const cache = new Map<string, { expiresAt: number; results: PlaceSuggestion[] }>
 
 type PlaceSuggestion = { name: string; address: string };
 
+const TAIWAN_LANDMARKS: Array<PlaceSuggestion & { matches: (query: string) => boolean }> = [
+  {
+    name: "遠東 SOGO 中壢店",
+    address: "桃園市中壢區元化路357號",
+    matches: (query) => query.includes("中壢") && query.includes("sogo"),
+  },
+  {
+    name: "台北 101",
+    address: "臺北市信義區信義路五段7號",
+    matches: (query) => query === "101" || query.includes("台北101") || query.includes("臺北101") || query.includes("taipei101"),
+  },
+];
+
 export function OPTIONS(request: Request) {
   return preflight(request);
 }
 
 function cleanQuery(value: unknown) {
   return typeof value === "string" ? value.replace(/\s+/g, " ").trim().slice(0, 100) : "";
+}
+
+function queryKey(value: string) {
+  return value.toLocaleLowerCase("zh-TW").replace(/[\s－—-]/g, "");
+}
+
+function landmarkFor(query: string) {
+  return TAIWAN_LANDMARKS.find((landmark) => landmark.matches(queryKey(query)));
 }
 
 function placeSuggestion(item: unknown): PlaceSuggestion | null {
@@ -35,9 +56,16 @@ export async function POST(request: Request) {
     const body = await request.json() as Record<string, unknown>;
     const query = cleanQuery(body.query);
     if (query.length < 2) return json(request, { error: "請輸入至少兩個字再搜尋地點" }, 400);
-    const cacheKey = query.toLocaleLowerCase("zh-TW");
+    const cacheKey = queryKey(query);
     const cached = cache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) return json(request, { results: cached.results, cached: true });
+
+    const landmark = landmarkFor(query);
+    if (landmark) {
+      const results = [{ name: landmark.name, address: landmark.address }];
+      cache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, results });
+      return json(request, { results, preferred: true });
+    }
 
     const lookup = /^\d{1,4}$/.test(query) ? `台北 ${query}, 台灣` : `${query}, 台灣`;
     const params = new URLSearchParams({

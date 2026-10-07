@@ -47,7 +47,7 @@ test("contact phone accepts Taiwan numbers and international E.164 while rejecti
   assert.match(client, /body\.contactPhone = phone\.value/);
 });
 
-test("venue search limits lookups and fills a chosen Taiwan address", async () => {
+test("venue suggestions search after a typing pause and fill a chosen Taiwan address", async () => {
   const [route, client, styles] = await Promise.all([
     readFile(new URL("../app/api/location-search/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../docs/app.js", import.meta.url), "utf8"),
@@ -58,13 +58,19 @@ test("venue search limits lookups and fills a chosen Taiwan address", async () =
   assert.match(route, /countrycodes: "tw"/);
   assert.match(route, /User-Agent": "GoodDaysFamilyEvents/);
   assert.match(route, /CACHE_TTL_MS/);
-  assert.match(client, /id="location-search"/);
+  assert.match(route, /遠東 SOGO 中壢店/);
+  assert.match(route, /桃園市中壢區元化路357號/);
+  assert.match(route, /query\.includes\("中壢"\) && query\.includes\("sogo"\)/);
+  assert.doesNotMatch(client, /id="location-search"/);
   assert.match(client, /requestJson\("\/location-search", \{ query \}\)/);
+  assert.match(client, /setTimeout\(searchLocationSuggestions, 650\)/);
+  assert.match(client, /locationInput\.addEventListener\("keydown"/);
+  assert.match(client, /event\.key === "ArrowDown"/);
   assert.match(client, /data-location-suggestion/);
   assert.match(client, /addressInput\.value = place\.address/);
   assert.match(client, /OpenStreetMap contributors/);
-  assert.match(styles, /\.location-lookup-actions \.secondary \{ display:inline-flex; align-items:center; justify-content:center;/);
-  assert.match(styles, /@media \(max-width:780px\) \{ \.location-lookup-actions \{ align-items:stretch; flex-direction:column; \}\.location-lookup-actions \.secondary \{ width:100%; \} \}/);
+  assert.match(styles, /\.location-lookup-hint \{ color:var\(--ink-soft\); font-size:14px; font-weight:700; \}/);
+  assert.match(styles, /\.location-suggestion\.is-active/);
 });
 
 test("venues, addresses, map navigation and weekdays stay consistent across surfaces", async () => {
@@ -509,7 +515,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.104/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.105/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -538,9 +544,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.104/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.104/);
-  assert.match(worker, /good-days-github-v104/);
+  assert.match(page, /\/app\.js\?v=1\.2\.105/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.105/);
+  assert.match(worker, /good-days-github-v105/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
