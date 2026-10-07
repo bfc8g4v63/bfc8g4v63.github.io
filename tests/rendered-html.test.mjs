@@ -515,7 +515,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.105/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.106/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -544,9 +544,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.105/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.105/);
-  assert.match(worker, /good-days-github-v105/);
+  assert.match(page, /\/app\.js\?v=1\.2\.106/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.106/);
+  assert.match(worker, /good-days-github-v106/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -886,6 +886,8 @@ test("events can deliberately publish to several saved LINE groups while keeping
   assert.match(adminLine, /allowTestGroups/);
   assert.match(adminLine, /action === "save_group_profile"/);
   assert.match(adminLine, /saveEventGroups/);
+  assert.match(adminLine, /const savedGroups = await eventNotificationGroups\(access\.event\.id\)/);
+  assert.match(adminLine, /context\.waitUntil\(sendInvitations\.catch/);
   assert.match(webhook, /activityLineGroups/);
   assert.match(reminders, /eventNotificationGroups/);
   assert.match(client, /publish-created-event/);
@@ -893,6 +895,9 @@ test("events can deliberately publish to several saved LINE groups while keeping
   assert.match(client, /openLineGroupPicker\(event, managerAuth, returnToCreatorNextSteps, \{ publishNow: true/);
   assert.match(client, /測試群組/);
   assert.match(client, /set_event_groups/);
+  assert.match(client, /<button type="submit" class="primary">儲存群組設定<\/button>/);
+  assert.match(client, /button\.textContent = "儲存中…"/);
+  assert.match(client, /通知群組尚未完整儲存，請再試一次/);
   assert.match(lineLib, /目前 \$\{event\.attendingPeople\} 人參加/);
   assert.match(lineLib, /在 Google 地圖開啟/);
 });

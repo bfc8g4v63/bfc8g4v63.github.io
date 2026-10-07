@@ -1,4 +1,5 @@
 import { and, asc, eq, gt, inArray } from "drizzle-orm";
+import { getRequestExecutionContext } from "vinext/shims/request-context";
 import { ensureSchema } from "../../../../db/init";
 import { getDb } from "../../../../db";
 import { activityLineGroups, events, lineBindCodes, lineBindings, lineGroups, lineManagerBatchBindCodes, lineManagerBindCodes, lineManagerTargets, lineReminderSettings, rsvps } from "../../../../db/schema";
@@ -252,14 +253,33 @@ export async function POST(request: Request) {
       }
       const targets = selected.map((group) => ({ groupId: group.groupId, groupName: group.groupName }));
       await saveEventGroups(access.event.id, targets);
+      const savedGroups = await eventNotificationGroups(access.event.id);
+      if (savedGroups.length !== targets.length) throw new Error("通知群組尚未完整儲存，請再試一次");
+      let invitationQueued = false;
+      let invitationWarning = "";
       if (boolean(body.publishNow)) {
         const attending = await db.select({ partySize: rsvps.partySize }).from(rsvps).where(and(
           eq(rsvps.eventId, access.event.id), eq(rsvps.response, "attending"),
         ));
         const card = eventCard({ ...access.event, attendingPeople: attending.reduce((sum, item) => sum + item.partySize, 0) }, "活動邀請");
-        await Promise.all(targets.map((group) => pushMessages(group.groupId, [card])));
+        const sendInvitations = Promise.all(targets.map((group) => pushMessages(group.groupId, [card])));
+        const context = getRequestExecutionContext();
+        if (context) {
+          invitationQueued = true;
+          context.waitUntil(sendInvitations.catch((error) => console.error("Unable to send activity invitation", error)));
+        } else {
+          try {
+            await sendInvitations;
+          } catch (error) {
+            console.error("Unable to send activity invitation", error);
+            invitationWarning = "通知群組已儲存，但活動邀請暫時無法送出。";
+          }
+        }
       }
-      return json(request, { ok: true, groups: targets, published: boolean(body.publishNow) });
+      return json(request, {
+        ok: true, groups: savedGroups, published: boolean(body.publishNow) && !invitationWarning,
+        invitationQueued, invitationWarning,
+      });
     }
 
     if (action === "use_existing_group") {

@@ -1208,7 +1208,7 @@ function lineEventLabel(event) {
 
 function openLineAnnouncement(event, managerAuth) {
   activeModalClose = closeModal;
-  modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="line-announcement-title"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">LINE 群組公告</p><h2 id="line-announcement-title">通知這場活動的群組</h2><p>只會傳送到此活動已選定的通知群組。</p><form id="line-announcement-form"><label>公告內容<textarea name="message" rows="4" maxlength="1200" placeholder="例如：因天氣不穩，請大家改到一樓入口集合。"></textarea></label>${event.description ? '<label class="toggle"><input name="includePretripInfo" type="checkbox" checked><span>一併附上已儲存的行前資訊</span></label>' : '<p class="form-hint">尚未填寫行前資訊卡；可直接輸入公告內容後發送。</p>'}<p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button class="primary">發送公告</button></div></form></section></div>`;
+  modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="line-announcement-title"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">LINE 群組公告</p><h2 id="line-announcement-title">通知這場活動的群組</h2><p>只會傳送到此活動已選定的通知群組。</p><form id="line-announcement-form"><label>公告內容<textarea name="message" rows="4" maxlength="1200" placeholder="例如：因天氣不穩，請大家改到一樓入口集合。"></textarea></label>${event.description ? '<label class="toggle"><input name="includePretripInfo" type="checkbox" checked><span>一併附上已儲存的行前資訊</span></label>' : '<p class="form-hint">尚未填寫行前資訊卡；可直接輸入公告內容後發送。</p>'}<p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button type="submit" class="primary">發送公告</button></div></form></section></div>`;
   document.querySelector("#line-announcement-form")?.addEventListener("submit", async (submitEvent) => {
     submitEvent.preventDefault();
     const form = submitEvent.currentTarget;
@@ -1238,24 +1238,30 @@ async function openLineGroupPicker(event, managerAuth, returnTo = null, options 
     const testGroups = groups.filter((group) => group.isTest);
     if (options.preselectSingleGroup && !selectedIds.size && regular.length === 1) selectedIds.add(regular[0].groupId);
     const groupChoice = (group) => `<div class="line-group-choice"><label class="choice"><input type="checkbox" name="groupIds" value="${esc(group.groupId)}" ${selectedIds.has(group.groupId) ? "checked" : ""}><span><strong>${esc(group.groupName)}</strong><small>${group.isTest ? "測試群組：不會在一般選擇中預設帶入" : "可用於這場活動的通知與行前提醒"}</small></span></label><button class="text-danger" type="button" data-line-group-test="${esc(group.groupId)}" data-is-test="${group.isTest ? "0" : "1"}">${group.isTest ? "取消測試標記" : "標記為測試群組"}</button></div>`;
-    modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="line-groups-title"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">通知群組</p><h2 id="line-groups-title">選擇這場活動要通知的群組</h2>${groups.length ? `<p>可選擇一或多個已綁定群組。${options.publishNow ? "儲存後會立即發送活動邀請卡。" : "儲存後，原有行前提醒會依設定發送。"}</p><form id="line-groups-form"><fieldset>${regular.map(groupChoice).join("") || '<p class="form-hint">尚無一般通知群組。</p>'}${testGroups.length ? `<details><summary>測試群組（${testGroups.length}）</summary>${testGroups.map(groupChoice).join("")}<label class="toggle"><input type="checkbox" name="allowTestGroups"><span>我確認要發送到測試群組</span></label></details>` : ""}</fieldset><label class="toggle"><input type="checkbox" name="publishNow" ${options.publishNow ? "checked" : ""}><span>儲存後立即發送活動邀請卡</span></label><p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button class="primary">儲存群組設定</button></div></form>` : '<p class="form-hint">目前沒有可使用的既有群組。請先在新群組加入小幫手，再回來產生綁定碼。</p>'}</section></div>`;
+    modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="line-groups-title"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">通知群組</p><h2 id="line-groups-title">選擇這場活動要通知的群組</h2>${groups.length ? `<p>可選擇一或多個已綁定群組。${options.publishNow ? "儲存後會立即發送活動邀請卡。" : "儲存後，原有行前提醒會依設定發送。"}</p><form id="line-groups-form"><fieldset>${regular.map(groupChoice).join("") || '<p class="form-hint">尚無一般通知群組。</p>'}${testGroups.length ? `<details><summary>測試群組（${testGroups.length}）</summary>${testGroups.map(groupChoice).join("")}<label class="toggle"><input type="checkbox" name="allowTestGroups"><span>我確認要發送到測試群組</span></label></details>` : ""}</fieldset><label class="toggle"><input type="checkbox" name="publishNow" ${options.publishNow ? "checked" : ""}><span>儲存後立即發送活動邀請卡</span></label><p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button type="submit" class="primary">儲存群組設定</button></div></form>` : '<p class="form-hint">目前沒有可使用的既有群組。請先在新群組加入小幫手，再回來產生綁定碼。</p>'}</section></div>`;
     activeModalClose = returnTo || closeModal;
     document.querySelector("#line-groups-form")?.addEventListener("submit", async (submitEvent) => {
       submitEvent.preventDefault();
       const form = submitEvent.currentTarget;
       const button = form.querySelector('[type="submit"]');
+      const original = button.textContent;
       button.disabled = true;
+      button.textContent = "儲存中…";
       try {
         const data = new FormData(form);
-        await requestJson("/admin/line", { action: "set_event_groups", groupIds: data.getAll("groupIds"), allowTestGroups: data.get("allowTestGroups") === "on", publishNow: data.get("publishNow") === "on", ...managerPayload(event.id, managerAuth) });
-        if (options.afterSave) options.afterSave();
+        const groupIds = data.getAll("groupIds");
+        if (!groupIds.length) throw new Error("請至少選擇一個通知群組");
+        const saved = await requestJson("/admin/line", { action: "set_event_groups", groupIds, allowTestGroups: data.get("allowTestGroups") === "on", publishNow: data.get("publishNow") === "on", ...managerPayload(event.id, managerAuth) });
+        if (!Array.isArray(saved.groups) || saved.groups.length !== groupIds.length) throw new Error("通知群組尚未完整儲存，請再試一次");
+        button.textContent = "已儲存";
+        if (options.afterSave) options.afterSave(saved);
         else if (returnTo) returnTo();
         else {
           const fresh = await requestJson("/admin/event", managerPayload(event.id, managerAuth));
           openAdminDashboard(fresh, managerAuth);
         }
-        showNotice(data.get("publishNow") === "on" ? "已設定通知群組並發送活動邀請" : "已儲存這場活動的通知群組");
-      } catch (error) { button.disabled = false; const box = form.querySelector(".form-error"); box.textContent = error.message; box.hidden = false; }
+        showNotice(saved.invitationWarning || (saved.invitationQueued ? "已儲存通知群組，活動邀請正在發送" : data.get("publishNow") === "on" ? "已設定通知群組並發送活動邀請" : "已儲存這場活動的通知群組"));
+      } catch (error) { button.disabled = false; button.textContent = original; const box = form.querySelector(".form-error"); box.textContent = error.message || "無法儲存通知群組"; box.hidden = false; }
     });
     document.querySelectorAll("[data-line-group-test]").forEach((button) => button.addEventListener("click", async () => {
       button.disabled = true;
@@ -1271,7 +1277,7 @@ async function openLinePublish(event, managerAuth, returnTo = null) {
   try {
     const result = await requestJson("/admin/line", { action: "list_publishable", ...managerPayload(event.id, managerAuth) });
     const upcoming = result.events || [];
-    modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="line-publish-title"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">合併發布</p><h2 id="line-publish-title">發布近期活動</h2><p>選擇後會發出一則合併公告，並把這些活動都設定為同一個通知群組。</p><form id="line-publish-form"><fieldset>${upcoming.length ? upcoming.map((item) => `<label class="choice"><input type="checkbox" name="eventIds" value="${esc(item.id)}" ${item.id === event.id ? "checked" : ""}><span><strong>${esc(item.title)}</strong><small>${esc(lineEventLabel(item))}<br>${esc(item.location)}</small></span></label>`).join("") : '<p class="form-hint">目前沒有可合併發布的未來活動。</p>'}</fieldset><p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" data-close>返回</button>${upcoming.length ? '<button class="primary">發布到 LINE 群組</button>' : ""}</div></form></section></div>`;
+    modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="line-publish-title"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">合併發布</p><h2 id="line-publish-title">發布近期活動</h2><p>選擇後會發出一則合併公告，並把這些活動都設定為同一個通知群組。</p><form id="line-publish-form"><fieldset>${upcoming.length ? upcoming.map((item) => `<label class="choice"><input type="checkbox" name="eventIds" value="${esc(item.id)}" ${item.id === event.id ? "checked" : ""}><span><strong>${esc(item.title)}</strong><small>${esc(lineEventLabel(item))}<br>${esc(item.location)}</small></span></label>`).join("") : '<p class="form-hint">目前沒有可合併發布的未來活動。</p>'}</fieldset><p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" data-close>返回</button>${upcoming.length ? '<button type="submit" class="primary">發布到 LINE 群組</button>' : ""}</div></form></section></div>`;
     activeModalClose = returnTo || closeModal;
     const form = document.querySelector("#line-publish-form");
     form?.addEventListener("submit", async (submitEvent) => {
@@ -1653,7 +1659,7 @@ async function refreshAdminDashboard(eventId, managerAuth, returnTo = null) {
 
 function openCloneEvent(event, managerAuth) {
   activeModalClose = closeModal;
-  modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="clone-event-title"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">重複活動</p><h2 id="clone-event-title">複製成新活動</h2><p>會帶入活動設定、通知群組、提醒與安排區；不會複製報名名單、安排結果或已發送通知。</p><form id="clone-event-form"><label>活動名稱<input name="title" maxlength="80" value="${esc(`${event.title}（複製）`)}" required></label><div class="form-row"><label>新日期 <span>點選年、月、日後可用滑鼠滾輪調整</span><input name="eventDate" type="date" data-date-wheel aria-label="新日期；點選年、月、日後可用滑鼠滾輪調整" value="${esc(event.eventDate)}" required></label>${timePicker(event.startTime, "新時間")}</div><p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button class="primary">建立複製活動</button></div></form></section></div>`;
+  modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="clone-event-title"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">重複活動</p><h2 id="clone-event-title">複製成新活動</h2><p>會帶入活動設定、通知群組、提醒與安排區；不會複製報名名單、安排結果或已發送通知。</p><form id="clone-event-form"><label>活動名稱<input name="title" maxlength="80" value="${esc(`${event.title}（複製）`)}" required></label><div class="form-row"><label>新日期 <span>點選年、月、日後可用滑鼠滾輪調整</span><input name="eventDate" type="date" data-date-wheel aria-label="新日期；點選年、月、日後可用滑鼠滾輪調整" value="${esc(event.eventDate)}" required></label>${timePicker(event.startTime, "新時間")}</div><p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button type="submit" class="primary">建立複製活動</button></div></form></section></div>`;
   const form = document.querySelector("#clone-event-form");
   enableTimeWheels(form);
   enableDateWheels(form);
