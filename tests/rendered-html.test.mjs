@@ -469,7 +469,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.92/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.93/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -498,9 +498,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.92/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.92/);
-  assert.match(worker, /good-days-github-v92/);
+  assert.match(page, /\/app\.js\?v=1\.2\.93/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.93/);
+  assert.match(worker, /good-days-github-v93/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -937,4 +937,22 @@ test("management UX keeps advanced choices and operational shortcuts easy to rea
   assert.match(webhook, /原神啟動 20260930/);
   assert.match(guide, /進階設定/);
   assert.match(guide, /儲存在這台裝置/);
+});
+
+test("the guide uses scan-friendly cards and separates group notices from manager alerts", async () => {
+  const [guide, styles] = await Promise.all([
+    readFile(new URL("../docs/line-bot-guide.html", import.meta.url), "utf8"),
+    readFile(new URL("../docs/styles.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(guide, /class="guide-flow"/);
+  assert.match(guide, /class="guide-purpose-grid"/);
+  assert.match(guide, /class="guide-purpose group"/);
+  assert.match(guide, /class="guide-purpose manager"/);
+  assert.match(guide, /群組通知 ≠ 私訊提醒/);
+  assert.match(guide, /class="guide-task-grid"/);
+  assert.match(guide, /class="guide-choice-grid"/);
+  assert.match(styles, /\.guide-flow/);
+  assert.match(styles, /\.guide-purpose-grid/);
+  assert.match(styles, /\.guide-choice-grid/);
+  assert.match(styles, /\.guide-commands \{ display:grid; grid-template-columns:repeat\(3,1fr\)/);
 });
