@@ -72,7 +72,7 @@ async function upcomingGroupEvents(groupId: string) {
   const upcoming = rows.filter((event) => Number.isFinite(eventStartsAt(event)) && eventStartsAt(event) > now);
   if (!upcoming.length) return upcoming;
   const attendance = await db.select({ eventId: rsvps.eventId, partySize: rsvps.partySize }).from(rsvps)
-    .where(eq(rsvps.response, "attending"));
+    .where(and(eq(rsvps.response, "attending"), inArray(rsvps.eventId, upcoming.map((event) => event.id))));
   return upcoming.map((event) => ({
     ...event,
     attendingPeople: attendance.filter((rsvp) => rsvp.eventId === event.id).reduce((sum, rsvp) => sum + rsvp.partySize, 0),
@@ -98,6 +98,60 @@ async function replyUpcomingActivities(
     if (instruction) fallback.push(instruction);
     await replyText(replyToken, fallback.join("\n\n").slice(0, 5000));
   }
+}
+
+async function pushUpcomingActivities(
+  chatId: string,
+  activities: Awaited<ReturnType<typeof upcomingGroupEvents>>,
+  instruction = "",
+) {
+  const messages = [activityListCard(activities), ...(instruction ? [{ type: "text" as const, text: instruction }] : [])];
+  try {
+    await pushMessages(chatId, messages);
+  } catch (error) {
+    console.error("Unable to push LINE activity cards; using text fallback", error);
+    const fallback = ["【近期活動】", ...activities.map((activity, index) => (
+      `${index + 1}. ${activity.title}\n${lineDateLabel(activity.eventDate)} ${activity.startTime}｜${activity.location}${activity.address ? `\n地址：${activity.address}` : ""}\n查看／回覆：${eventShareUrl(activity.shareCode, activity.shareToken)}`
+    ))];
+    if (instruction) fallback.push(instruction);
+    await pushText(chatId, fallback.join("\n\n").slice(0, 5000));
+  }
+}
+
+async function quickResult<T>(task: Promise<T>, waitMs = 350) {
+  let timeout: ReturnType<typeof setTimeout> | undefined;
+  const result = await Promise.race([
+    task.then((value) => ({ ready: true as const, value })),
+    new Promise<{ ready: false }>((resolve) => { timeout = setTimeout(() => resolve({ ready: false }), waitMs); }),
+  ]);
+  if (timeout) clearTimeout(timeout);
+  return result;
+}
+
+async function replyActivityOrDefer(replyToken: string, chatId: string) {
+  const upcomingTask = upcomingGroupEvents(chatId);
+  const quick = await quickResult(upcomingTask);
+  if (quick.ready) {
+    if (quick.value.length) await replyUpcomingActivities(replyToken, quick.value);
+    else await replyText(replyToken, "這個群組目前沒有尚未開始的活動。");
+    return;
+  }
+
+  // LINE may cancel a callback before a cold database query and card rendering
+  // finish. Acknowledge first, then keep the final card alive in waitUntil.
+  const task = upcomingTask.then(async (upcoming) => {
+    if (upcoming.length) await pushUpcomingActivities(chatId, upcoming);
+    else await pushText(chatId, "這個群組目前沒有尚未開始的活動。");
+  }).catch((error) => console.error("Unable to prepare LINE activity response", error));
+  try {
+    await replyText(replyToken, "正在整理近期活動…");
+  } catch (error) {
+    // The callback may already have been cancelled; still send the final card.
+    console.error("Unable to acknowledge LINE activity command", error);
+  }
+  const context = getRequestExecutionContext();
+  if (context) context.waitUntil(task);
+  else await task;
 }
 
 async function pairManagerAlert(event: LineEvent, code: string) {
@@ -278,23 +332,20 @@ async function processWebhookEvents(lineEvents: LineEvent[], requestUrl: string)
       if (event.type !== "message" || event.message?.type !== "text") continue;
       const text = event.message.text?.trim() || "";
       const command = normalizeLineCommand(text);
-      if (command !== "活動" && !command.startsWith("原神啟動") && !command.startsWith("安排")) {
-        // Binding is the only non-command action below; avoid a database lookup for ordinary chat.
-      } else {
-      const upcoming = await upcomingGroupEvents(chatId);
       if (command === "活動") {
-        if (upcoming.length) await replyUpcomingActivities(event.replyToken, upcoming);
-        else await replyText(event.replyToken, "這個群組目前沒有尚未開始的活動。");
+        await replyActivityOrDefer(event.replyToken, chatId);
         continue;
       }
-      if (command.startsWith("原神啟動")) {
-        const date = requestedDate(command, "原神啟動");
-        const targetEvent = date ? upcoming.find((item) => item.eventDate === date) : upcoming.length === 1 ? upcoming[0] : null;
-        if (!targetEvent) {
-          if (upcoming.length) await replyUpcomingActivities(event.replyToken, upcoming, "要查看名單，請輸入「原神啟動 20260930」。");
-          else await replyText(event.replyToken, "這個群組目前沒有尚未開始的活動。");
-          continue;
-        }
+      if (command.startsWith("原神啟動") || command.startsWith("安排")) {
+        const upcoming = await upcomingGroupEvents(chatId);
+        if (command.startsWith("原神啟動")) {
+          const date = requestedDate(command, "原神啟動");
+          const targetEvent = date ? upcoming.find((item) => item.eventDate === date) : upcoming.length === 1 ? upcoming[0] : null;
+          if (!targetEvent) {
+            if (upcoming.length) await replyUpcomingActivities(event.replyToken, upcoming, "要查看名單，請輸入「原神啟動 20260930」。");
+            else await replyText(event.replyToken, "這個群組目前沒有尚未開始的活動。");
+            continue;
+          }
         const [registrations, settingRows] = await Promise.all([
           getDb().select({ name: rsvps.name, partySize: rsvps.partySize, diet: rsvps.diet, note: rsvps.note })
             .from(rsvps).where(and(eq(rsvps.eventId, targetEvent.id), eq(rsvps.response, "attending"))).orderBy(asc(rsvps.createdAt)),
