@@ -469,7 +469,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.93/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.94/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -498,9 +498,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.93/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.93/);
-  assert.match(worker, /good-days-github-v93/);
+  assert.match(page, /\/app\.js\?v=1\.2\.94/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.94/);
+  assert.match(worker, /good-days-github-v94/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -955,4 +955,6 @@ test("the guide uses scan-friendly cards and separates group notices from manage
   assert.match(styles, /\.guide-purpose-grid/);
   assert.match(styles, /\.guide-choice-grid/);
   assert.match(styles, /\.guide-commands \{ display:grid; grid-template-columns:repeat\(3,1fr\)/);
+  assert.match(styles, /\.guide-compact \.primary \{ flex:0 0 auto; margin-top:0/);
+  assert.match(styles, /\.guide-section#manage > \.secondary \{ display:flex; width:max-content; margin:20px auto 0/);
 });
