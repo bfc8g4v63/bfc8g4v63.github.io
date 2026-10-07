@@ -515,7 +515,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.107/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.108/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -544,9 +544,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.107/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.107/);
-  assert.match(worker, /good-days-github-v107/);
+  assert.match(page, /\/app\.js\?v=1\.2\.108/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.108/);
+  assert.match(worker, /good-days-github-v108/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -850,9 +850,10 @@ test("one LINE group can serve several upcoming activities without sending ended
   assert.match(webhook, /upcomingGroupEvents/);
   assert.match(webhook, /eventStartsAt\(event\) > now/);
   assert.match(webhook, /inArray\(rsvps\.eventId, upcoming\.map\(\(event\) => event\.id\)\)/);
-  assert.match(webhook, /async function replyActivityOrDefer/);
-  assert.match(webhook, /quickResult\(upcomingTask\)/);
-  assert.match(webhook, /await replyText\(replyToken, "正在整理近期活動…"\)/);
+  assert.match(webhook, /async function acknowledgeActivityImmediately/);
+  assert.match(webhook, /const task = claimWebhookEvent\(event\)\.then/);
+  assert.match(webhook, /await replyText\(event\.replyToken!, "正在整理近期活動…"\)/);
+  assert.match(webhook, /normalizeLineCommand\(event\.message\.text\?\.trim\(\) \|\| ""\) === "活動"/);
   assert.match(webhook, /context\.waitUntil\(task\)/);
   assert.match(webhook, /pushUpcomingActivities/);
   assert.match(webhook, /totalPages > 5/);

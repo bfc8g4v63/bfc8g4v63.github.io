@@ -118,40 +118,24 @@ async function pushUpcomingActivities(
   }
 }
 
-async function quickResult<T>(task: Promise<T>, waitMs = 350) {
-  let timeout: ReturnType<typeof setTimeout> | undefined;
-  const result = await Promise.race([
-    task.then((value) => ({ ready: true as const, value })),
-    new Promise<{ ready: false }>((resolve) => { timeout = setTimeout(() => resolve({ ready: false }), waitMs); }),
-  ]);
-  if (timeout) clearTimeout(timeout);
-  return result;
-}
-
-async function replyActivityOrDefer(replyToken: string, chatId: string) {
-  const upcomingTask = upcomingGroupEvents(chatId);
-  const quick = await quickResult(upcomingTask);
-  if (quick.ready) {
-    if (quick.value.length) await replyUpcomingActivities(replyToken, quick.value);
-    else await replyText(replyToken, "這個群組目前沒有尚未開始的活動。");
-    return;
-  }
-
-  // LINE may cancel a callback before a cold database query and card rendering
-  // finish. Acknowledge first, then keep the final card alive in waitUntil.
-  const task = upcomingTask.then(async (upcoming) => {
+async function acknowledgeActivityImmediately(event: LineEvent, chatId: string) {
+  // Sites can cancel a LINE callback before the first D1 query completes.
+  // Start the durable work, but consume the reply token before awaiting it.
+  const task = claimWebhookEvent(event).then(async (claimed) => {
+    if (!claimed) return;
+    const upcoming = await upcomingGroupEvents(chatId);
     if (upcoming.length) await pushUpcomingActivities(chatId, upcoming);
     else await pushText(chatId, "這個群組目前沒有尚未開始的活動。");
   }).catch((error) => console.error("Unable to prepare LINE activity response", error));
+  const context = getRequestExecutionContext();
+  if (context) context.waitUntil(task);
   try {
-    await replyText(replyToken, "正在整理近期活動…");
+    await replyText(event.replyToken!, "正在整理近期活動…");
   } catch (error) {
     // The callback may already have been cancelled; still send the final card.
     console.error("Unable to acknowledge LINE activity command", error);
   }
-  const context = getRequestExecutionContext();
-  if (context) context.waitUntil(task);
-  else await task;
+  if (!context) await task;
 }
 
 async function pairManagerAlert(event: LineEvent, code: string) {
@@ -264,7 +248,6 @@ async function claimWebhookEvent(event: LineEvent) {
 async function processWebhookEvents(lineEvents: LineEvent[], requestUrl: string) {
   try {
     for (const event of lineEvents) {
-      if (!await claimWebhookEvent(event)) continue;
       const sourceType = event.source?.type || "";
       const chatId = sourceType === "group"
         ? event.source?.groupId || ""
@@ -272,6 +255,19 @@ async function processWebhookEvents(lineEvents: LineEvent[], requestUrl: string)
           ? event.source?.roomId || ""
           : "";
       if (!event.replyToken) continue;
+
+      // "活動" must reply before the database-backed duplicate claim. LINE can
+      // cancel this callback in a few hundred milliseconds when D1 is cold.
+      if (
+        chatId
+        && event.type === "message"
+        && event.message?.type === "text"
+        && normalizeLineCommand(event.message.text?.trim() || "") === "活動"
+      ) {
+        await acknowledgeActivityImmediately(event, chatId);
+        continue;
+      }
+      if (!await claimWebhookEvent(event)) continue;
 
       // Private messages do not have a groupId or roomId. Handle the temporary
       // Portfolio lookup command before the group/room guard below.
@@ -332,10 +328,6 @@ async function processWebhookEvents(lineEvents: LineEvent[], requestUrl: string)
       if (event.type !== "message" || event.message?.type !== "text") continue;
       const text = event.message.text?.trim() || "";
       const command = normalizeLineCommand(text);
-      if (command === "活動") {
-        await replyActivityOrDefer(event.replyToken, chatId);
-        continue;
-      }
       if (command.startsWith("原神啟動") || command.startsWith("安排")) {
         const upcoming = await upcomingGroupEvents(chatId);
         if (command.startsWith("原神啟動")) {
