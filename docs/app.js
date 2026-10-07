@@ -444,7 +444,7 @@ function openEventForm(event, managerAuth = null, returnTo = null) {
             ${field('日期 <span>必填；點選年、月、日後可用滑鼠滾輪調整</span>', "eventDate", event?.eventDate || localToday(), 'required type="date" data-date-wheel aria-label="日期；點選年、月、日後可用滑鼠滾輪調整"')}
             ${timePicker(event?.startTime)}
           </div>
-          ${field('地點 <span>必填；填場館、店名或集合點</span>', "location", event?.location, 'required type="text" autocomplete="off" autocapitalize="sentences" autocorrect="off" spellcheck="false" inputmode="text" aria-autocomplete="none" data-form-type="other" data-1p-ignore="true" data-lpignore="true" placeholder="例如：台北 101"')}
+          <div class="location-lookup"><label>地點 <span>必填；填場館、店名或集合點</span><input name="location" value="${esc(event?.location)}" required type="text" autocomplete="off" autocapitalize="sentences" autocorrect="off" spellcheck="false" inputmode="text" aria-autocomplete="none" data-form-type="other" data-1p-ignore="true" data-lpignore="true" placeholder="例如：101、中壢 SOGO"></label><div class="location-lookup-actions"><button class="secondary" type="button" id="location-search">搜尋地址</button><span>輸入地標後搜尋，點選候選即可帶入地址。</span></div><div id="location-suggestions" class="location-suggestions" aria-live="polite" hidden></div></div>
           ${field('地址 <span>建議填寫；提供 Google 地圖導航</span>', "eventAddress", event?.address, 'type="text" autocomplete="off" autocapitalize="sentences" autocorrect="off" spellcheck="false" inputmode="text" aria-autocomplete="none" data-form-type="other" data-1p-ignore="true" data-lpignore="true" placeholder="例如：臺北市信義區西村里市府路45號"')}
           <label>行前資訊卡 <span>選填；例如集合點、停車、裝備與注意事項</span><textarea name="description" rows="3" placeholder="例如：18:40 在入口集合；請自備球拍與飲水。">${esc(event?.description)}</textarea></label>
           <details class="advanced-settings" ${editing ? "open" : ""}>
@@ -489,6 +489,39 @@ function openEventForm(event, managerAuth = null, returnTo = null) {
     </div>`;
 
   const form = document.querySelector("#event-form");
+  const locationInput = form.elements.location;
+  const addressInput = form.elements.eventAddress;
+  const locationSearch = document.querySelector("#location-search");
+  const locationSuggestions = document.querySelector("#location-suggestions");
+  let locationResults = [];
+  const clearLocationSuggestions = () => { locationResults = []; locationSuggestions.hidden = true; locationSuggestions.innerHTML = ""; };
+  locationSearch?.addEventListener("click", async () => {
+    const query = locationInput.value.trim();
+    if (query.length < 2) return showFormError(form, "請輸入至少兩個字再搜尋地點");
+    locationSearch.disabled = true;
+    locationSearch.textContent = "搜尋中…";
+    try {
+      const data = await requestJson("/location-search", { query });
+      locationResults = data.results || [];
+      if (!locationResults.length) {
+        locationSuggestions.innerHTML = '<p class="form-hint">找不到相符地點，請自行填寫地址。</p>';
+        locationSuggestions.hidden = false;
+        return;
+      }
+      locationSuggestions.innerHTML = `${locationResults.map((place, index) => `<button class="location-suggestion" type="button" data-location-suggestion="${index}"><strong>${esc(place.name)}</strong><small>${esc(place.address)}</small></button>`).join("")}<small class="location-attribution">地址建議資料 © OpenStreetMap contributors</small>`;
+      locationSuggestions.hidden = false;
+      locationSuggestions.querySelectorAll("[data-location-suggestion]").forEach((button) => button.addEventListener("click", () => {
+        const place = locationResults[Number(button.dataset.locationSuggestion)];
+        if (!place) return;
+        locationInput.value = place.name;
+        addressInput.value = place.address;
+        clearLocationSuggestions();
+        addressInput.focus();
+      }));
+    } catch (error) { showFormError(form, error.message || "目前無法搜尋地點，請自行填寫地址"); }
+    finally { locationSearch.disabled = false; locationSearch.textContent = "搜尋地址"; }
+  });
+  locationInput.addEventListener("input", clearLocationSuggestions);
   const participantCodeField = form.querySelector("#participant-code-field");
   const feePerPersonField = form.querySelector("#fee-per-person-field");
   enableTimeWheels(form);
