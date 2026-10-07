@@ -33,6 +33,23 @@ function feePerPerson(value: unknown, fallback = 0) {
     : fallback;
 }
 
+function normalizeContactPhone(value: unknown) {
+  const phone = clean(value, 40);
+  if (!phone) return "";
+  const normalized = phone.replace(/[\s().-]/g, "");
+  if (/^\+[1-9]\d{6,14}$/.test(normalized)) return normalized;
+  if (/^09\d{8}$/.test(normalized)) return normalized;
+  if (/^0\d{8,9}$/.test(normalized)) return normalized;
+  return null;
+}
+
+function contactPhoneError(value: unknown) {
+  const normalized = clean(value, 40).replace(/[\s().-]/g, "");
+  return /^09\d+$/.test(normalized)
+    ? "台灣手機請填 10 碼，例如 0972111111；海外請用 +886972111111"
+    : "聯絡電話請填台灣本地電話，或海外的 +國碼電話，例如 +886972111111";
+}
+
 function managerUrl(id: string, token: string) {
   // Keep the capability in the fragment so it is never sent as part of the
   // page request or a referrer header.
@@ -110,6 +127,7 @@ export async function POST(request: Request) {
     const visibility = attendanceVisibility(body.attendanceVisibility);
     const participantCode = clean(body.participantCode, 80);
     const fee = feePerPerson(body.feePerPerson, -1);
+    const contactPhone = normalizeContactPhone(body.contactPhone);
     if (!title || !creatorName || !eventDate || !startTime || !location) {
       return json(request, { error: "請填寫活動名稱、日期、時間與地點" }, 400);
     }
@@ -120,6 +138,7 @@ export async function POST(request: Request) {
       return json(request, { error: "私人活動的參加碼至少需要 4 個字" }, 400);
     }
     if (fee < 0) return json(request, { error: `每人費用請填 0 到 ${MAX_FEE_PER_PERSON.toLocaleString("zh-TW")} 的整數` }, 400);
+    if (contactPhone === null) return json(request, { error: contactPhoneError(body.contactPhone) }, 400);
     const id = crypto.randomUUID();
     const token = crypto.randomUUID();
     const shareCode = shortShareCode(token);
@@ -129,7 +148,7 @@ export async function POST(request: Request) {
       description: clean(body.description, 1000),
       creatorName,
       contactName: clean(body.contactName, 60),
-      contactPhone: clean(body.contactPhone, 40),
+      contactPhone,
       capacity: typeof body.capacity === "number" && body.capacity > 0
         ? Math.min(Math.floor(body.capacity), 999) : null,
       feePerPerson: fee,
@@ -176,6 +195,7 @@ export async function PATCH(request: Request) {
       : attendanceVisibility(body.attendanceVisibility, existing.attendanceVisibility);
     const participantCode = clean(body.participantCode, 80);
     const fee = body.feePerPerson === undefined ? existing.feePerPerson : feePerPerson(body.feePerPerson, -1);
+    const contactPhone = body.contactPhone === undefined ? existing.contactPhone : normalizeContactPhone(body.contactPhone);
     if (!title || !eventDate || !startTime || !location) {
       return json(request, { error: "請填寫活動名稱、日期、時間與地點" }, 400);
     }
@@ -183,6 +203,7 @@ export async function PATCH(request: Request) {
       return json(request, { error: "請設定至少 4 個字的參加碼" }, 400);
     }
     if (fee < 0) return json(request, { error: `每人費用請填 0 到 ${MAX_FEE_PER_PERSON.toLocaleString("zh-TW")} 的整數` }, 400);
+    if (contactPhone === null) return json(request, { error: contactPhoneError(body.contactPhone) }, 400);
     const participantCodeHash = mode !== "private" ? ""
       : participantCode ? await hashCredential(participantCode) : existing.participantCodeHash;
     const shareToken = existing.shareToken || crypto.randomUUID();
@@ -196,7 +217,7 @@ export async function PATCH(request: Request) {
       description: body.description === undefined ? existing.description : clean(body.description, 1000),
       creatorName: body.creatorName === undefined ? existing.creatorName : clean(body.creatorName, 60),
       contactName: body.contactName === undefined ? existing.contactName : clean(body.contactName, 60),
-      contactPhone: body.contactPhone === undefined ? existing.contactPhone : clean(body.contactPhone, 40),
+      contactPhone,
       capacity: body.capacity === undefined ? existing.capacity
         : typeof body.capacity === "number" && body.capacity > 0
           ? Math.min(Math.floor(body.capacity), 999) : null,

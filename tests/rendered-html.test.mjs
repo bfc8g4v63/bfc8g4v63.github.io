@@ -28,6 +28,22 @@ test("public activity response is summary-only", async () => {
   assert.match(client, /\/admin\/event/);
 });
 
+test("contact phone accepts Taiwan numbers and international E.164 while rejecting malformed mobile lengths", async () => {
+  const [route, client] = await Promise.all([
+    readFile(new URL("../app/api/events/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../docs/app.js", import.meta.url), "utf8"),
+  ]);
+  assert.match(route, /function normalizeContactPhone/);
+  assert.match(route, /\^\\\+\[1-9\]\\d\{6,14\}\$/);
+  assert.match(route, /\^09\\d\{8\}\$/);
+  assert.match(route, /\^0\\d\{8,9\}\$/);
+  assert.match(route, /台灣手機請填 10 碼/);
+  assert.match(route, /contactPhone === null/);
+  assert.match(client, /function normalizeContactPhone/);
+  assert.match(client, /台灣手機 10 碼；海外請加 \+國碼/);
+  assert.match(client, /body\.contactPhone = phone\.value/);
+});
+
 test("venues, addresses, map navigation and weekdays stay consistent across surfaces", async () => {
   const [schema, init, eventsRoute, accessRoute, homeClient, eventClient, lineLib, imageRoute] = await Promise.all([
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
@@ -343,6 +359,7 @@ test("creators can manage activities with an independent management link without
   assert.match(lineAdmin, /body\.managerToken/);
   assert.match(client, /managerAuthFromLink/);
   assert.match(client, /設定 LINE 小幫手/);
+  assert.match(client, /class="form-actions creator-next-actions"/);
   assert.match(client, /請保存管理連結/);
   assert.match(client, /管理我的活動/);
   assert.match(client, /type="text" name="editCode" data-secret[\s\S]*autocomplete="off"/);
@@ -469,7 +486,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.94/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.99/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -498,9 +515,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.94/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.94/);
-  assert.match(worker, /good-days-github-v94/);
+  assert.match(page, /\/app\.js\?v=1\.2\.99/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.99/);
+  assert.match(worker, /good-days-github-v99/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -885,7 +902,11 @@ test("completed activities keep their history while repeat activities start clea
 });
 
 test("manager alert binding acknowledges LINE immediately before completing its database work", async () => {
-  const webhook = await readFile(new URL("../app/api/line/webhook/route.ts", import.meta.url), "utf8");
+  const [webhook, recovery, client] = await Promise.all([
+    readFile(new URL("../app/api/line/webhook/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/creator-recovery/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../docs/app.js", import.meta.url), "utf8"),
+  ]);
   assert.match(webhook, /已收到管理提醒綁定指令，正在確認活動/);
   assert.match(webhook, /await replyText\(event\.replyToken, "已收到管理提醒綁定指令/);
   assert.match(webhook, /pairManagerAlert\(event, match!\[1\]\)\.catch/);
@@ -893,6 +914,12 @@ test("manager alert binding acknowledges LINE immediately before completing its 
   assert.match(webhook, /pushMessages\(lineUserId, \[managerBindingCard\(activeEvents\)\]\)/);
   assert.match(webhook, /managerBindingCard/);
   assert.match(webhook, /管理提醒綁定碼無效或已超過 10 分鐘/);
+  assert.match(recovery, /body\.action === "refresh"/);
+  assert.match(recovery, /creator-recovery-\$\{action\}/);
+  assert.match(client, /function waitForManagerBindingRefresh/);
+  assert.match(client, /action: "refresh", creatorName, editCode/);
+  assert.match(client, /data-recovery-status=/);
+  assert.match(client, /綁定完成，活動卡已更新/);
 });
 
 test("admin child panels return to the active dashboard and past reminders are skipped", async () => {
@@ -954,7 +981,16 @@ test("the guide uses scan-friendly cards and separates group notices from manage
   assert.match(styles, /\.guide-flow/);
   assert.match(styles, /\.guide-purpose-grid/);
   assert.match(styles, /\.guide-choice-grid/);
+  assert.match(styles, /\.guide-page > \.eyebrow,\.guide-section > \.eyebrow \{ font-size:18px; \}/);
   assert.match(styles, /\.guide-commands \{ display:grid; grid-template-columns:repeat\(3,1fr\)/);
-  assert.match(styles, /\.guide-compact \.primary \{ flex:0 0 auto; margin-top:0/);
+  assert.match(styles, /\.guide-step\.guide-compact > \.primary \{ flex:0 0 auto; margin-top:0/);
   assert.match(styles, /\.guide-section#manage > \.secondary \{ display:flex; width:max-content; margin:20px auto 0/);
+  assert.match(styles, /\.guide-compact \{ align-items:stretch; flex-direction:column; \}\.guide-compact \.primary \{ width:100%/);
+});
+
+test("creator next-step actions stay aligned across desktop and mobile layouts", async () => {
+  const styles = await readFile(new URL("../docs/styles.css", import.meta.url), "utf8");
+  assert.match(styles, /\.creator-next-actions \{ display:grid; grid-template-columns:repeat\(3,minmax\(0,1fr\)\); align-items:stretch; width:100%; \}/);
+  assert.match(styles, /\.creator-next-actions>button \{ display:inline-flex; align-items:center; justify-content:center; width:100%; min-height:58px/);
+  assert.match(styles, /\.creator-next-actions \{ grid-template-columns:1fr; \}\.creator-next-actions \.primary,\.creator-next-actions \.secondary \{ grid-column:auto; grid-row:auto; \}/);
 });

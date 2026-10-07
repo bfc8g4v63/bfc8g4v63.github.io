@@ -7,6 +7,7 @@ const errorBox = document.querySelector("#error");
 const noticeBox = document.querySelector("#notice");
 const modalRoot = document.querySelector("#modal-root");
 let activeModalClose = null;
+let recoveryStatusRefreshTimer = null;
 
 function managerAuthFromLink() {
   const eventId = new URLSearchParams(location.search).get("manage") || "";
@@ -174,6 +175,20 @@ async function loadEvents() {
 
 function field(label, name, value = "", attrs = "") {
   return `<label>${label}<input name="${name}" value="${esc(value)}" ${attrs}></label>`;
+}
+
+function normalizeContactPhone(value) {
+  const phone = String(value || "").trim();
+  if (!phone) return { value: "" };
+  const normalized = phone.replace(/[\s().-]/g, "");
+  if (/^\+[1-9]\d{6,14}$/.test(normalized)) return { value: normalized };
+  if (/^09\d{8}$/.test(normalized)) return { value: normalized };
+  if (/^0\d{8,9}$/.test(normalized)) return { value: normalized };
+  return {
+    error: /^09\d+$/.test(normalized)
+      ? "台灣手機請填 10 碼，例如 0972111111；海外請用 +886972111111"
+      : "聯絡電話請填台灣本地電話，或海外的 +國碼電話，例如 +886972111111",
+  };
 }
 
 function localToday() {
@@ -439,7 +454,7 @@ function openEventForm(event, managerAuth = null, returnTo = null) {
           <label id="participant-code-field" ${event?.accessMode === "private" ? "" : "hidden"}>參加碼 <span>私人活動必填</span><input type="text" name="participantCode" data-secret minlength="4" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" inputmode="text" aria-autocomplete="none" data-form-type="other" data-1p-ignore="true" data-lpignore="true" placeholder="自訂至少 4 碼；留白代表不變"></label>
           <div class="form-row">
             ${field("聯絡人", "contactName", event?.contactName, 'placeholder="王小明"')}
-            ${field("聯絡電話（僅管理者可見）", "contactPhone", event?.contactPhone, 'inputmode="tel" placeholder="0912 345 678"')}
+            ${field("聯絡電話（僅管理者可見） <span>台灣手機 10 碼；海外請加 +國碼</span>", "contactPhone", event?.contactPhone, 'inputmode="tel" maxlength="20" placeholder="0912 345 678 或 +886 972 111 111"')}
           </div>
           ${field("人數上限", "capacity", event?.capacity || "", 'type="number" min="1" max="999" placeholder="不限可留白"')}
           <fieldset class="access-options" id="fee-options"><legend>活動費用</legend>
@@ -516,6 +531,14 @@ function openEventForm(event, managerAuth = null, returnTo = null) {
     body.capacity = body.capacity ? Number(body.capacity) : null;
     body.feePerPerson = body.feeMode === "paid" ? Number(body.feePerPerson || 0) : 0;
     delete body.feeMode;
+    const phone = normalizeContactPhone(body.contactPhone);
+    if (phone.error) {
+      showFormError(form, phone.error);
+      button.disabled = false;
+      button.textContent = original;
+      return;
+    }
+    body.contactPhone = phone.value;
     if (editing) Object.assign(body, eventManagerPayload(event.id, managerAuth));
     const data = await save(`${API}/events`, editing ? "PATCH" : "POST", body, editing ? "活動內容已更新" : "活動已建立", form);
     if (!data) {
@@ -691,7 +714,7 @@ function openCreatorNextSteps(event, managerAuth, issuedManagerUrl = "") {
       <label>活動分享連結<input id="created-share-url" value="${esc(shareUrl)}" readonly></label>
       ${privateManagerUrl ? `<div class="line-status warning"><strong>請保存管理連結</strong><p>這個連結可修改、取消或永久刪除活動，也可管理 LINE 小幫手；請勿分享給參加者。可選擇只儲存在目前這台裝置。</p><label>管理連結<input id="created-manager-url" value="${esc(privateManagerUrl)}" readonly></label><div class="inline-actions"><button class="secondary" id="copy-manager-link">複製管理連結</button><button class="secondary" id="save-manager-return">儲存在這台裝置</button></div></div>` : ""}
       <p class="form-error" id="form-error" role="alert" hidden></p>
-      <div class="form-actions"><button class="secondary" id="copy-created-share">複製分享連結</button><button class="primary" id="publish-created-event">選群組並發布</button><button class="secondary" id="start-line-binding">設定 LINE 小幫手</button></div>
+      <div class="form-actions creator-next-actions"><button class="secondary" id="copy-created-share">複製分享連結</button><button class="primary" id="publish-created-event">選群組並發布</button><button class="secondary" id="start-line-binding">設定 LINE 小幫手</button></div>
     </section></div>`;
   document.querySelector("#copy-created-share").addEventListener("click", async () => {
     await navigator.clipboard.writeText(shareUrl);
@@ -715,6 +738,7 @@ function openCreatorNextSteps(event, managerAuth, issuedManagerUrl = "") {
 }
 
 function openCreatorRecovery() {
+  stopRecoveryStatusRefresh();
   activeModalClose = closeModal;
   const savedLinks = savedManagerReturnLinks();
   const savedPanel = savedLinks.length ? `<section class="saved-manager-links"><strong>這台裝置已保存的管理入口</strong><p>僅此裝置可見；換裝置仍請用管理者名稱與管理碼找回。</p><div>${savedLinks.map((item) => `<div><span><b>${esc(item.title)}</b><small>${esc(item.eventDate ? `${formatDate(item.eventDate)} · ${item.startTime}` : "")}</small></span><button class="secondary" data-saved-manager-open="${esc(item.id)}">直接管理</button><button class="text-danger" data-saved-manager-remove="${esc(item.id)}">移除</button></div>`).join("")}</div></section>` : "";
@@ -779,23 +803,67 @@ function recoveryOperationalStatus(event) {
   return `<div class="recovery-operational-status" aria-label="活動管理狀態">${statuses.join("")}</div>`;
 }
 
+function stopRecoveryStatusRefresh() {
+  if (recoveryStatusRefreshTimer) window.clearTimeout(recoveryStatusRefreshTimer);
+  recoveryStatusRefreshTimer = null;
+}
+
+function refreshRecoveredActivityStatuses(activities) {
+  for (const event of activities) {
+    const status = document.querySelector(`[data-recovery-status="${CSS.escape(event.id)}"]`);
+    if (status) status.innerHTML = recoveryOperationalStatus(event);
+  }
+}
+
+function waitForManagerBindingRefresh(creatorName, editCode, eventIds) {
+  stopRecoveryStatusRefresh();
+  let remainingChecks = 30;
+  const progress = document.querySelector("#recovery-manager-binding-progress");
+  const refresh = async () => {
+    if (!document.querySelector("#recovered-activities-modal")) return stopRecoveryStatusRefresh();
+    try {
+      const data = await requestJson("/creator-recovery", { action: "refresh", creatorName, editCode });
+      const activities = data.activities || [];
+      refreshRecoveredActivityStatuses(activities);
+      const completed = eventIds.every((id) => Math.max(0, Number(activities.find((event) => event.id === id)?.managerTargetCount) || 0) > 0);
+      if (completed) {
+        stopRecoveryStatusRefresh();
+        if (progress) progress.textContent = "綁定完成，活動卡已更新。";
+        showNotice("管理者私訊提醒已綁定，活動狀態已更新");
+        return;
+      }
+    } catch {
+      // The code remains usable while LINE finishes the background binding.
+    }
+    remainingChecks -= 1;
+    if (!remainingChecks) {
+      stopRecoveryStatusRefresh();
+      if (progress) progress.textContent = "尚未收到 LINE 綁定結果；完成後可重新開啟「管理我的活動」確認。";
+      return;
+    }
+    recoveryStatusRefreshTimer = window.setTimeout(refresh, 2500);
+  };
+  recoveryStatusRefreshTimer = window.setTimeout(refresh, 1200);
+}
+
 function openRecoveredActivities(activities, editCode, creatorName) {
+  stopRecoveryStatusRefresh();
   activeModalClose = closeModal;
   const upcoming = activities.filter(isUpcomingRecoveryActivity);
   const history = activities.filter((event) => !isUpcomingRecoveryActivity(event));
-  const activityCard = (event) => `<article class="recovered-activity"><div>${isUpcomingRecoveryActivity(event) ? `<label class="recovery-manager-choice"><input type="checkbox" data-recovery-manager-event="${esc(event.id)}" checked><span>啟用私訊提醒</span></label>` : ""}<strong>${esc(event.title)}</strong><span>${esc(formatDate(event.eventDate))} · ${esc(event.startTime)}${event.status === "cancelled" ? " · 已取消" : event.status === "completed" ? " · 已結束" : ""}</span>${recoveryCapacityLabel(event)}${recoveryOperationalStatus(event)}</div><div class="inline-actions"><button class="secondary" data-recovery-share="${esc(event.id)}">分享連結／QR</button><button class="primary" data-recovery-manage="${esc(event.id)}">管理活動</button></div></article>`;
+  const activityCard = (event) => `<article class="recovered-activity"><div>${isUpcomingRecoveryActivity(event) ? `<label class="recovery-manager-choice"><input type="checkbox" data-recovery-manager-event="${esc(event.id)}" checked><span>啟用私訊提醒</span></label>` : ""}<strong>${esc(event.title)}</strong><span>${esc(formatDate(event.eventDate))} · ${esc(event.startTime)}${event.status === "cancelled" ? " · 已取消" : event.status === "completed" ? " · 已結束" : ""}</span>${recoveryCapacityLabel(event)}<div data-recovery-status="${esc(event.id)}">${recoveryOperationalStatus(event)}</div></div><div class="inline-actions"><button class="secondary" data-recovery-share="${esc(event.id)}">分享連結／QR</button><button class="primary" data-recovery-manage="${esc(event.id)}">管理活動</button></div></article>`;
   const upcomingCards = upcoming.map(activityCard).join("");
   const historyCards = history.map(activityCard).join("");
   const batchPanel = upcoming.length ? `
     <section class="recovery-manager-batch">
       <div><strong>批次啟用管理者私訊提醒</strong><span>可一次選取全部尚未開始的活動</span></div>
       <p>這只會設定「有人報名時私訊通知我」，不會變更通知群組。已預選所有尚未開始活動；需要時可取消個別活動。取得一組 10 分鐘有效的指令後，在與好日子小幫手的一對一私訊傳送一次，即可綁定目前這個 LINE 帳號。</p>
-      <div id="recovery-manager-binding-code"></div>
+      <div id="recovery-manager-binding-code"></div><p class="form-hint" id="recovery-manager-binding-progress" aria-live="polite" hidden></p>
       <p class="form-error" id="recovery-manager-error" role="alert" hidden></p>
       <div class="inline-actions"><button class="secondary" id="recovery-manager-select-all" type="button">全選尚未開始活動</button><button class="line-button" id="recovery-manager-batch" type="button">取得私訊綁定碼</button></div>
     </section>` : "";
   modalRoot.innerHTML = `
-    <div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="recovered-title">
+    <div class="modal-backdrop"><section class="modal compact-modal" id="recovered-activities-modal" role="dialog" aria-modal="true" aria-labelledby="recovered-title">
       <button class="modal-close" data-close aria-label="關閉">×</button>
       <p class="eyebrow">已解鎖</p><h2 id="recovered-title">我的活動</h2>
        ${batchPanel}
@@ -822,6 +890,10 @@ function openRecoveredActivities(activities, editCode, creatorName) {
       });
       const bindingCommand = `管理綁定 ${result.code}`;
       document.querySelector("#recovery-manager-binding-code").innerHTML = `<div class="binding-code"><span>先加小幫手好友，再於私訊輸入</span><strong>${esc(bindingCommand)}</strong><button class="secondary binding-copy" id="copy-recovery-manager-binding-code" type="button">複製</button><small>會同時啟用 ${result.count} 場活動的私訊提醒；10 分鐘內有效</small></div>`;
+      const progress = document.querySelector("#recovery-manager-binding-progress");
+      progress.textContent = "等待在 LINE 私訊完成綁定；完成後，這裡會自動更新。";
+      progress.hidden = false;
+      waitForManagerBindingRefresh(creatorName, editCode, eventIds);
       document.querySelector("#copy-recovery-manager-binding-code")?.addEventListener("click", async (copyEvent) => {
         const copyButton = copyEvent.currentTarget;
         try {

@@ -39,10 +39,10 @@ async function createUniqueManagerBatchCode() {
 export async function POST(request: Request) {
   try {
     const body = await request.json() as Record<string, unknown>;
-    const action = body.action === "unlock" || body.action === "create_manager_batch_binding_code"
+    const action = body.action === "unlock" || body.action === "refresh" || body.action === "create_manager_batch_binding_code"
       ? body.action
       : "search";
-    const limit = await rateLimit(request, `creator-recovery-${action}`, action === "search" ? 8 : 5, 15 * 60 * 1000);
+    const limit = await rateLimit(request, `creator-recovery-${action}`, action === "search" ? 8 : action === "refresh" ? 30 : 5, 15 * 60 * 1000);
     if (!limit.allowed) return json(request, { error: `操作過於頻繁，請 ${limit.retryAfterSeconds} 秒後再試` }, 429);
 
     const creatorName = clean(body.creatorName, 60);
