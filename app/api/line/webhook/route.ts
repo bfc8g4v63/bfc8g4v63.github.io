@@ -120,7 +120,14 @@ async function pushUpcomingActivities(
 
 async function acknowledgeActivityImmediately(event: LineEvent, chatId: string) {
   // Sites can cancel a LINE callback before the first D1 query completes.
-  // Start the durable work, but consume the reply token before awaiting it.
+  // Use a push, not the reply token: the activity card's push is reliable here,
+  // while reply-token responses may be accepted by LINE without reaching chat.
+  try {
+    await pushText(chatId, "正在整理近期活動…");
+  } catch (error) {
+    // Continue with the final card even if the acknowledgement was interrupted.
+    console.error("Unable to acknowledge LINE activity command", error);
+  }
   const task = claimWebhookEvent(event).then(async (claimed) => {
     if (!claimed) return;
     const upcoming = await upcomingGroupEvents(chatId);
@@ -129,12 +136,6 @@ async function acknowledgeActivityImmediately(event: LineEvent, chatId: string) 
   }).catch((error) => console.error("Unable to prepare LINE activity response", error));
   const context = getRequestExecutionContext();
   if (context) context.waitUntil(task);
-  try {
-    await replyText(event.replyToken!, "正在整理近期活動…");
-  } catch (error) {
-    // The callback may already have been cancelled; still send the final card.
-    console.error("Unable to acknowledge LINE activity command", error);
-  }
   if (!context) await task;
 }
 
