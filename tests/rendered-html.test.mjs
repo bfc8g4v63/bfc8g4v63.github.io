@@ -117,9 +117,9 @@ test("LINE webhook verifies signatures and reminder workflow uses a secret", asy
   assert.match(ingress, /getRequestExecutionContext/);
   assert.match(ingress, /api\/line\/webhook/);
   assert.match(webhook, /x-line-signature|signature/i);
-  assert.doesNotMatch(webhook, /context\.waitUntil\(processing\)/);
-  assert.match(webhook, /context\.waitUntil\(bindingTask\)/);
-  assert.match(webhook, /await processWebhookEvents\(payload\.events \|\| \[\], request\.url\)/);
+  assert.match(webhook, /LINE can abandon the webhook connection in a few hundred milliseconds/);
+  assert.match(webhook, /const processing = processWebhookEvents\(payload\.events \|\| \[\], request\.url\)/);
+  assert.match(webhook, /context\.waitUntil\(processing\)/);
   assert.match(webhook, /「管理綁定」只能在你與好日子小幫手的一對一私訊使用/);
   assert.match(lineLib, /群組通知需在各 LINE 群組另行綁定/);
   assert.match(workflow, /secrets\.REMINDER_SECRET/);
@@ -961,17 +961,16 @@ test("completed activities keep their history while repeat activities start clea
   assert.match(reminders, /eq\(events\.status, "active"\)/);
 });
 
-test("manager alert binding acknowledges LINE immediately before completing its database work", async () => {
+test("manager alert binding replies with its final result without an interim status message", async () => {
   const [webhook, recovery, client] = await Promise.all([
     readFile(new URL("../app/api/line/webhook/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/creator-recovery/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../docs/app.js", import.meta.url), "utf8"),
   ]);
-  assert.match(webhook, /已收到管理提醒綁定指令，正在確認活動/);
-  assert.match(webhook, /await replyText\(event\.replyToken, "已收到管理提醒綁定指令/);
-  assert.match(webhook, /pairManagerAlert\(event, match!\[1\]\)\.catch/);
-  assert.match(webhook, /context\.waitUntil\(bindingTask\)/);
-  assert.match(webhook, /pushMessages\(lineUserId, \[managerBindingCard\(activeEvents\)\]\)/);
+  assert.match(webhook, /pairManagerAlert\(event, match!\[1\], event\.replyToken\)\.catch/);
+  assert.match(webhook, /await replyMessages\(replyToken, \[managerBindingCard\(activeEvents\)\]\)/);
+  assert.doesNotMatch(webhook, /已收到管理提醒綁定指令，正在確認活動/);
+  assert.doesNotMatch(webhook, /pushMessages\(lineUserId, \[managerBindingCard\(activeEvents\)\]\)/);
   assert.match(webhook, /managerBindingCard/);
   assert.match(webhook, /管理提醒綁定碼無效或已超過 10 分鐘/);
   assert.match(recovery, /body\.action === "refresh"/);

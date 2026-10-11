@@ -3,7 +3,7 @@ import { getRequestExecutionContext } from "vinext/shims/request-context";
 import { getDb } from "../../../../db";
 import { activityLineGroups, events, lineBindCodes, lineBindings, lineCommandLogs, lineGroups, lineManagerBatchBindCodes, lineManagerBindCodes, lineManagerTargets, lineReminderSettings, lineWebhookDeliveries, mealTables, rsvps } from "../../../../db/schema";
 import { normalizeLineCommand } from "../commands";
-import { activityArrangementImageUrl, activityListCard, activityShareMessage, getGroupName, lineConfig, lineDateLabel, managerBindingCard, pushMessages, pushText, replyMessages, replyText, rsvpSummaryMessage, verifyLineSignature } from "../lib";
+import { activityArrangementImageUrl, activityListCard, activityShareMessage, getGroupName, lineConfig, lineDateLabel, managerBindingCard, replyMessages, replyText, rsvpSummaryMessage, verifyLineSignature } from "../lib";
 import { eventShareUrl } from "../../../../lib/event-share";
 
 type LineEvent = {
@@ -113,7 +113,7 @@ async function replyActivityImmediately(event: LineEvent, chatId: string) {
   }
 }
 
-async function pairManagerAlert(event: LineEvent, code: string) {
+async function pairManagerAlert(event: LineEvent, code: string, replyToken: string) {
   const db = getDb();
   const lineUserId = event.source?.userId || "";
   await db.delete(lineManagerBindCodes).where(lt(lineManagerBindCodes.expiresAt, new Date().toISOString()));
@@ -123,7 +123,7 @@ async function pairManagerAlert(event: LineEvent, code: string) {
     db.select().from(lineManagerBatchBindCodes).where(eq(lineManagerBatchBindCodes.code, code)).limit(1),
   ]);
   if ((!bindingCode && !batchBindingCode) || !lineUserId) {
-    if (lineUserId) await pushText(lineUserId, "管理提醒綁定碼無效或已超過 10 分鐘，請回活動管理後台重新取得。");
+    await replyText(replyToken, "管理提醒綁定碼無效或已超過 10 分鐘，請回活動管理後台重新取得。");
     return;
   }
   let eventIds: string[] = bindingCode ? [bindingCode.eventId] : [];
@@ -140,7 +140,7 @@ async function pairManagerAlert(event: LineEvent, code: string) {
   if (!activeEvents.length || activeEvents.length !== eventIds.length) {
     if (bindingCode) await db.delete(lineManagerBindCodes).where(eq(lineManagerBindCodes.code, bindingCode.code));
     if (batchBindingCode) await db.delete(lineManagerBatchBindCodes).where(eq(lineManagerBatchBindCodes.code, batchBindingCode.code));
-    await pushText(lineUserId, "找不到對應的進行中活動，請回網站重新取得綁定碼。");
+    await replyText(replyToken, "找不到對應的進行中活動，請回網站重新取得綁定碼。");
     return;
   }
   const now = new Date().toISOString();
@@ -159,7 +159,7 @@ async function pairManagerAlert(event: LineEvent, code: string) {
   }
   if (bindingCode) await db.delete(lineManagerBindCodes).where(eq(lineManagerBindCodes.code, bindingCode.code));
   if (batchBindingCode) await db.delete(lineManagerBatchBindCodes).where(eq(lineManagerBatchBindCodes.code, batchBindingCode.code));
-  await pushMessages(lineUserId, [managerBindingCard(activeEvents)]);
+  await replyMessages(replyToken, [managerBindingCard(activeEvents)]);
 }
 
 export async function POST(request: Request) {
@@ -183,10 +183,14 @@ export async function POST(request: Request) {
     return Response.json({ error: "Invalid LINE payload" }, { status: 400 });
   }
 
-  // Commands that a person is waiting for must consume the LINE reply token
-  // in this request. Deferring them with waitUntil made 「活動」and「安排」
-  // appear minutes later when a Worker was scheduled late.
-  await processWebhookEvents(payload.events || [], request.url);
+  // LINE can abandon the webhook connection in a few hundred milliseconds.
+  // Keep reply-token work alive after the fast 2xx response, so every command
+  // can return its final card directly instead of sending a status message or
+  // spending the monthly push-message quota.
+  const processing = processWebhookEvents(payload.events || [], request.url);
+  const context = getRequestExecutionContext();
+  if (context) context.waitUntil(processing);
+  else await processing;
   return Response.json({ ok: true });
 }
 
@@ -252,20 +256,10 @@ async function processWebhookEvents(lineEvents: LineEvent[], requestUrl: string)
         && /^管理綁定\s*(\d{6})$/.test(event.message.text?.trim() || "")
       ) {
         const match = (event.message.text?.trim() || "").match(/^管理綁定\s*(\d{6})$/);
-        // 回覆 Token 必須盡快使用，避免綁定時的資料庫驗證使 LINE 先
-        // 中斷連線。實際結果則以後續私訊推送，讓使用者不會只看到空白。
-        await replyText(event.replyToken, "已收到管理提醒綁定指令，正在確認活動…");
-        // 僅將已使用 reply token 的管理綁定留在背景完成；群組的「活動」
-        // 與「安排」仍必須在目前請求中處理，才不會延遲回覆。
-        const bindingTask = pairManagerAlert(event, match![1]).catch(async (error) => {
+        await pairManagerAlert(event, match![1], event.replyToken).catch(async (error) => {
           console.error("Unable to finish LINE manager binding", error);
-          if (event.source?.userId) {
-            try { await pushText(event.source.userId, "管理提醒綁定暫時無法完成，請回網站重新產生綁定碼後再試一次。"); } catch {}
-          }
+          try { await replyText(event.replyToken!, "管理提醒綁定暫時無法完成，請回網站重新產生綁定碼後再試一次。"); } catch {}
         });
-        const context = getRequestExecutionContext();
-        if (context) context.waitUntil(bindingTask);
-        else await bindingTask;
         continue;
       }
 
