@@ -100,43 +100,17 @@ async function replyUpcomingActivities(
   }
 }
 
-async function pushUpcomingActivities(
-  chatId: string,
-  activities: Awaited<ReturnType<typeof upcomingGroupEvents>>,
-  instruction = "",
-) {
-  const messages = [activityListCard(activities), ...(instruction ? [{ type: "text" as const, text: instruction }] : [])];
-  try {
-    await pushMessages(chatId, messages);
-  } catch (error) {
-    console.error("Unable to push LINE activity cards; using text fallback", error);
-    const fallback = ["【近期活動】", ...activities.map((activity, index) => (
-      `${index + 1}. ${activity.title}\n${lineDateLabel(activity.eventDate)} ${activity.startTime}｜${activity.location}${activity.address ? `\n地址：${activity.address}` : ""}\n查看／回覆：${eventShareUrl(activity.shareCode, activity.shareToken)}`
-    ))];
-    if (instruction) fallback.push(instruction);
-    await pushText(chatId, fallback.join("\n\n").slice(0, 5000));
+async function replyActivityImmediately(event: LineEvent, chatId: string) {
+  // Reply messages do not consume the LINE monthly push-message quota.  Keep
+  // this command in the webhook request so a group receives its card even
+  // after the quota for reminders and announcements has been reached.
+  if (!await claimWebhookEvent(event)) return;
+  const upcoming = await upcomingGroupEvents(chatId);
+  if (upcoming.length) {
+    await replyUpcomingActivities(event.replyToken!, upcoming);
+  } else {
+    await replyText(event.replyToken!, "這個群組目前沒有尚未開始的活動。");
   }
-}
-
-async function acknowledgeActivityImmediately(event: LineEvent, chatId: string) {
-  // Sites can cancel a LINE callback before the first D1 query completes.
-  // Use a push, not the reply token: the activity card's push is reliable here,
-  // while reply-token responses may be accepted by LINE without reaching chat.
-  try {
-    await pushText(chatId, "正在整理近期活動…");
-  } catch (error) {
-    // Continue with the final card even if the acknowledgement was interrupted.
-    console.error("Unable to acknowledge LINE activity command", error);
-  }
-  const task = claimWebhookEvent(event).then(async (claimed) => {
-    if (!claimed) return;
-    const upcoming = await upcomingGroupEvents(chatId);
-    if (upcoming.length) await pushUpcomingActivities(chatId, upcoming);
-    else await pushText(chatId, "這個群組目前沒有尚未開始的活動。");
-  }).catch((error) => console.error("Unable to prepare LINE activity response", error));
-  const context = getRequestExecutionContext();
-  if (context) context.waitUntil(task);
-  if (!context) await task;
 }
 
 async function pairManagerAlert(event: LineEvent, code: string) {
@@ -211,8 +185,7 @@ export async function POST(request: Request) {
 
   // Commands that a person is waiting for must consume the LINE reply token
   // in this request. Deferring them with waitUntil made 「活動」and「安排」
-  // appear minutes later when a Worker was scheduled late. Event claiming
-  // above makes an eventual LINE retry safe if the response exceeds its window.
+  // appear minutes later when a Worker was scheduled late.
   await processWebhookEvents(payload.events || [], request.url);
   return Response.json({ ok: true });
 }
@@ -257,15 +230,15 @@ async function processWebhookEvents(lineEvents: LineEvent[], requestUrl: string)
           : "";
       if (!event.replyToken) continue;
 
-      // "活動" must reply before the database-backed duplicate claim. LINE can
-      // cancel this callback in a few hundred milliseconds when D1 is cold.
+      // Keep the activity card in the reply channel: unlike a push, it does
+      // not spend the bot's monthly messaging quota.
       if (
         chatId
         && event.type === "message"
         && event.message?.type === "text"
         && normalizeLineCommand(event.message.text?.trim() || "") === "活動"
       ) {
-        await acknowledgeActivityImmediately(event, chatId);
+        await replyActivityImmediately(event, chatId);
         continue;
       }
       if (!await claimWebhookEvent(event)) continue;

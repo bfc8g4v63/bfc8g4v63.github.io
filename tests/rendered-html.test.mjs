@@ -850,12 +850,12 @@ test("one LINE group can serve several upcoming activities without sending ended
   assert.match(webhook, /upcomingGroupEvents/);
   assert.match(webhook, /eventStartsAt\(event\) > now/);
   assert.match(webhook, /inArray\(rsvps\.eventId, upcoming\.map\(\(event\) => event\.id\)\)/);
-  assert.match(webhook, /async function acknowledgeActivityImmediately/);
-  assert.match(webhook, /const task = claimWebhookEvent\(event\)\.then/);
-  assert.match(webhook, /await pushText\(chatId, "正在整理近期活動…"\)/);
+  assert.match(webhook, /async function replyActivityImmediately/);
+  assert.match(webhook, /if \(!await claimWebhookEvent\(event\)\) return/);
+  assert.match(webhook, /Reply messages do not consume the LINE monthly push-message quota/);
+  assert.match(webhook, /await replyUpcomingActivities\(event\.replyToken!, upcoming\)/);
   assert.match(webhook, /normalizeLineCommand\(event\.message\.text\?\.trim\(\) \|\| ""\) === "活動"/);
-  assert.match(webhook, /context\.waitUntil\(task\)/);
-  assert.match(webhook, /pushUpcomingActivities/);
+  assert.doesNotMatch(webhook, /pushUpcomingActivities/);
   assert.match(webhook, /totalPages > 5/);
   assert.match(webhook, /安排 20260930/);
   assert.match(client, /選擇既有通知群組/);
