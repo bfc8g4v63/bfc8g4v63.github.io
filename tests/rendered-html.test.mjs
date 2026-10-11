@@ -856,6 +856,11 @@ test("one LINE group can serve several upcoming activities without sending ended
   assert.match(webhook, /await replyUpcomingActivities\(event\.replyToken!, upcoming\)/);
   assert.match(webhook, /normalizeLineCommand\(event\.message\.text\?\.trim\(\) \|\| ""\) === "活動"/);
   assert.doesNotMatch(webhook, /pushUpcomingActivities/);
+  const arrangementReply = webhook.slice(
+    webhook.indexOf('if (command.startsWith("安排"))'),
+    webhook.indexOf("const match = text.match"),
+  );
+  assert.doesNotMatch(arrangementReply, /正在整理|pushText\(/);
   assert.match(webhook, /totalPages > 5/);
   assert.match(webhook, /安排 20260930/);
   assert.match(client, /選擇既有通知群組/);
