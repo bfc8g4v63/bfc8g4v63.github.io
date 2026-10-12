@@ -10,7 +10,7 @@
 - For UI layout changes, verify each affected CTA or button is visibly centred in its intended container and has deliberate spacing from surrounding card edges at desktop and mobile widths.
 - Add or update a regression check for the relevant alignment or responsive rule before release.
 
-## 陳水金家族・回憶膠囊
+## 水金呼吸・回憶膠囊
 
 - The product specification lives in `docs/memory-capsule/PRODUCT.md`; read it before implementing this feature.
 - The architecture and trust boundaries live in `docs/memory-capsule/ARCHITECTURE.md`; read it before making schema, authentication, storage, or upload changes.
