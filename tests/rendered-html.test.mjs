@@ -518,7 +518,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.109/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.114/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -547,9 +547,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.109/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.109/);
-  assert.match(worker, /good-days-github-v109/);
+  assert.match(page, /\/app\.js\?v=1\.2\.114/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.114/);
+  assert.match(worker, /good-days-github-v114/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -595,6 +595,8 @@ test("activity date and time controls support direct editing, desktop wheel and 
   assert.match(styles, /input\[type="date"\]\) > input \{ min-height:68px; height:68px/);
   assert.match(styles, /grid-template-columns:minmax\(128px,1\.25fr\) minmax\(90px,\.85fr\) minmax\(90px,\.85fr\)/);
   assert.match(styles, /\.form-row:has\(\.time-picker\) \{ grid-template-columns:minmax\(230px,1fr\) minmax\(340px,1\.25fr\)/);
+  assert.match(styles, /@media \(max-width:780px\) \{ \.form-row:has\(\.time-picker\) \{ grid-template-columns:minmax\(0,1fr\); \}\.time-picker \{ grid-template-columns:repeat\(3,minmax\(0,1fr\)\); \} \}/);
+  assert.match(styles, /\.modal-close \{[^}]*display:grid; place-items:center;/);
   assert.match(styles, /\.time-wheel-input \{[^}]*height:100%/);
   assert.match(styles, /\.time-wheel-input \{[^}]*padding:0 1\.25em 0 0/);
   assert.match(styles, /\.time-wheel-input-wrap \{[^}]*position:relative/);
