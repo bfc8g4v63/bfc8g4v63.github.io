@@ -223,3 +223,46 @@ export const fairyNotificationTargets = sqliteTable("fairy_notification_targets"
   lineUserId: text("line_user_id").notNull(),
   pairedAt: text("paired_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
+
+// Memory Capsule is deliberately separate from event data. A LINE Login
+// subject is immutable identity; its current display name and avatar are only
+// the public profile values supplied by LINE and may be refreshed at login.
+export const memoryFamilies = sqliteTable("memory_families", {
+  id: text("id").primaryKey(),
+  slug: text("slug").notNull(),
+  displayName: text("display_name").notNull(),
+  isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [uniqueIndex("memory_families_slug_unique").on(table.slug)]);
+
+export const memoryFamilyMembers = sqliteTable("memory_family_members", {
+  id: text("id").primaryKey(),
+  familyId: text("family_id").notNull().references(() => memoryFamilies.id, { onDelete: "cascade" }),
+  lineSubject: text("line_subject").notNull(),
+  displayName: text("display_name").notNull(),
+  avatarUrl: text("avatar_url").notNull().default(""),
+  role: text("role").notNull().default("member"),
+  isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+  joinedAt: text("joined_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  uniqueIndex("memory_family_members_family_subject_unique").on(table.familyId, table.lineSubject),
+  index("memory_family_members_subject_active").on(table.lineSubject, table.isActive),
+]);
+
+export const memoryFamilyInvites = sqliteTable("memory_family_invites", {
+  id: text("id").primaryKey(),
+  familyId: text("family_id").notNull().references(() => memoryFamilies.id, { onDelete: "cascade" }),
+  codeHash: text("code_hash").notNull(),
+  role: text("role").notNull().default("member"),
+  maxUses: integer("max_uses").notNull().default(1),
+  useCount: integer("use_count").notNull().default(0),
+  expiresAt: text("expires_at").notNull(),
+  revokedAt: text("revoked_at"),
+  createdByMemberId: text("created_by_member_id").notNull().references(() => memoryFamilyMembers.id, { onDelete: "restrict" }),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  uniqueIndex("memory_family_invites_code_hash_unique").on(table.codeHash),
+  index("memory_family_invites_family_active").on(table.familyId, table.revokedAt, table.expiresAt),
+]);

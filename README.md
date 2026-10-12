@@ -13,6 +13,7 @@
 - [產品規格](docs/memory-capsule/PRODUCT.md)
 - [系統架構與安全邊界](docs/memory-capsule/ARCHITECTURE.md)
 - [實作計畫與開工前決定](docs/memory-capsule/IMPLEMENTATION-PLAN.md)
+- [分段開發進度](docs/memory-capsule/PROGRESS.md)
 
 ## 適合的使用情境
 

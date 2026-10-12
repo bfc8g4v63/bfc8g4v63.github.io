@@ -14,6 +14,32 @@ test("legacy host renders the GitHub Pages handoff", async () => {
   assert.match(page, /https:\/\/bfc8g4v63\.github\.io/);
 });
 
+test("memory capsule Phase 1 keeps LINE identity, invitation and family scopes server-side", async () => {
+  const [schema, auth, families, migration, progress] = await Promise.all([
+    readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/memory/auth.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/memory/families.ts", import.meta.url), "utf8"),
+    readFile(new URL("../drizzle/0016_large_bug.sql", import.meta.url), "utf8"),
+    readFile(new URL("../docs/memory-capsule/PROGRESS.md", import.meta.url), "utf8"),
+  ]);
+  assert.match(schema, /memoryFamilies/);
+  assert.match(schema, /memoryFamilyMembers/);
+  assert.match(schema, /memoryFamilyInvites/);
+  assert.match(schema, /uniqueIndex\("memory_family_members_family_subject_unique"\)/);
+  assert.match(auth, /MEMORY_LINE_LOGIN_CHANNEL_SECRET/);
+  assert.match(auth, /MEMORY_SESSION_SECRET/);
+  assert.match(auth, /HttpOnly; SameSite=Lax/);
+  assert.match(auth, /inviteCodeHash/);
+  assert.doesNotMatch(auth, /inviteCode:\s*inviteCode/);
+  assert.match(auth, /profile\.nonce !== nonce/);
+  assert.match(auth, /requireFamilyRole/);
+  assert.match(families, /eq\(memoryFamilyMembers\.familyId, invite\.familyId\)/);
+  assert.match(families, /lt\(memoryFamilyInvites\.useCount, invite\.maxUses\)/);
+  assert.match(migration, /CREATE TABLE `memory_families`/);
+  assert.match(migration, /CREATE TABLE `memory_family_members`/);
+  assert.match(progress, /Phase 1/);
+});
+
 test("public activity response is summary-only", async () => {
   const [route, client] = await Promise.all([
     readFile(new URL("../app/api/events/route.ts", import.meta.url), "utf8"),

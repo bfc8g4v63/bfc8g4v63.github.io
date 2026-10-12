@@ -57,8 +57,8 @@ families/{familyId}/exports/{exportId}.zip
 | 資料表 | 核心欄位與目的 |
 | --- | --- |
 | `memory_families` | 名稱、封面、介紹、容量限制、建立者 |
-| `memory_members` | family ID、LINE subject、目前公開暱稱、頭像、角色、狀態、最後登入 |
-| `memory_invites` | 家族、token hash、用途、到期時間、使用次數、撤銷時間 |
+| `memory_family_members` | family ID、LINE subject、目前公開暱稱、頭像、角色、狀態、最後登入 |
+| `memory_family_invites` | 家族、token hash、用途、到期時間、使用次數、撤銷時間 |
 | `memory_capsules` | family ID、名稱、前言、年代、封面 media ID、排序、封存狀態 |
 | `memory_media` | capsule ID、作者 member ID、R2 object key、類型、mime type、大小、拍攝日期、說明、可見性、刪除時間 |
 | `memory_comments` | family ID、media 或 capsule、作者 member ID、代傳顯示名稱、本文、刪除／隱藏時間 |
