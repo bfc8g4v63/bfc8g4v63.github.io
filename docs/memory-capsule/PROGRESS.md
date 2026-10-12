@@ -5,23 +5,24 @@
 ## 目前狀態
 
 - 目前階段：Phase 1 — 身分、家族與資料基礎
-- 本次版本：v1.2.115（已發布）
-- 上線狀態：程式與資料庫遷移已完成並發布於 2026-10-12；因 LINE Login 與 R2 帳號設定尚未提供，功能維持安全關閉，尚不建立任何家族內容。
+- 本次版本：v1.2.116（已發布）
+- 上線狀態：程式、資料庫遷移與正式環境設定已完成並發布於 2026-10-12。LINE Login 起點已實測可安全導向 LINE；尚待首位總管理者完成首次登入與建立家族。
 
 ### 發布紀錄
 
-- Site version 157：`9b9bdff4759e6e030a634969851e2036610b6659`
+- Site version 159：`2da0e86474fa3e621907bf10fc15c122ec98e2ed`
 - 正式網址：`https://good-days-family-events.x0925234139.chatgpt.site`
 
 ## Phase 0 — 外部設定
 
 | 項目 | 狀態 | 備註 |
 | --- | --- | --- |
-| Cloudflare R2 私有 bucket 與付款 | 待家族管理者設定 | 不會自動建立或公開 bucket。 |
-| LINE Login Web channel | 待設定 | callback 固定為 `https://good-days-family-events.x0925234139.chatgpt.site/api/memory/auth/callback`。 |
-| 部署 secret | 待設定 | 僅在部署平台設定；不得提交到 Git。鍵名：`MEMORY_LINE_LOGIN_CHANNEL_ID`、`MEMORY_LINE_LOGIN_CHANNEL_SECRET`、`MEMORY_SESSION_SECRET`、`MEMORY_BOOTSTRAP_SECRET`。 |
+| Cloudflare R2 私有 bucket | 已完成 | `water-capsule-media-prod`；亞洲太平洋、自動位置、公開存取停用。 |
+| R2 存取權杖 | 已完成 | 僅能讀取、寫入與列出上述 bucket 的物件；不能管理 bucket；值只保留於部署 secrets。 |
+| LINE Login Web channel | 已完成 | 「水金呼吸 回憶膠囊」；callback 為 `https://good-days-family-events.x0925234139.chatgpt.site/api/memory/auth/callback`。 |
+| 部署 secret | 已完成 | LINE、session、bootstrap 與 R2 設定皆只在正式部署平台保存；不得提交到 Git。 |
 | 首位總管理者 | 待指定 | 以該管理者的 LINE Login 完成首次登入，再以一次性 bootstrap secret 建立家族。 |
-| R2 binding | 待 bucket 實際建立後設定 | 本階段不猜測 bucket 名稱，因此 `.openai/hosting.json` 仍保持 `r2: null`。 |
+| R2 binding | 已決定 | bucket 位於家族 Cloudflare 帳號，現階段由受限 S3 相容 API 權杖使用；`.openai/hosting.json` 保持 `r2: null`，避免誤綁其他專案的 Worker。 |
 
 ## Phase 1 — 身分、家族與資料基礎
 
@@ -37,7 +38,8 @@
 
 ### 尚待驗收／啟用
 
-- [ ] 將實際 LINE channel 值與 session secret 寫入部署 secret，完成真實帳號 callback 測試。
+- [x] 將 LINE channel、session、bootstrap 與 R2 設定寫入正式部署 secrets；實測登入起點的 LINE 授權轉址。
+- [ ] 以真實家族 LINE 帳號走完 callback 與 session 建立驗收。
 - [ ] 由首位總管理者建立「陳水金家族」與第一個有效邀請。
 - [ ] 補齊端對端測試：失效邀請、停用成員、跨家族、角色變更與 OAuth callback。
 - [ ] 提供家族入口畫面與長輩導引（排在 Phase 2 與相簿首頁一併完成，避免交付只有登入、沒有內容的空入口）。
