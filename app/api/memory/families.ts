@@ -1,6 +1,6 @@
 import { and, eq, gt, isNull, lt } from "drizzle-orm";
 import { getDb } from "../../../db";
-import { memoryFamilyInvites, memoryFamilyMembers, memoryFamilies } from "../../../db/schema";
+import { memoryCapsules, memoryFamilyInvites, memoryFamilyMembers, memoryFamilies } from "../../../db/schema";
 import { clean } from "../admin/auth";
 import type { LineIdentity } from "./auth";
 
@@ -54,6 +54,11 @@ export async function createMemoryFamily(identity: LineIdentity, nameInput: unkn
     db.insert(memoryFamilyMembers).values({
       id: memberId, familyId, lineSubject: identity.subject, displayName: identity.displayName,
       avatarUrl: identity.avatarUrl, role: "owner",
+    }),
+    db.insert(memoryCapsules).values({
+      id: crypto.randomUUID(), familyId, createdByMemberId: memberId,
+      title: "陳水金家族皇宴", eraLabel: "第一顆回憶膠囊", sortOrder: 0,
+      introduction: "把皇宴相聚的笑聲、合照與想說的話，留給未來每一位家人。",
     }),
   ]);
   return { familyId, memberId, displayName, slug };

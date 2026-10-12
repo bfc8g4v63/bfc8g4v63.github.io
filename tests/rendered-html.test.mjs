@@ -40,6 +40,33 @@ test("memory capsule Phase 1 keeps LINE identity, invitation and family scopes s
   assert.match(progress, /Phase 1/);
 });
 
+test("memory capsule Phase 2 keeps private R2 URLs server-side and centers upload CTAs responsively", async () => {
+  const [schema, families, upload, complete, r2, page, styles] = await Promise.all([
+    readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/memory/families.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/memory/families/[familyId]/uploads/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/memory/families/[familyId]/uploads/[mediaId]/complete/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/memory/r2.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/memory-capsule/MemoryCapsuleApp.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(schema, /export const memoryCapsules/);
+  assert.match(schema, /export const memoryMedia/);
+  assert.match(schema, /uploadState: text\("upload_state"\)/);
+  assert.match(upload, /PHOTO_MIME_TYPES/);
+  assert.match(upload, /MAX_PHOTO_BYTES/);
+  assert.match(upload, /signedR2Url\("PUT"/);
+  assert.match(complete, /signedR2Url\("HEAD"/);
+  assert.match(complete, /actualSize !== media\.byteSize/);
+  assert.match(r2, /MEMORY_R2_SECRET_ACCESS_KEY/);
+  assert.match(r2, /AWS4-HMAC-SHA256/);
+  assert.match(page, /使用 LINE 進入/);
+  assert.match(families, /陳水金家族皇宴/);
+  assert.match(page, /＋ 新增相片/);
+  assert.match(styles, /\.memory-cta-wrap \{ display:flex; justify-content:center; align-items:center/);
+  assert.match(styles, /\.memory-section-heading \.memory-primary \{ width:100%; \}/);
+});
+
 test("public activity response is summary-only", async () => {
   const [route, client] = await Promise.all([
     readFile(new URL("../app/api/events/route.ts", import.meta.url), "utf8"),

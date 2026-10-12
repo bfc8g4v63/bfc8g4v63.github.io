@@ -266,3 +266,37 @@ export const memoryFamilyInvites = sqliteTable("memory_family_invites", {
   uniqueIndex("memory_family_invites_code_hash_unique").on(table.codeHash),
   index("memory_family_invites_family_active").on(table.familyId, table.revokedAt, table.expiresAt),
 ]);
+
+export const memoryCapsules = sqliteTable("memory_capsules", {
+  id: text("id").primaryKey(),
+  familyId: text("family_id").notNull().references(() => memoryFamilies.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  introduction: text("introduction").notNull().default(""),
+  eraLabel: text("era_label").notNull().default(""),
+  sortOrder: integer("sort_order").notNull().default(0),
+  isArchived: integer("is_archived", { mode: "boolean" }).notNull().default(false),
+  createdByMemberId: text("created_by_member_id").notNull().references(() => memoryFamilyMembers.id, { onDelete: "restrict" }),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [index("memory_capsules_family_visible_sort").on(table.familyId, table.isArchived, table.sortOrder)]);
+
+export const memoryMedia = sqliteTable("memory_media", {
+  id: text("id").primaryKey(),
+  familyId: text("family_id").notNull().references(() => memoryFamilies.id, { onDelete: "cascade" }),
+  capsuleId: text("capsule_id").notNull().references(() => memoryCapsules.id, { onDelete: "cascade" }),
+  authorMemberId: text("author_member_id").notNull().references(() => memoryFamilyMembers.id, { onDelete: "restrict" }),
+  objectKey: text("object_key").notNull(),
+  originalFilename: text("original_filename").notNull(),
+  mimeType: text("mime_type").notNull(),
+  byteSize: integer("byte_size").notNull(),
+  title: text("title").notNull().default(""),
+  description: text("description").notNull().default(""),
+  uploadState: text("upload_state").notNull().default("pending"),
+  uploadExpiresAt: text("upload_expires_at").notNull(),
+  deletedAt: text("deleted_at"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  uniqueIndex("memory_media_object_key_unique").on(table.objectKey),
+  index("memory_media_capsule_visible_created").on(table.capsuleId, table.deletedAt, table.createdAt),
+  index("memory_media_family_visible_created").on(table.familyId, table.deletedAt, table.createdAt),
+]);
