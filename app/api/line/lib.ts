@@ -154,7 +154,7 @@ export function rsvpSummaryMessage(eventTitle: string, rsvps: RsvpSummaryItem[],
   return lines.join("\n\n");
 }
 
-export function managerRsvpMessage(input: {
+export function managerRsvpCard(input: {
   eventTitle: string;
   change: string;
   name: string;
@@ -162,12 +162,44 @@ export function managerRsvpMessage(input: {
   attendingPeople: number;
   unassignedPeople: number;
   managerUrl?: string;
-}) {
+}): LineReplyMessage {
   const arrangement = input.unassignedPeople
-    ? `尚有 ${input.unassignedPeople} 人未安排，請使用已保存的管理連結開啟活動安排。`
-    : "目前所有參加者都已安排。";
-  const managerLink = input.managerUrl ? `\n管理活動：${input.managerUrl}` : "";
-  return `【管理提醒】\n${input.eventTitle}\n${input.change}：${input.name}（${input.partySize} 人）\n目前 ${input.attendingPeople} 人參加\n${arrangement}${managerLink}`;
+    ? `尚有 ${input.unassignedPeople} 人未安排`
+    : "所有參加者都已安排";
+  return {
+    type: "flex",
+    altText: `【管理提醒】${input.eventTitle}｜${input.change}：${input.name}（${input.partySize} 人）`,
+    contents: {
+      type: "bubble",
+      size: "mega",
+      header: {
+        type: "box", layout: "vertical", backgroundColor: "#EEF5EF", paddingAll: "16px",
+        contents: [
+          { type: "text", text: "管理提醒", color: "#5B786D", size: "sm", weight: "bold" },
+          { type: "text", text: input.eventTitle.slice(0, 40), color: "#153F36", size: "xl", weight: "bold", wrap: true, margin: "sm" },
+        ],
+      },
+      body: {
+        type: "box", layout: "vertical", spacing: "sm", paddingAll: "16px",
+        contents: [
+          { type: "text", text: `${input.change}｜${input.name}（${input.partySize} 人）`, color: "#315C54", weight: "bold", wrap: true },
+          { type: "text", text: `目前 ${input.attendingPeople} 人參加`, color: "#315C54", wrap: true },
+          {
+            type: "box", layout: "vertical", backgroundColor: input.unassignedPeople ? "#FFF0D4" : "#EDF6ED",
+            cornerRadius: "10px", paddingAll: "10px", margin: "md",
+            contents: [{ type: "text", text: arrangement, color: input.unassignedPeople ? "#8A611F" : "#176149", weight: "bold", wrap: true }],
+          },
+        ],
+      },
+      footer: input.managerUrl ? {
+        type: "box", layout: "vertical", paddingAll: "12px",
+        contents: [{
+          type: "button", style: "primary", color: "#2F6656", height: "sm",
+          action: { type: "uri", label: "開啟管理", uri: input.managerUrl },
+        }],
+      } : undefined,
+    },
+  };
 }
 
 export function activityArrangementMessage(

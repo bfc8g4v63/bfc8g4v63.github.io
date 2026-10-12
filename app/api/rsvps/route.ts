@@ -6,7 +6,7 @@ import { companionCards, companionRequests, events, lineManagerTargets, mealAssi
 import { hashCode, verifyCredential } from "../admin/auth";
 import { lineManagerUrl } from "../admin/line-manager-link";
 import { json, preflight } from "../cors";
-import { managerRsvpMessage, pushText } from "../line/lib";
+import { managerRsvpCard, pushMessages } from "../line/lib";
 import { rateLimit } from "../rate-limit";
 
 function clean(value: unknown, max = 300) {
@@ -48,13 +48,13 @@ async function notifyPairedManagers(input: {
     const assignedPeople = assignments.reduce((sum, item) => sum + item.people, 0);
     await Promise.allSettled(targets.map(async (target) => {
       const managerUrl = await lineManagerUrl(input.eventId, target.id);
-      const text = managerRsvpMessage({
+      const card = managerRsvpCard({
         ...input,
         attendingPeople,
         unassignedPeople: Math.max(0, attendingPeople - assignedPeople),
         managerUrl,
       });
-      await pushText(target.lineUserId, text);
+      await pushMessages(target.lineUserId, [card]);
     }));
   } catch (error) {
     // A notification must never make an attendee's RSVP fail.

@@ -429,8 +429,11 @@ test("LINE manager alerts pair an account with an event instead of trusting a cr
   assert.match(rsvp, /notifyPairedManagers/);
   assert.match(rsvp, /getRequestExecutionContext/);
   assert.match(rsvp, /lineManagerUrl\(input\.eventId, target\.id\)/);
-  assert.match(lineLib, /managerRsvpMessage/);
-  assert.match(lineLib, /管理活動：\$\{input\.managerUrl\}/);
+  assert.match(lineLib, /managerRsvpCard/);
+  assert.match(lineLib, /type: "flex"/);
+  assert.match(lineLib, /label: "開啟管理", uri: input\.managerUrl/);
+  assert.match(rsvp, /pushMessages\(target\.lineUserId, \[card\]\)/);
+  assert.match(adminEvent, /lineManagerUrl\(input\.eventId, target\.id\)/);
   assert.match(lineManagerLink, /line-manager-link:/);
   assert.match(lineManagerLink, /lineManagerTargets\.eventId/);
   assert.match(auth, /verifyLineManagerToken/);
