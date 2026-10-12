@@ -6,6 +6,14 @@
 
 網站網址：https://bfc8g4v63.github.io/
 
+## 規劃中的家族專案
+
+「陳水金家族・回憶膠囊」是規劃中的私密家族相簿，使用 LINE Login 識別家人，並以私有 Cloudflare R2 保存照片與影片。完整規格請見：
+
+- [產品規格](docs/memory-capsule/PRODUCT.md)
+- [系統架構與安全邊界](docs/memory-capsule/ARCHITECTURE.md)
+- [實作計畫與開工前決定](docs/memory-capsule/IMPLEMENTATION-PLAN.md)
+
 ## 適合的使用情境
 
 - 家庭聚餐、節慶團圓與親友相約
