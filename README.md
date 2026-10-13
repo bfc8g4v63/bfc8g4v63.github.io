@@ -4,7 +4,9 @@
 
 「好日子 x 相聚」是一個為家人、朋友與社群設計的活動建立與報名網站。介面以大字、清楚步驟與跨裝置瀏覽為原則，讓長輩也能輕鬆查看活動、填寫出席狀況與收到 LINE 提醒。
 
-網站網址：https://bfc8g4v63.github.io/
+活動網站網址：https://bfc8g4v63.github.io/
+
+回憶膠囊的免費入口：https://gooddays.carewear.workers.dev/memory-capsule
 
 ## 規劃中的家族專案
 

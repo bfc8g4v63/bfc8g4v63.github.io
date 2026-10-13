@@ -14,6 +14,16 @@ test("legacy host renders the GitHub Pages handoff", async () => {
   assert.match(page, /https:\/\/bfc8g4v63\.github\.io/);
 });
 
+test("free Cloudflare entry keeps the upstream fixed and never becomes an open proxy", async () => {
+  const proxy = await readFile(new URL("../cloudflare/gooddays-proxy-worker.mjs", import.meta.url), "utf8");
+  assert.match(proxy, /const UPSTREAM_ORIGIN = "https:\/\/good-days-family-events\.x0925234139\.chatgpt\.site"/);
+  assert.match(proxy, /const PUBLIC_ORIGIN = "https:\/\/gooddays\.carewear\.workers\.dev"/);
+  assert.match(proxy, /new URL\(`\$\{incoming\.pathname\}\$\{incoming\.search\}`, UPSTREAM_ORIGIN\)/);
+  assert.match(proxy, /headers\.delete\("host"\)/);
+  assert.match(proxy, /redirect: "manual"/);
+  assert.match(proxy, /rewriteInternalLocation\(location\)/);
+});
+
 test("memory capsule Phase 1 keeps LINE identity, invitation and family scopes server-side", async () => {
   const [schema, auth, families, migration, progress, callback, logout] = await Promise.all([
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
@@ -30,6 +40,8 @@ test("memory capsule Phase 1 keeps LINE identity, invitation and family scopes s
   assert.match(schema, /uniqueIndex\("memory_family_members_family_subject_unique"\)/);
   assert.match(auth, /MEMORY_LINE_LOGIN_CHANNEL_SECRET/);
   assert.match(auth, /MEMORY_SESSION_SECRET/);
+  assert.match(auth, /MEMORY_PUBLIC_ORIGIN/);
+  assert.match(auth, /MEMORY_PUBLIC_ORIGIN 必須是純 HTTPS 網域來源/);
   assert.match(auth, /HttpOnly; SameSite=Lax/);
   assert.match(auth, /inviteCodeHash/);
   assert.doesNotMatch(auth, /inviteCode:\s*inviteCode/);
@@ -41,6 +53,7 @@ test("memory capsule Phase 1 keeps LINE identity, invitation and family scopes s
   assert.match(migration, /CREATE TABLE `memory_family_members`/);
   assert.match(progress, /Phase 1/);
   assert.match(callback, /headers\.append\("set-cookie", value\)/);
+  assert.match(callback, /publicUrl\(request, destination\)/);
   assert.doesNotMatch(callback, /cookies\.join\(", "\)/);
   assert.match(logout, /headers\.append\("set-cookie", clearMemoryCookie\(MEMORY_SESSION_COOKIE/);
 });

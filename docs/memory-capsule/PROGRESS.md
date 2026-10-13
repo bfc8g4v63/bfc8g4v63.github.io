@@ -12,6 +12,7 @@
 
 - Site version 159：`2da0e86474fa3e621907bf10fc15c122ec98e2ed`
 - 正式網址：`https://good-days-family-events.x0925234139.chatgpt.site`
+- 免費入口遷移：Cloudflare Worker `gooddays.carewear.workers.dev` 會以固定上游安全轉送回憶膠囊，並保留既有資料、LINE 綁定、提醒與私有 R2 媒體。登入 callback 與 R2 CORS 需一併加入此公開入口後，再完成實機登入與上傳驗收；既有服務不會先刪除或重建。隔離目的 D1 `good-days-family` 保留給未來完整搬遷使用。
 
 ## Phase 0 — 外部設定
 

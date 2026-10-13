@@ -1,10 +1,10 @@
-import { clearMemoryCookie, consumeOAuthState, createSessionCookie, exchangeLineCode, MEMORY_STATE_COOKIE } from "../../auth";
+import { clearMemoryCookie, consumeOAuthState, createSessionCookie, exchangeLineCode, MEMORY_STATE_COOKIE, publicUrl } from "../../auth";
 import { acceptMemoryInvite } from "../../families";
 
 function finish(request: Request, destination: string, cookies: string[]) {
   // A comma-joined Set-Cookie value is not reliably parsed as two cookies by
   // browsers. Append each header so the LINE session survives the redirect.
-  const headers = new Headers({ location: new URL(destination, request.url).toString(), "cache-control": "no-store" });
+  const headers = new Headers({ location: publicUrl(request, destination), "cache-control": "no-store" });
   for (const value of cookies) headers.append("set-cookie", value);
   return new Response(null, { status: 302, headers });
 }

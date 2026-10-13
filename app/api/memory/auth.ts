@@ -13,6 +13,11 @@ type RuntimeEnv = {
   MEMORY_LINE_LOGIN_CHANNEL_SECRET?: string;
   MEMORY_SESSION_SECRET?: string;
   MEMORY_BOOTSTRAP_SECRET?: string;
+  /**
+   * Optional canonical public origin. This is required when a trusted edge
+   * Worker is the public entry point while the application runs elsewhere.
+   */
+  MEMORY_PUBLIC_ORIGIN?: string;
 };
 
 export type LineIdentity = {
@@ -172,7 +177,28 @@ export function lineLoginConfig() {
 }
 
 export function callbackUrl(request: Request) {
-  return new URL("/api/memory/auth/callback", request.url).toString();
+  return publicUrl(request, "/api/memory/auth/callback");
+}
+
+export function publicOrigin(request: Request) {
+  const configured = runtime().MEMORY_PUBLIC_ORIGIN?.trim();
+  if (!configured) return new URL(request.url).origin;
+
+  let parsed: URL;
+  try {
+    parsed = new URL(configured);
+  } catch {
+    throw new MemoryConfigurationError("MEMORY_PUBLIC_ORIGIN 必須是有效的 HTTPS 網址");
+  }
+
+  if (parsed.protocol !== "https:" || parsed.username || parsed.password || parsed.pathname !== "/" || parsed.search || parsed.hash) {
+    throw new MemoryConfigurationError("MEMORY_PUBLIC_ORIGIN 必須是純 HTTPS 網域來源");
+  }
+  return parsed.origin;
+}
+
+export function publicUrl(request: Request, path: string) {
+  return new URL(path, publicOrigin(request)).toString();
 }
 
 export async function exchangeLineCode(request: Request, code: string, nonce: string): Promise<LineIdentity> {

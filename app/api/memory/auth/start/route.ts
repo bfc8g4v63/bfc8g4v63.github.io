@@ -1,11 +1,11 @@
-import { createOAuthStateCookie, lineLoginConfig, safeReturnTo } from "../../auth";
+import { callbackUrl, createOAuthStateCookie, lineLoginConfig, safeReturnTo } from "../../auth";
 
 export async function GET(request: Request) {
   try {
     const url = new URL(request.url);
     const { channelId } = lineLoginConfig();
     const { state, nonce, header } = await createOAuthStateCookie(url.searchParams.get("invite") || "", safeReturnTo(url.searchParams.get("returnTo")), request);
-    const callback = new URL("/api/memory/auth/callback", request.url).toString();
+    const callback = callbackUrl(request);
     const line = new URL("https://access.line.me/oauth2/v2.1/authorize");
     line.search = new URLSearchParams({ response_type: "code", client_id: channelId, redirect_uri: callback, state, scope: "openid profile", nonce }).toString();
     return new Response(null, { status: 302, headers: { location: line.toString(), "set-cookie": header, "cache-control": "no-store" } });
