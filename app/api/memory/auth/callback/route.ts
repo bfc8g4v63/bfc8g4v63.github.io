@@ -2,7 +2,11 @@ import { clearMemoryCookie, consumeOAuthState, createSessionCookie, exchangeLine
 import { acceptMemoryInvite } from "../../families";
 
 function finish(request: Request, destination: string, cookies: string[]) {
-  return new Response(null, { status: 302, headers: { location: new URL(destination, request.url).toString(), "set-cookie": cookies.join(", "), "cache-control": "no-store" } });
+  // A comma-joined Set-Cookie value is not reliably parsed as two cookies by
+  // browsers. Append each header so the LINE session survives the redirect.
+  const headers = new Headers({ location: new URL(destination, request.url).toString(), "cache-control": "no-store" });
+  for (const value of cookies) headers.append("set-cookie", value);
+  return new Response(null, { status: 302, headers });
 }
 
 export async function GET(request: Request) {

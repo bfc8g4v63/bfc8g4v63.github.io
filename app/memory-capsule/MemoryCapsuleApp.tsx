@@ -49,6 +49,11 @@ export function MemoryCapsuleApp() {
   };
 
   useEffect(() => { void refresh(); }, []);
+  useEffect(() => {
+    const login = new URLSearchParams(window.location.search).get("login");
+    if (login === "expired") setError("LINE 登入逾時，請再按一次「使用 LINE 進入」。");
+    if (login === "failed") setError("LINE 登入沒有完成，請確認驗證碼後再試一次。");
+  }, []);
 
   const login = () => { window.location.assign(`/api/memory/auth/start?returnTo=${encodeURIComponent("/memory-capsule")}`); };
   const logout = async () => { await fetch("/api/memory/auth/logout", { method: "POST" }); await refresh(); };

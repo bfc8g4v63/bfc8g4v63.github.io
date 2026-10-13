@@ -15,12 +15,14 @@ test("legacy host renders the GitHub Pages handoff", async () => {
 });
 
 test("memory capsule Phase 1 keeps LINE identity, invitation and family scopes server-side", async () => {
-  const [schema, auth, families, migration, progress] = await Promise.all([
+  const [schema, auth, families, migration, progress, callback, logout] = await Promise.all([
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/memory/auth.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/memory/families.ts", import.meta.url), "utf8"),
     readFile(new URL("../drizzle/0016_large_bug.sql", import.meta.url), "utf8"),
     readFile(new URL("../docs/memory-capsule/PROGRESS.md", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/memory/auth/callback/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/memory/auth/logout/route.ts", import.meta.url), "utf8"),
   ]);
   assert.match(schema, /memoryFamilies/);
   assert.match(schema, /memoryFamilyMembers/);
@@ -38,6 +40,9 @@ test("memory capsule Phase 1 keeps LINE identity, invitation and family scopes s
   assert.match(migration, /CREATE TABLE `memory_families`/);
   assert.match(migration, /CREATE TABLE `memory_family_members`/);
   assert.match(progress, /Phase 1/);
+  assert.match(callback, /headers\.append\("set-cookie", value\)/);
+  assert.doesNotMatch(callback, /cookies\.join\(", "\)/);
+  assert.match(logout, /headers\.append\("set-cookie", clearMemoryCookie\(MEMORY_SESSION_COOKIE/);
 });
 
 test("memory capsule Phase 2 keeps private R2 URLs server-side and centers upload CTAs responsively", async () => {
