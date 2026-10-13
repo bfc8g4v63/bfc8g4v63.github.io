@@ -2,7 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { getDb } from "../../../../../../db";
 import { memoryFamilyInvites } from "../../../../../../db/schema";
 import { clean, hashCode } from "../../../../admin/auth";
-import { requireFamilyRole } from "../../../auth";
+import { publicUrl, requireFamilyRole } from "../../../auth";
 
 function validExpiry(value: unknown) {
   const parsed = typeof value === "string" ? Date.parse(value) : Number.NaN;
@@ -39,7 +39,10 @@ export async function POST(request: Request, context: { params: Promise<{ family
     const code = crypto.randomUUID().replaceAll("-", "");
     const invite = { id: crypto.randomUUID(), familyId, codeHash: await hashCode(code), role, maxUses, expiresAt, createdByMemberId: access.membership.id };
     await getDb().insert(memoryFamilyInvites).values(invite);
-    const url = new URL("/memory-capsule", request.url);
+    // Always share the configured public entry. Requests from the free Worker
+    // are intentionally forwarded to the application host, so request.url
+    // would otherwise leak that implementation address to family members.
+    const url = new URL(publicUrl(request, "/memory-capsule"));
     url.searchParams.set("invite", code);
     return Response.json({ invite: { ...invite, codeHash: undefined }, inviteUrl: url.toString() }, { status: 201, headers: { "cache-control": "no-store" } });
   } catch (error) {
