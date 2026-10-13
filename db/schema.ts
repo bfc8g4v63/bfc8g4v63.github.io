@@ -231,6 +231,9 @@ export const memoryFamilies = sqliteTable("memory_families", {
   id: text("id").primaryKey(),
   slug: text("slug").notNull(),
   displayName: text("display_name").notNull(),
+  // 20 GB is the initial family guardrail. R2 itself can grow beyond this,
+  // but uploads stop here until a manager deliberately raises the quota.
+  storageQuotaBytes: integer("storage_quota_bytes").notNull().default(20 * 1024 * 1024 * 1024),
   isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),

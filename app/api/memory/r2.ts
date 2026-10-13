@@ -55,7 +55,7 @@ function canonicalKey(key: string) {
 }
 
 /** Produces a short-lived, single-object S3-compatible URL for the private R2 bucket. */
-export async function signedR2Url(method: "GET" | "HEAD" | "PUT", objectKey: string, options: { contentType?: string; expiresIn?: number } = {}) {
+export async function signedR2Url(method: "GET" | "HEAD" | "PUT" | "DELETE", objectKey: string, options: { contentType?: string; expiresIn?: number } = {}) {
   const { accessKeyId, secretAccessKey, bucket, endpoint, region } = config();
   const { amzDate, date } = timestamp(new Date());
   const credentialScope = `${date}/${region}/s3/aws4_request`;
@@ -82,7 +82,7 @@ export async function signedR2Url(method: "GET" | "HEAD" | "PUT", objectKey: str
   return url.toString();
 }
 
-export function safeObjectFilename(filename: string) {
-  const extension = filename.toLowerCase().match(/\.(?:jpe?g|png|webp|heic|heif)$/)?.[0] || ".jpg";
-  return `photo${extension}`;
+export function safeObjectFilename(filename: string, fallbackExtension = ".bin") {
+  const extension = filename.toLowerCase().match(/\.(?:jpe?g|png|webp|heic|heif|mp4|mov)$/)?.[0] || fallbackExtension;
+  return `media${extension}`;
 }

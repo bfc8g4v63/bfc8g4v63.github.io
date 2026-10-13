@@ -1,0 +1,1 @@
+ALTER TABLE `memory_families` ADD `storage_quota_bytes` integer DEFAULT 21474836480 NOT NULL;

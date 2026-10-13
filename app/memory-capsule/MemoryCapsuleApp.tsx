@@ -6,7 +6,7 @@ type Membership = { id: string; familyId: string; role: string; displayName: str
 type Session = { signedIn: boolean; setupRequired?: boolean; profile?: { displayName: string; avatarUrl: string }; memberships?: Membership[] };
 type Capsule = { id: string; title: string; introduction: string; eraLabel: string; mediaCount: number };
 type Media = { id: string; capsuleId: string; originalFilename: string; mimeType: string; title: string; description: string; createdAt: string; authorName: string; authorAvatar: string; url: string };
-type Dashboard = { family: { id: string; displayName: string }; membership: Membership; capsules: Capsule[]; media: Media[] };
+type Dashboard = { family: { id: string; displayName: string }; storage: { usedBytes: number; quotaBytes: number }; membership: Membership; capsules: Capsule[]; media: Media[] };
 type Invite = { id: string; role: "admin" | "member"; maxUses: number; useCount: number; expiresAt: string; revokedAt: string | null; createdAt: string };
 type FamilyMember = { id: string; displayName: string; avatarUrl: string; role: "owner" | "admin" | "member"; isActive: boolean; joinedAt: string };
 
@@ -20,6 +20,23 @@ async function json<T>(url: string, init?: RequestInit) {
 function Avatar({ name, src, small = false }: { name: string; src?: string; small?: boolean }) {
   return src ? <img className={`memory-avatar${small ? " small" : ""}`} src={src} alt={`${name} 的 LINE 頭像`} referrerPolicy="no-referrer" />
     : <span className={`memory-avatar memory-avatar-fallback${small ? " small" : ""}`} aria-label={name}>{name.slice(0, 1)}</span>;
+}
+
+function formatStorage(bytes: number) {
+  if (bytes < 1024 * 1024) return `${Math.max(0, Math.round(bytes / 1024))} KB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(bytes >= 100 * 1024 * 1024 * 1024 ? 0 : 1)} GB`;
+}
+
+async function videoDurationSeconds(file: File) {
+  return new Promise<number | null>((resolve) => {
+    const url = URL.createObjectURL(file);
+    const probe = document.createElement("video");
+    const finish = (duration: number | null) => { URL.revokeObjectURL(url); resolve(duration); };
+    probe.preload = "metadata";
+    probe.onloadedmetadata = () => finish(Number.isFinite(probe.duration) ? probe.duration : null);
+    probe.onerror = () => finish(null);
+    probe.src = url;
+  });
 }
 
 export function MemoryCapsuleApp() {
@@ -124,7 +141,7 @@ export function MemoryCapsuleApp() {
     finally { setCommunityBusy(false); }
   };
 
-  const uploadPhotos = async (event: FormEvent<HTMLInputElement>) => {
+  const uploadMedia = async (event: FormEvent<HTMLInputElement>) => {
     const files = Array.from(event.currentTarget.files || []);
     event.currentTarget.value = "";
     if (!dashboard || !activeCapsule || !files.length) return;
@@ -133,19 +150,34 @@ export function MemoryCapsuleApp() {
       for (let index = 0; index < files.length; index += 1) {
         const file = files[index];
         const contentType = file.type.toLowerCase();
-        setProgress(`正在上傳 ${index + 1}／${files.length}：${file.name}`);
+        if (contentType.startsWith("video/")) {
+          const duration = await videoDurationSeconds(file);
+          if (duration && duration > 15 * 60) throw new Error(`${file.name} 超過 15 分鐘，請先裁剪後再上傳`);
+        }
+        setProgress(`正在準備 ${index + 1}／${files.length}：${file.name}`);
         const prepared = await json<{ mediaId: string; uploadUrl: string }>(`/api/memory/families/${dashboard.family.id}/uploads`, {
           method: "POST", headers: { "content-type": "application/json" },
           body: JSON.stringify({ capsuleId: activeCapsule.id, filename: file.name, mimeType: contentType, byteSize: file.size }),
         });
-        const put = await fetch(prepared.uploadUrl, { method: "PUT", headers: { "content-type": contentType }, body: file });
-        if (!put.ok) throw new Error(`${file.name} 上傳失敗，請稍後重試`);
+        await new Promise<void>((resolve, reject) => {
+          const upload = new XMLHttpRequest();
+          upload.open("PUT", prepared.uploadUrl);
+          upload.setRequestHeader("content-type", contentType);
+          upload.upload.onprogress = (progressEvent) => {
+            if (!progressEvent.lengthComputable) return;
+            const percent = Math.min(100, Math.round((progressEvent.loaded / progressEvent.total) * 100));
+            setProgress(`正在上傳 ${index + 1}／${files.length}：${file.name}（${percent}%）`);
+          };
+          upload.onerror = () => reject(new Error(`${file.name} 上傳失敗，請稍後重試`));
+          upload.onload = () => upload.status >= 200 && upload.status < 300 ? resolve() : reject(new Error(`${file.name} 上傳失敗，請稍後重試`));
+          upload.send(file);
+        });
         await json(`/api/memory/families/${dashboard.family.id}/uploads/${prepared.mediaId}/complete`, { method: "POST" });
       }
-      setProgress("相片已放進回憶膠囊");
+      setProgress("回憶已放進家族膠囊");
       await refresh();
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "相片上傳失敗");
+      setError(reason instanceof Error ? reason.message : "媒體上傳失敗");
     } finally { setUploading(false); }
   };
 
@@ -160,10 +192,11 @@ export function MemoryCapsuleApp() {
   const visibleMedia = dashboard.media.filter((item) => item.capsuleId === activeCapsule?.id);
   return <main className="memory-page">
     <header className="memory-header"><a className="memory-brand" href="/memory-capsule"><span>水</span><b>水金呼吸</b><small>回憶膠囊</small></a><div className="memory-member"><Avatar name={dashboard.membership.displayName} src={dashboard.membership.avatarUrl} small /><span>{dashboard.membership.displayName}</span><button onClick={logout}>登出</button></div></header>
-    <section className="memory-hero"><div><p className="memory-kicker">{dashboard.family.displayName}</p><h1>我們的回憶，<em>一直都在。</em></h1><p>照片只屬於受邀家人。每一張相片都會保留上傳者的 LINE 暱稱與時間。</p></div><div className="memory-hero-orb" aria-hidden="true">水</div></section>
+    <section className="memory-hero"><div><p className="memory-kicker">{dashboard.family.displayName}</p><h1>我們的回憶，<em>一直都在。</em></h1><p>照片與影片只屬於受邀家人。每一份回憶都會保留上傳者的 LINE 暱稱與時間。</p></div><div className="memory-hero-orb" aria-hidden="true">水</div></section>
     {error && <p className="memory-error" role="alert">{error}</p>}
+    {["owner", "admin"].includes(dashboard.membership.role) && <section className="memory-storage" aria-label="家族儲存空間"><div><p className="memory-kicker">家族空間</p><h2>{formatStorage(dashboard.storage.usedBytes)} <small>/ {formatStorage(dashboard.storage.quotaBytes)}</small></h2><p>目前已確認的照片與影片用量。到 80% 和 90% 會顯示提醒，達上限時會暫停新的上傳。</p></div><div className="memory-storage-meter" aria-label={`已使用 ${Math.min(100, Math.round((dashboard.storage.usedBytes / dashboard.storage.quotaBytes) * 100))}%`}><span style={{ width: `${Math.min(100, (dashboard.storage.usedBytes / dashboard.storage.quotaBytes) * 100)}%` }} /></div>{dashboard.storage.usedBytes / dashboard.storage.quotaBytes >= .9 ? <strong className="memory-storage-alert">空間已達 90%，請整理內容或提高容量。</strong> : dashboard.storage.usedBytes / dashboard.storage.quotaBytes >= .8 ? <strong className="memory-storage-alert">空間已達 80%，請留意接下來的影片上傳。</strong> : null}</section>}
     <section className="memory-section"><div className="memory-section-heading"><div><p className="memory-kicker">家族膠囊</p><h2>一起打開的回憶</h2></div></div>
-      <div className="memory-capsules">{dashboard.capsules.map((capsule) => <button key={capsule.id} className={`memory-capsule${activeCapsule?.id === capsule.id ? " active" : ""}`} onClick={() => setSelectedCapsuleId(capsule.id)}><span className="memory-capsule-icon">宴</span><span><b>{capsule.title}</b><small>{capsule.eraLabel || "家族回憶"}・{capsule.mediaCount} 張相片</small></span></button>)}</div>
+      <div className="memory-capsules">{dashboard.capsules.map((capsule) => <button key={capsule.id} className={`memory-capsule${activeCapsule?.id === capsule.id ? " active" : ""}`} onClick={() => setSelectedCapsuleId(capsule.id)}><span className="memory-capsule-icon">宴</span><span><b>{capsule.title}</b><small>{capsule.eraLabel || "家族回憶"}・{capsule.mediaCount} 項回憶</small></span></button>)}</div>
     </section>
     {["owner", "admin"].includes(dashboard.membership.role) && <section className="memory-community" aria-labelledby="memory-community-title"><div className="memory-section-heading"><div><p className="memory-kicker">家族入口管理</p><h2 id="memory-community-title">邀家人，一起保存回憶</h2><p>每次建立的是一人、一段期限的私密邀請；家人必須用自己的 LINE 登入才會加入。</p></div></div>
       <div className="memory-community-grid"><section className="memory-invite-card"><h3>建立家人邀請</h3><label>有效期限<select value={inviteDays} onChange={(event) => setInviteDays(Number(event.target.value))} disabled={communityBusy}><option value={1}>1 天</option><option value={7}>7 天</option><option value={30}>30 天</option></select></label>
@@ -175,10 +208,10 @@ export function MemoryCapsuleApp() {
         <div className="memory-invite-list">{invites.filter((invite) => !invite.revokedAt && new Date(invite.expiresAt).getTime() > Date.now() && invite.useCount < invite.maxUses).map((invite) => <article key={invite.id}><span><b>{invite.role === "admin" ? "共同管理者邀請" : "家人邀請"}</b><small>尚可使用 {invite.maxUses - invite.useCount} 次・至 {new Date(invite.expiresAt).toLocaleDateString("zh-TW")}</small></span><button className="memory-danger-link" disabled={communityBusy} onClick={() => { void revokeInvite(invite.id); }}>撤銷</button></article>)}</div>
       </section></div>
     </section>}
-    {activeCapsule && <section className="memory-capsule-detail"><div className="memory-section-heading"><div><p className="memory-kicker">{activeCapsule.eraLabel || "回憶膠囊"}</p><h2>{activeCapsule.title}</h2><p>{activeCapsule.introduction || "等待家人放進第一張相片。"}</p></div><div className="memory-cta-wrap"><button className="memory-primary" disabled={uploading} onClick={() => fileInput.current?.click()}>{uploading ? "上傳中⋯" : "＋ 新增相片"}</button></div></div>
-      <input ref={fileInput} className="memory-file-input" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple onChange={(event) => { void uploadPhotos(event); }} />
+    {activeCapsule && <section className="memory-capsule-detail"><div className="memory-section-heading"><div><p className="memory-kicker">{activeCapsule.eraLabel || "回憶膠囊"}</p><h2>{activeCapsule.title}</h2><p>{activeCapsule.introduction || "等待家人放進第一份回憶。"}</p></div><div className="memory-cta-wrap"><button className="memory-primary" disabled={uploading} onClick={() => fileInput.current?.click()}>{uploading ? "上傳中⋯" : "＋ 新增相片／影片"}</button></div></div>
+      <input ref={fileInput} className="memory-file-input" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,video/mp4,video/quicktime" multiple onChange={(event) => { void uploadMedia(event); }} />
       {progress && <p className="memory-upload-status" aria-live="polite">{progress}</p>}
-      {visibleMedia.length ? <div className="memory-media-grid">{visibleMedia.map((item) => <article className="memory-media-card" key={item.id}><img src={item.url} alt={item.title || item.description || item.originalFilename} /><div><p>{item.title || item.originalFilename}</p><span><Avatar name={item.authorName} src={item.authorAvatar} small />{item.authorName}・{new Date(item.createdAt).toLocaleDateString("zh-TW")}</span></div></article>)}</div> : <div className="memory-empty memory-empty-compact"><p className="memory-empty-mark">◌</p><h3>第一張相片，從這裡開始</h3><p>選擇相片後會立即顯示在家族膠囊，管理者可在之後協助整理。</p><div className="memory-cta-wrap"><button className="memory-secondary" onClick={() => fileInput.current?.click()}>選擇相片</button></div></div>}
+      {visibleMedia.length ? <div className="memory-media-grid">{visibleMedia.map((item) => <article className="memory-media-card" key={item.id}>{item.mimeType.startsWith("video/") ? <video controls playsInline preload="metadata" src={item.url} aria-label={item.title || item.originalFilename}>你的瀏覽器無法直接播放這支影片。</video> : <img src={item.url} alt={item.title || item.description || item.originalFilename} />}<div><p>{item.title || item.originalFilename}</p><span><Avatar name={item.authorName} src={item.authorAvatar} small />{item.authorName}・{new Date(item.createdAt).toLocaleDateString("zh-TW")}</span></div></article>)}</div> : <div className="memory-empty memory-empty-compact"><p className="memory-empty-mark">◌</p><h3>第一份回憶，從這裡開始</h3><p>選擇相片或影片後會立即顯示在家族膠囊，管理者可在之後協助整理。</p><div className="memory-cta-wrap"><button className="memory-secondary" onClick={() => fileInput.current?.click()}>選擇相片／影片</button></div></div>}
     </section>}
   </main>;
 }
