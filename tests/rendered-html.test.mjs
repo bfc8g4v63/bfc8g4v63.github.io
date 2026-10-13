@@ -94,6 +94,7 @@ test("memory capsule Phase 2 keeps private R2 URLs server-side and centers uploa
   assert.match(page, /<video controls playsInline/);
   assert.match(page, /15 \* 60/);
   assert.match(page, /家族空間/);
+  assert.match(page, /我們的回憶，<br \/><em>一直都在。<\/em>/);
   assert.match(invites, /publicUrl, requireFamilyRole/);
   assert.match(invites, /new URL\(publicUrl\(request, "\/memory-capsule"\)\)/);
   assert.match(invites, /body\.role === "admin" && access\.membership\.role === "owner"/);
