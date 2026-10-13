@@ -58,8 +58,8 @@ test("memory capsule Phase 1 keeps LINE identity, invitation and family scopes s
   assert.match(logout, /headers\.append\("set-cookie", clearMemoryCookie\(MEMORY_SESSION_COOKIE/);
 });
 
-test("memory capsule Phase 2 keeps private R2 URLs server-side and centers upload CTAs responsively", async () => {
-  const [schema, families, upload, complete, r2, page, styles, invites, members] = await Promise.all([
+test("memory capsule media, interaction and curation remain family-scoped with centered mobile CTAs", async () => {
+  const [schema, families, upload, complete, r2, page, styles, invites, members, capsules, comments, reactions, media, migration] = await Promise.all([
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/memory/families.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/memory/families/[familyId]/uploads/route.ts", import.meta.url), "utf8"),
@@ -69,9 +69,18 @@ test("memory capsule Phase 2 keeps private R2 URLs server-side and centers uploa
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
     readFile(new URL("../app/api/memory/families/[familyId]/invites/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/memory/families/[familyId]/members/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/memory/families/[familyId]/capsules/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/memory/families/[familyId]/comments/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/memory/families/[familyId]/reactions/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/memory/media/[mediaId]/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../drizzle/0019_brief_layla_miller.sql", import.meta.url), "utf8"),
   ]);
   assert.match(schema, /export const memoryCapsules/);
   assert.match(schema, /export const memoryMedia/);
+  assert.match(schema, /export const memoryComments/);
+  assert.match(schema, /export const memoryReactions/);
+  assert.match(schema, /coverMediaId/);
+  assert.match(schema, /capturedAt/);
   assert.match(schema, /uploadState: text\("upload_state"\)/);
   assert.match(upload, /PHOTO_MIME_TYPES/);
   assert.match(upload, /VIDEO_MIME_TYPES/);
@@ -93,7 +102,15 @@ test("memory capsule Phase 2 keeps private R2 URLs server-side and centers uploa
   assert.match(page, /video\/mp4,video\/quicktime/);
   assert.match(page, /<video controls playsInline/);
   assert.match(page, /15 \* 60/);
+  assert.match(page, /正在重試/);
+  assert.match(page, /安全儲存回應/);
   assert.match(page, /家族空間/);
+  assert.match(page, /寫下一段文字回憶/);
+  assert.match(page, /替長輩代傳時，填入長輩稱呼/);
+  assert.match(page, /保存文字回憶/);
+  assert.match(page, /建立膠囊/);
+  assert.match(page, /膠囊封面/);
+  assert.match(page, /拍攝日期/);
   assert.match(page, /我們的回憶，<br \/><em>一直都在。<\/em>/);
   assert.match(invites, /publicUrl, requireFamilyRole/);
   assert.match(invites, /new URL\(publicUrl\(request, "\/memory-capsule"\)\)/);
@@ -106,6 +123,17 @@ test("memory capsule Phase 2 keeps private R2 URLs server-side and centers uploa
   assert.match(styles, /\.memory-community-grid \{ display:grid/);
   assert.match(styles, /@media \(max-width:680px\) \{ \.memory-community/);
   assert.match(styles, /\.memory-section-heading \.memory-primary \{ width:100%; \}/);
+  assert.match(styles, /\.memory-editor-actions \{ display:flex; justify-content:center/);
+  assert.match(styles, /\.memory-text-memory/);
+  assert.match(capsules, /requireFamilyRole\(request, familyId, MANAGERS\)/);
+  assert.match(capsules, /verifiedCover/);
+  assert.match(comments, /eq\(memoryMedia\.familyId, familyId\)/);
+  assert.match(comments, /displayAs/);
+  assert.match(reactions, /onConflictDoNothing/);
+  assert.match(media, /media\.authorMemberId !== access\.membership\.id/);
+  assert.match(media, /deletedAt: new Date\(\)\.toISOString\(\)/);
+  assert.match(migration, /CREATE TABLE `memory_comments`/);
+  assert.match(migration, /CREATE TABLE `memory_reactions`/);
 });
 
 test("public activity response is summary-only", async () => {

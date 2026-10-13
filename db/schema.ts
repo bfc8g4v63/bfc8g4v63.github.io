@@ -276,6 +276,7 @@ export const memoryCapsules = sqliteTable("memory_capsules", {
   title: text("title").notNull(),
   introduction: text("introduction").notNull().default(""),
   eraLabel: text("era_label").notNull().default(""),
+  coverMediaId: text("cover_media_id"),
   sortOrder: integer("sort_order").notNull().default(0),
   isArchived: integer("is_archived", { mode: "boolean" }).notNull().default(false),
   createdByMemberId: text("created_by_member_id").notNull().references(() => memoryFamilyMembers.id, { onDelete: "restrict" }),
@@ -294,6 +295,7 @@ export const memoryMedia = sqliteTable("memory_media", {
   byteSize: integer("byte_size").notNull(),
   title: text("title").notNull().default(""),
   description: text("description").notNull().default(""),
+  capturedAt: text("captured_at"),
   uploadState: text("upload_state").notNull().default("pending"),
   uploadExpiresAt: text("upload_expires_at").notNull(),
   deletedAt: text("deleted_at"),
@@ -302,4 +304,37 @@ export const memoryMedia = sqliteTable("memory_media", {
   uniqueIndex("memory_media_object_key_unique").on(table.objectKey),
   index("memory_media_capsule_visible_created").on(table.capsuleId, table.deletedAt, table.createdAt),
   index("memory_media_family_visible_created").on(table.familyId, table.deletedAt, table.createdAt),
+]);
+
+// Comments and reactions remain family-scoped even when they point at a
+// capsule or an item of media. `displayAs` is optional and only represents
+// the elder a member is speaking for; authorMemberId always records who acted.
+export const memoryComments = sqliteTable("memory_comments", {
+  id: text("id").primaryKey(),
+  familyId: text("family_id").notNull().references(() => memoryFamilies.id, { onDelete: "cascade" }),
+  capsuleId: text("capsule_id").references(() => memoryCapsules.id, { onDelete: "cascade" }),
+  mediaId: text("media_id").references(() => memoryMedia.id, { onDelete: "cascade" }),
+  authorMemberId: text("author_member_id").notNull().references(() => memoryFamilyMembers.id, { onDelete: "restrict" }),
+  body: text("body").notNull(),
+  displayAs: text("display_as").notNull().default(""),
+  kind: text("kind").notNull().default("comment"),
+  deletedAt: text("deleted_at"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  index("memory_comments_family_visible_created").on(table.familyId, table.deletedAt, table.createdAt),
+  index("memory_comments_media_visible_created").on(table.mediaId, table.deletedAt, table.createdAt),
+  index("memory_comments_capsule_visible_created").on(table.capsuleId, table.deletedAt, table.createdAt),
+]);
+
+export const memoryReactions = sqliteTable("memory_reactions", {
+  id: text("id").primaryKey(),
+  familyId: text("family_id").notNull().references(() => memoryFamilies.id, { onDelete: "cascade" }),
+  memberId: text("member_id").notNull().references(() => memoryFamilyMembers.id, { onDelete: "cascade" }),
+  targetType: text("target_type").notNull(),
+  targetId: text("target_id").notNull(),
+  reaction: text("reaction").notNull().default("heart"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [
+  uniqueIndex("memory_reactions_member_target_unique").on(table.memberId, table.targetType, table.targetId, table.reaction),
+  index("memory_reactions_family_target").on(table.familyId, table.targetType, table.targetId),
 ]);
