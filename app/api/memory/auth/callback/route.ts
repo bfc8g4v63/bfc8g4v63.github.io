@@ -19,7 +19,15 @@ export async function GET(request: Request) {
     const identity = await exchangeLineCode(request, code, state.nonce);
     if (state.inviteCodeHash) await acceptMemoryInvite(identity, state.inviteCodeHash);
     return finish(request, state.returnTo, [await createSessionCookie(identity, request), clearMemoryCookie(MEMORY_STATE_COOKIE, request)]);
-  } catch {
+  } catch (error) {
+    // Keep the browser response deliberately generic, but retain a bounded
+    // server-side diagnostic. This is especially important when the public
+    // entry is served through an edge gateway: LINE's token exchange error
+    // must not be mistaken for a missing browser state cookie.
+    console.error("Memory capsule LINE callback failed", error instanceof Error ? {
+      name: error.name,
+      message: error.message,
+    } : { message: "Unknown callback error" });
     return finish(request, "/memory-capsule?login=failed", [clearMemoryCookie(MEMORY_STATE_COOKIE, request)]);
   }
 }
