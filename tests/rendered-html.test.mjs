@@ -66,9 +66,12 @@ test("memory capsule Phase 2 keeps private R2 URLs server-side and centers uploa
   assert.match(r2, /MEMORY_R2_SECRET_ACCESS_KEY/);
   assert.match(r2, /AWS4-HMAC-SHA256/);
   assert.match(page, /使用 LINE 進入/);
+  assert.match(page, /首次管理者啟用碼/);
+  assert.match(page, /x-memory-bootstrap-secret/);
   assert.match(families, /陳水金家族皇宴/);
   assert.match(page, /＋ 新增相片/);
   assert.match(styles, /\.memory-cta-wrap \{ display:flex; justify-content:center; align-items:center/);
+  assert.match(styles, /\.memory-activation \{ color:#365d57; text-align:left/);
   assert.match(styles, /\.memory-section-heading \.memory-primary \{ width:100%; \}/);
 });
 

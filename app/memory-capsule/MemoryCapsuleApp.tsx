@@ -26,8 +26,10 @@ export function MemoryCapsuleApp() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [bootstrapping, setBootstrapping] = useState(false);
   const [progress, setProgress] = useState("");
   const [selectedCapsuleId, setSelectedCapsuleId] = useState("");
+  const [activationCode, setActivationCode] = useState("");
   const fileInput = useRef<HTMLInputElement>(null);
 
   const activeCapsule = useMemo(() => dashboard?.capsules.find((capsule) => capsule.id === selectedCapsuleId) || dashboard?.capsules[0], [dashboard, selectedCapsuleId]);
@@ -57,6 +59,21 @@ export function MemoryCapsuleApp() {
 
   const login = () => { window.location.assign(`/api/memory/auth/start?returnTo=${encodeURIComponent("/memory-capsule")}`); };
   const logout = async () => { await fetch("/api/memory/auth/logout", { method: "POST" }); await refresh(); };
+  const activateFamily = async () => {
+    if (!activationCode.trim()) return;
+    setBootstrapping(true); setError("");
+    try {
+      await json("/api/memory/families/bootstrap", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-memory-bootstrap-secret": activationCode.trim() },
+        body: JSON.stringify({ displayName: "陳水金家族", slug: "chen-shui-jin-family" }),
+      });
+      setActivationCode("");
+      await refresh();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "無法啟用家族入口");
+    } finally { setBootstrapping(false); }
+  };
 
   const uploadPhotos = async (event: FormEvent<HTMLInputElement>) => {
     const files = Array.from(event.currentTarget.files || []);
@@ -89,7 +106,7 @@ export function MemoryCapsuleApp() {
     <p className="memory-kicker">水金呼吸・回憶膠囊</p><h1>把相聚，留給未來的家人。</h1><p>這是陳水金家族的私密回憶空間。使用 LINE 登入後，受邀家人可以看照片、上傳新回憶與留下想說的話。</p>
     {error && <p className="memory-error" role="alert">{error}</p>}<div className="memory-cta-wrap"><button className="memory-primary" onClick={login}>使用 LINE 進入</button></div><small>不需要新帳號或密碼；Face ID／Touch ID 仍由你的裝置與 LINE 負責。</small>
   </section></main>;
-  if (!dashboard) return <main className="memory-page"><section className="memory-empty"><Avatar name={session.profile?.displayName || "家人"} src={session.profile?.avatarUrl} /><p className="memory-kicker">已使用 LINE 登入</p><h1>等待家族邀請</h1><p>請從家族管理者提供的邀請連結重新開啟，完成加入後就能看到回憶膠囊。</p><div className="memory-cta-wrap"><button className="memory-secondary" onClick={logout}>切換 LINE 帳號</button></div></section></main>;
+  if (!dashboard) return <main className="memory-page"><section className="memory-empty"><Avatar name={session.profile?.displayName || "家人"} src={session.profile?.avatarUrl} /><p className="memory-kicker">已使用 LINE 登入</p><h1>啟用家族入口</h1><p>首位管理者請輸入一次性啟用碼；啟用後會自動建立「陳水金家族」與第一顆「陳水金家族皇宴」膠囊。</p>{error && <p className="memory-error" role="alert">{error}</p>}<label className="memory-activation"><span>首次管理者啟用碼</span><input value={activationCode} onChange={(event) => setActivationCode(event.target.value)} autoComplete="one-time-code" inputMode="numeric" placeholder="輸入一次性啟用碼" /></label><div className="memory-cta-wrap"><button className="memory-primary" disabled={!activationCode.trim() || bootstrapping} onClick={() => { void activateFamily(); }}>{bootstrapping ? "啟用中⋯" : "啟用陳水金家族"}</button></div><div className="memory-cta-wrap"><button className="memory-secondary" onClick={logout}>切換 LINE 帳號</button></div></section></main>;
 
   const visibleMedia = dashboard.media.filter((item) => item.capsuleId === activeCapsule?.id);
   return <main className="memory-page">
