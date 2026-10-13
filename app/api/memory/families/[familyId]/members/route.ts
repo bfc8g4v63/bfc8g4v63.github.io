@@ -3,7 +3,6 @@ import { getDb } from "../../../../../../db";
 import { memoryFamilyMembers } from "../../../../../../db/schema";
 import { clean } from "../../../../admin/auth";
 import { requireFamilyRole } from "../../../auth";
-import { memoryRole } from "../../../families";
 
 export async function GET(request: Request, context: { params: Promise<{ familyId: string }> }) {
   const { familyId } = await context.params;
@@ -30,7 +29,12 @@ export async function PATCH(request: Request, context: { params: Promise<{ famil
     if (!member) return Response.json({ error: "找不到此家族成員" }, { status: 404 });
     if (member.role === "owner") return Response.json({ error: "請先由另一位擁有者接手，才能停用或變更此帳號" }, { status: 400 });
     const patch: { role?: string; isActive?: boolean; updatedAt: string } = { updatedAt: new Date().toISOString() };
-    if (body.role !== undefined) patch.role = memoryRole(body.role);
+    // Owner is a bootstrap-only role. The owner can grant or remove shared
+    // administrator rights, but cannot create a second unrestricted owner.
+    if (body.role !== undefined) {
+      if (body.role !== "admin" && body.role !== "member") return Response.json({ error: "只能設定為共同管理者或一般家人" }, { status: 400 });
+      patch.role = body.role;
+    }
     if (typeof body.isActive === "boolean") patch.isActive = body.isActive;
     await getDb().update(memoryFamilyMembers).set(patch).where(eq(memoryFamilyMembers.id, memberId));
     return Response.json({ ok: true });

@@ -46,7 +46,7 @@ test("memory capsule Phase 1 keeps LINE identity, invitation and family scopes s
 });
 
 test("memory capsule Phase 2 keeps private R2 URLs server-side and centers upload CTAs responsively", async () => {
-  const [schema, families, upload, complete, r2, page, styles] = await Promise.all([
+  const [schema, families, upload, complete, r2, page, styles, invites, members] = await Promise.all([
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/memory/families.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/memory/families/[familyId]/uploads/route.ts", import.meta.url), "utf8"),
@@ -54,6 +54,8 @@ test("memory capsule Phase 2 keeps private R2 URLs server-side and centers uploa
     readFile(new URL("../app/api/memory/r2.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/memory-capsule/MemoryCapsuleApp.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/memory/families/[familyId]/invites/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/memory/families/[familyId]/members/route.ts", import.meta.url), "utf8"),
   ]);
   assert.match(schema, /export const memoryCapsules/);
   assert.match(schema, /export const memoryMedia/);
@@ -66,12 +68,19 @@ test("memory capsule Phase 2 keeps private R2 URLs server-side and centers uploa
   assert.match(r2, /MEMORY_R2_SECRET_ACCESS_KEY/);
   assert.match(r2, /AWS4-HMAC-SHA256/);
   assert.match(page, /使用 LINE 進入/);
-  assert.match(page, /首次管理者啟用碼/);
-  assert.match(page, /x-memory-bootstrap-secret/);
+  assert.match(page, /使用 LINE 接受邀請/);
+  assert.match(page, /建立邀請連結/);
+  assert.match(page, /複製邀請連結/);
+  assert.match(page, /memory-community/);
   assert.match(families, /陳水金家族皇宴/);
   assert.match(page, /＋ 新增相片/);
+  assert.match(invites, /new URL\("\/memory-capsule", request\.url\)/);
+  assert.match(invites, /body\.role === "admin" && access\.membership\.role === "owner"/);
+  assert.doesNotMatch(invites, /memoryRole\(body\.role\)/);
+  assert.match(members, /body\.role !== "admin" && body\.role !== "member"/);
   assert.match(styles, /\.memory-cta-wrap \{ display:flex; justify-content:center; align-items:center/);
-  assert.match(styles, /\.memory-activation \{ color:#365d57; text-align:left/);
+  assert.match(styles, /\.memory-community-grid \{ display:grid/);
+  assert.match(styles, /@media \(max-width:680px\) \{ \.memory-community/);
   assert.match(styles, /\.memory-section-heading \.memory-primary \{ width:100%; \}/);
 });
 

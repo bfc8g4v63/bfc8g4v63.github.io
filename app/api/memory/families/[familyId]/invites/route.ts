@@ -3,7 +3,6 @@ import { getDb } from "../../../../../../db";
 import { memoryFamilyInvites } from "../../../../../../db/schema";
 import { clean, hashCode } from "../../../../admin/auth";
 import { requireFamilyRole } from "../../../auth";
-import { memoryRole } from "../../../families";
 
 function validExpiry(value: unknown) {
   const parsed = typeof value === "string" ? Date.parse(value) : Number.NaN;
@@ -33,12 +32,15 @@ export async function POST(request: Request, context: { params: Promise<{ family
     const expiresAt = validExpiry(body.expiresAt);
     const maxUses = typeof body.maxUses === "number" && Number.isInteger(body.maxUses) && body.maxUses >= 1 && body.maxUses <= 100 ? body.maxUses : 1;
     if (!expiresAt) return Response.json({ error: "邀請有效期需介於 1 小時至 90 天" }, { status: 400 });
+    // An invite is never allowed to mint another owner. Only the current owner
+    // may create a shared administrator invitation; all other invitations add
+    // a normal family member.
+    const role = body.role === "admin" && access.membership.role === "owner" ? "admin" : "member";
     const code = crypto.randomUUID().replaceAll("-", "");
-    const invite = { id: crypto.randomUUID(), familyId, codeHash: await hashCode(code), role: memoryRole(body.role), maxUses, expiresAt, createdByMemberId: access.membership.id };
+    const invite = { id: crypto.randomUUID(), familyId, codeHash: await hashCode(code), role, maxUses, expiresAt, createdByMemberId: access.membership.id };
     await getDb().insert(memoryFamilyInvites).values(invite);
-    const url = new URL("/api/memory/auth/start", request.url);
+    const url = new URL("/memory-capsule", request.url);
     url.searchParams.set("invite", code);
-    url.searchParams.set("returnTo", "/memory-capsule");
     return Response.json({ invite: { ...invite, codeHash: undefined }, inviteUrl: url.toString() }, { status: 201, headers: { "cache-control": "no-store" } });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "無法建立邀請" }, { status: 400 });
