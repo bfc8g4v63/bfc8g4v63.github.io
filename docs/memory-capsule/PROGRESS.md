@@ -5,12 +5,12 @@
 ## 目前狀態
 
 - 目前階段：Phase 3 — 影片與容量
-- 本次版本：v1.2.122（待發布）
+- 本次版本：v1.2.122（已發布）
 - 上線狀態：首位總管理者已建立「陳水金家族」與第一顆膠囊；照片、影片、邀請與容量保護已發佈，待管理者以實機檔案完成上傳與播放驗收。
 
 ### 發布紀錄
 
-- Site version 159：`2da0e86474fa3e621907bf10fc15c122ec98e2ed`
+- Site version 170：`d102ad573e653aa5c6b169c2191da698c7cff384`
 - 正式網址：`https://good-days-family-events.x0925234139.chatgpt.site`
 - 免費入口遷移：Cloudflare Worker `gooddays.carewear.workers.dev` 會以固定上游安全轉送回憶膠囊，並保留既有資料、LINE 綁定、提醒與私有 R2 媒體。登入 callback 與 R2 CORS 需一併加入此公開入口後，再完成實機登入與上傳驗收；既有服務不會先刪除或重建。隔離目的 D1 `good-days-family` 保留給未來完整搬遷使用。
 
