@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.2.130 · 2026-10-14
+
+- Keep the Zhongli National Sports Center at the top of generic national-sports-center searches, return up to 10 fallback results, and raise the normal typing limit to 12 searches per minute.
+
 ## v1.2.129 · 2026-10-14
 
 - Rank results containing 中壢 ahead of nearby Taoyuan matches.

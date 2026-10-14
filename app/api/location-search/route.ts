@@ -25,9 +25,10 @@ const TAIWAN_LANDMARKS: Array<PlaceSuggestion & { matches: (query: string) => bo
   {
     name: "中壢國民運動中心",
     address: "桃園市中壢區三光路350號",
-    // Match each progressively typed prefix too: for example, 「中壢國民運」.
+    // Match each progressively typed prefix and a generic venue-name fragment.
     // Google Places handles the general case when GOOGLE_PLACES_API_KEY is configured.
     matches: (query) => "中壢國民運動中心".startsWith(query)
+      || "中壢國民運動中心".includes(query)
       || (query.includes("中壢") && query.includes("運動") && query.includes("中心")),
   },
   {
@@ -58,8 +59,21 @@ function queryKey(value: string) {
     .replace(/[\s－—-]/g, "");
 }
 
-function landmarkFor(query: string) {
-  return TAIWAN_LANDMARKS.find((landmark) => landmark.matches(queryKey(query)));
+function localSuggestions(query: string): PlaceSuggestion[] {
+  const normalized = queryKey(query);
+  return TAIWAN_LANDMARKS
+    .filter((landmark) => landmark.matches(normalized))
+    .map((landmark) => ({ name: landmark.name, address: landmark.address, provider: "local" as const }));
+}
+
+function combineSuggestions(preferred: PlaceSuggestion[], suggestions: PlaceSuggestion[]) {
+  const seen = new Set<string>();
+  return [...preferred, ...suggestions].filter((place) => {
+    const key = `${queryKey(place.name)}|${queryKey(place.address)}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function googlePlacesApiKey() {
@@ -129,7 +143,7 @@ async function nominatimSuggestions(query: string) {
   await waitForNominatimSlot();
   const lookup = /^\d{1,4}$/.test(query) ? `中壢 ${query}, 桃園, 台灣` : `${query}, 台灣`;
   const params = new URLSearchParams({
-    q: lookup, format: "jsonv2", addressdetails: "1", namedetails: "1", countrycodes: "tw", viewbox: ZHONGLI_VIEWBOX, bounded: "0", limit: "5", "accept-language": "zh-TW",
+    q: lookup, format: "jsonv2", addressdetails: "1", namedetails: "1", countrycodes: "tw", viewbox: ZHONGLI_VIEWBOX, bounded: "0", limit: "10", "accept-language": "zh-TW",
   });
   const response = await fetch(`${NOMINATIM_SEARCH_URL}?${params}`, {
     headers: {
@@ -158,7 +172,7 @@ function placeSuggestion(item: unknown): PlaceSuggestion | null {
 
 export async function POST(request: Request) {
   try {
-    const limit = await rateLimit(request, "location-search", 6, 60 * 1000);
+    const limit = await rateLimit(request, "location-search", 12, 60 * 1000);
     if (!limit.allowed) return json(request, { error: `地點搜尋過於頻繁，請 ${limit.retryAfterSeconds} 秒後再試` }, 429);
     const body = await request.json() as Record<string, unknown>;
     const query = cleanQuery(body.query);
@@ -170,21 +184,21 @@ export async function POST(request: Request) {
 
     // Two-character searches still use the free/local fallbacks. Requiring three
     // characters before a paid provider lookup prevents broad, low-intent calls.
+    const localResults = localSuggestions(query);
+    // Completing the official local venue name never needs a provider request.
+    if ("中壢國民運動中心".startsWith(cacheKey)) {
+      cache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, results: localResults });
+      return json(request, { results: localResults, preferred: true });
+    }
+
     const googleKey = googlePlacesApiKey();
     if (googleKey && query.length >= 3) {
       try {
         const results = await googleSuggestions(query, googleKey, token);
-        if (results.length) return json(request, { results, provider: "google" });
+        if (results.length) return json(request, { results: combineSuggestions(localResults, results), provider: "google" });
       } catch {
         // Keep venue creation usable while Google is unavailable or misconfigured.
       }
-    }
-
-    const landmark = landmarkFor(query);
-    if (landmark) {
-      const results = [{ name: landmark.name, address: landmark.address, provider: "local" as const }];
-      cache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, results });
-      return json(request, { results, preferred: true });
     }
 
     let results: PlaceSuggestion[] = [];
@@ -192,6 +206,7 @@ export async function POST(request: Request) {
       results = await nominatimSuggestions(lookup);
       if (results.length) break;
     }
+    results = combineSuggestions(localResults, results);
     cache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, results });
     if (cache.size > 100) cache.delete(cache.keys().next().value as string);
     return json(request, { results });
