@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.2.134 · 2026-10-14
+
+- 「水金呼吸・回憶膠囊」加入內容回報、管理者隱藏／恢復與最小必要操作紀錄；被隱藏內容不會再出現在一般家人的回憶牆。
+
 ## v1.2.133 · 2026-10-14
 
 - Add durable per-IP daily safeguards for paid Google Places requests: up to 240 autocomplete lookups and 60 address-detail lookups each day. Cached and official National Sports Center results remain unrestricted.

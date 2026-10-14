@@ -27,6 +27,25 @@ test("memory capsule is shared through the GitHub Pages entry without exposing t
   assert.match(readme, /https:\/\/bfc8g4v63\.github\.io\/memory-capsule\//);
 });
 
+test("memory capsule moderation keeps reports family-scoped and hides only after manager action", async () => {
+  const [schema, reports, dashboard, page, styles] = await Promise.all([
+    readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/memory/families/[familyId]/reports/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/memory/families/[familyId]/dashboard/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/memory-capsule/MemoryCapsuleApp.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(schema, /export const memoryReports/);
+  assert.match(schema, /export const memoryAuditLogs/);
+  assert.match(reports, /requireFamilyRole\(request, familyId, \["owner", "admin"\]\)/);
+  assert.match(reports, /report_created/);
+  assert.match(reports, /hiddenAt/);
+  assert.match(dashboard, /isNull\(memoryMedia\.hiddenAt\)/);
+  assert.match(dashboard, /isNull\(memoryComments\.hiddenAt\)/);
+  assert.match(page, /內容回報/);
+  assert.match(styles, /\.memory-reports/);
+});
+
 test("free Cloudflare entry keeps the upstream fixed and never becomes an open proxy", async () => {
   const proxy = await readFile(new URL("../cloudflare/gooddays-proxy-worker.mjs", import.meta.url), "utf8");
   assert.match(proxy, /const UPSTREAM_ORIGIN = "https:\/\/good-days-family-events\.x0925234139\.chatgpt\.site"/);

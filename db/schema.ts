@@ -298,6 +298,7 @@ export const memoryMedia = sqliteTable("memory_media", {
   capturedAt: text("captured_at"),
   uploadState: text("upload_state").notNull().default("pending"),
   uploadExpiresAt: text("upload_expires_at").notNull(),
+  hiddenAt: text("hidden_at"),
   deletedAt: text("deleted_at"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [
@@ -318,6 +319,7 @@ export const memoryComments = sqliteTable("memory_comments", {
   body: text("body").notNull(),
   displayAs: text("display_as").notNull().default(""),
   kind: text("kind").notNull().default("comment"),
+  hiddenAt: text("hidden_at"),
   deletedAt: text("deleted_at"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [
@@ -338,3 +340,29 @@ export const memoryReactions = sqliteTable("memory_reactions", {
   uniqueIndex("memory_reactions_member_target_unique").on(table.memberId, table.targetType, table.targetId, table.reaction),
   index("memory_reactions_family_target").on(table.familyId, table.targetType, table.targetId),
 ]);
+
+export const memoryReports = sqliteTable("memory_reports", {
+  id: text("id").primaryKey(),
+  familyId: text("family_id").notNull().references(() => memoryFamilies.id, { onDelete: "cascade" }),
+  reporterMemberId: text("reporter_member_id").notNull().references(() => memoryFamilyMembers.id, { onDelete: "restrict" }),
+  targetType: text("target_type").notNull(),
+  targetId: text("target_id").notNull(),
+  reason: text("reason").notNull(),
+  status: text("status").notNull().default("open"),
+  resolvedByMemberId: text("resolved_by_member_id").references(() => memoryFamilyMembers.id, { onDelete: "restrict" }),
+  resolvedAt: text("resolved_at"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [index("memory_reports_family_status_created").on(table.familyId, table.status, table.createdAt)]);
+
+// This stores actor, action and opaque target identifiers only. Content is
+// deliberately not copied into the audit log.
+export const memoryAuditLogs = sqliteTable("memory_audit_logs", {
+  id: text("id").primaryKey(),
+  familyId: text("family_id").notNull().references(() => memoryFamilies.id, { onDelete: "cascade" }),
+  actorMemberId: text("actor_member_id").references(() => memoryFamilyMembers.id, { onDelete: "restrict" }),
+  action: text("action").notNull(),
+  targetType: text("target_type").notNull(),
+  targetId: text("target_id").notNull(),
+  metadata: text("metadata").notNull().default("{}"),
+  createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+}, (table) => [index("memory_audit_logs_family_created").on(table.familyId, table.createdAt)]);

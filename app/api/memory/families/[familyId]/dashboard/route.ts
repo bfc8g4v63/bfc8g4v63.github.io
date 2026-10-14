@@ -21,7 +21,7 @@ export async function GET(request: Request, context: { params: Promise<{ familyI
       description: memoryMedia.description, capturedAt: memoryMedia.capturedAt, createdAt: memoryMedia.createdAt, objectKey: memoryMedia.objectKey,
       authorName: memoryFamilyMembers.displayName, authorAvatar: memoryFamilyMembers.avatarUrl,
     }).from(memoryMedia).innerJoin(memoryFamilyMembers, eq(memoryMedia.authorMemberId, memoryFamilyMembers.id))
-      .where(and(eq(memoryMedia.familyId, familyId), eq(memoryMedia.uploadState, "complete"), isNull(memoryMedia.deletedAt)))
+      .where(and(eq(memoryMedia.familyId, familyId), eq(memoryMedia.uploadState, "complete"), isNull(memoryMedia.hiddenAt), isNull(memoryMedia.deletedAt)))
       .orderBy(desc(memoryMedia.createdAt)).limit(36);
     const [commentRows, reactionRows] = await Promise.all([
       db.select({
@@ -29,7 +29,7 @@ export async function GET(request: Request, context: { params: Promise<{ familyI
         displayAs: memoryComments.displayAs, kind: memoryComments.kind, createdAt: memoryComments.createdAt, authorMemberId: memoryComments.authorMemberId,
         authorName: memoryFamilyMembers.displayName, authorAvatar: memoryFamilyMembers.avatarUrl,
       }).from(memoryComments).innerJoin(memoryFamilyMembers, eq(memoryComments.authorMemberId, memoryFamilyMembers.id)).where(and(
-        eq(memoryComments.familyId, familyId), isNull(memoryComments.deletedAt),
+        eq(memoryComments.familyId, familyId), isNull(memoryComments.hiddenAt), isNull(memoryComments.deletedAt),
       )).orderBy(desc(memoryComments.createdAt)).limit(120),
       db.select({ targetId: memoryReactions.targetId, memberId: memoryReactions.memberId }).from(memoryReactions).where(and(
         eq(memoryReactions.familyId, familyId), eq(memoryReactions.targetType, "media"), eq(memoryReactions.reaction, "heart"),
