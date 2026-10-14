@@ -5,6 +5,9 @@ import { env } from "cloudflare:workers";
 
 const NOMINATIM_SEARCH_URL = "https://nominatim.openstreetmap.org/search";
 const GOOGLE_AUTOCOMPLETE_URL = "https://places.googleapis.com/v1/places:autocomplete";
+// A fixed local search preference, not a browser-location reading or stored user data.
+const ZHONGLI_LOCATION_BIAS = { circle: { center: { latitude: 24.9537, longitude: 121.2258 }, radius: 25_000 } };
+const ZHONGLI_VIEWBOX = "121.14,25.08,121.31,24.85";
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const MIN_NOMINATIM_INTERVAL_MS = 1_100;
 const cache = new Map<string, { expiresAt: number; results: PlaceSuggestion[] }>();
@@ -81,6 +84,7 @@ async function googleSuggestions(query: string, key: string, token?: string): Pr
       includedRegionCodes: ["tw"],
       languageCode: "zh-TW",
       regionCode: "TW",
+      locationBias: ZHONGLI_LOCATION_BIAS,
       includeQueryPredictions: false,
       ...(token ? { sessionToken: token } : {}),
     }),
@@ -114,9 +118,9 @@ function waitForNominatimSlot() {
 
 async function nominatimSuggestions(query: string) {
   await waitForNominatimSlot();
-  const lookup = /^\d{1,4}$/.test(query) ? `台北 ${query}, 台灣` : `${query}, 台灣`;
+  const lookup = /^\d{1,4}$/.test(query) ? `中壢 ${query}, 桃園, 台灣` : `${query}, 台灣`;
   const params = new URLSearchParams({
-    q: lookup, format: "jsonv2", addressdetails: "1", namedetails: "1", countrycodes: "tw", limit: "5", "accept-language": "zh-TW",
+    q: lookup, format: "jsonv2", addressdetails: "1", namedetails: "1", countrycodes: "tw", viewbox: ZHONGLI_VIEWBOX, bounded: "0", limit: "5", "accept-language": "zh-TW",
   });
   const response = await fetch(`${NOMINATIM_SEARCH_URL}?${params}`, {
     headers: {

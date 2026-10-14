@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.2.128 · 2026-10-14
+
+- Prefer Zhongli, Taoyuan results for general venue and address searches without collecting browser location data.
+
 ## v1.2.127 · 2026-10-14
 
 - Fix landmark suggestions while the official venue name is still being typed, including 「中壢國民運」.
