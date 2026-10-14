@@ -4,6 +4,7 @@
 
 - After requested code or content changes pass their relevant checks, commit, push, and deploy them. Do not deploy only when the user explicitly requests local-only work or no deployment.
 - Preserve existing 好日子 x 相聚 data, LINE bindings, reminders, and access controls unless a change explicitly requires otherwise.
+- Public-facing links must use `https://bfc8g4v63.github.io/`. Never present, share, or treat any `*.chatgpt.site` deployment address as a user-facing URL; do not change hosting or domain configuration without explicit user direction.
 
 ## Visual quality
 
