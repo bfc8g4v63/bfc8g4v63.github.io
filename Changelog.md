@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.2.126 · 2026-10-14
+
+- Add server-side Google Places Autocomplete with session-based Place Details lookup and OpenStreetMap fallback for Taiwan venue and address search.
+- Support the abbreviated query 「中壢 運動中心」 in the no-key local fallback, while retaining the two-character free-search threshold.
+- Document secure Google key setup, API restrictions, rate limits, daily quotas, and budget alerts.
+
 ## v1.2.125 · 2026-10-14
 
 - 新增地點建議自 2 個字開始查詢；任意台灣地址會自動整理縣市、行政區、道路、段巷弄與門牌的分隔，並以多種通用格式依序查詢，不再只為個別場館補規則。

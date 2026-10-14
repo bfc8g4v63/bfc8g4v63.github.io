@@ -496,6 +496,7 @@ function openEventForm(event, managerAuth = null, returnTo = null) {
   let locationSearchTimer = null;
   let locationSearchSequence = 0;
   let activeLocationSuggestion = -1;
+  let locationSearchSessionToken = globalThis.crypto?.randomUUID?.().replaceAll("-", "") || "";
   const clearLocationSuggestions = () => {
     clearTimeout(locationSearchTimer);
     locationSearchSequence += 1;
@@ -506,13 +507,23 @@ function openEventForm(event, managerAuth = null, returnTo = null) {
     locationSuggestions.hidden = true;
     locationSuggestions.innerHTML = "";
   };
-  const selectLocationSuggestion = (index) => {
+  const selectLocationSuggestion = async (index) => {
     const place = locationResults[index];
     if (!place) return;
     locationInput.value = place.name;
     addressInput.value = place.address;
     clearLocationSuggestions();
     addressInput.focus();
+    if (place.provider !== "google" || !place.placeId) return;
+    try {
+      const detail = await requestJson("/location-search/details", { placeId: place.placeId, sessionToken: locationSearchSessionToken });
+      locationInput.value = detail.name || place.name;
+      addressInput.value = detail.address || place.address;
+    } catch {
+      // The prediction remains usable even when the optional detail lookup fails.
+    } finally {
+      locationSearchSessionToken = globalThis.crypto?.randomUUID?.().replaceAll("-", "") || "";
+    }
   };
   const setActiveLocationSuggestion = (index) => {
     const buttons = [...locationSuggestions.querySelectorAll("[data-location-suggestion]")];
@@ -533,14 +544,17 @@ function openEventForm(event, managerAuth = null, returnTo = null) {
     locationSuggestions.hidden = false;
     locationInput.setAttribute("aria-expanded", "true");
     try {
-      const data = await requestJson("/location-search", { query });
+      const data = await requestJson("/location-search", { query, sessionToken: locationSearchSessionToken });
       if (searchSequence !== locationSearchSequence || query !== locationInput.value.trim()) return;
       locationResults = data.results || [];
       if (!locationResults.length) {
         locationSuggestions.innerHTML = '<p class="form-hint">找不到相符地點，請自行填寫地址。</p>';
         return;
       }
-      locationSuggestions.innerHTML = `${locationResults.map((place, index) => `<button class="location-suggestion" id="location-suggestion-${index}" type="button" role="option" aria-selected="false" data-location-suggestion="${index}"><strong>${esc(place.name)}</strong><small>${esc(place.address)}</small></button>`).join("")}<small class="location-attribution">地址建議資料 © OpenStreetMap contributors</small>`;
+      const attribution = locationResults.some((place) => place.provider === "google")
+        ? "地址建議資料 © Google / OpenStreetMap contributors"
+        : "地址建議資料 © OpenStreetMap contributors";
+      locationSuggestions.innerHTML = `${locationResults.map((place, index) => `<button class="location-suggestion" id="location-suggestion-${index}" type="button" role="option" aria-selected="false" data-location-suggestion="${index}"><strong>${esc(place.name)}</strong><small>${esc(place.address)}</small></button>`).join("")}<small class="location-attribution">${attribution}</small>`;
       locationSuggestions.querySelectorAll("[data-location-suggestion]").forEach((button) => button.addEventListener("click", () => selectLocationSuggestion(Number(button.dataset.locationSuggestion))));
     } catch (error) {
       if (searchSequence !== locationSearchSequence) return;

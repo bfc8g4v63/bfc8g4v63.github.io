@@ -1,21 +1,30 @@
 import { json, preflight } from "../cors";
 import { rateLimit } from "../rate-limit";
 import { locationSearchQueries } from "../../../lib/location-search";
+import { env } from "cloudflare:workers";
 
 const NOMINATIM_SEARCH_URL = "https://nominatim.openstreetmap.org/search";
+const GOOGLE_AUTOCOMPLETE_URL = "https://places.googleapis.com/v1/places:autocomplete";
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const MIN_NOMINATIM_INTERVAL_MS = 1_100;
 const cache = new Map<string, { expiresAt: number; results: PlaceSuggestion[] }>();
 let nextNominatimRequestAt = 0;
 let nominatimRequestQueue = Promise.resolve();
 
-type PlaceSuggestion = { name: string; address: string };
+export type PlaceSuggestion = {
+  name: string;
+  address: string;
+  provider: "google" | "osm" | "local";
+  placeId?: string;
+};
 
 const TAIWAN_LANDMARKS: Array<PlaceSuggestion & { matches: (query: string) => boolean }> = [
   {
     name: "中壢國民運動中心",
     address: "桃園市中壢區三光路350號",
-    matches: (query) => query.includes("中壢") && query.includes("國民運動"),
+    // A useful no-key fallback for the common abbreviated name. Google Places
+    // handles the general case when GOOGLE_PLACES_API_KEY is configured.
+    matches: (query) => query.includes("中壢") && query.includes("運動") && query.includes("中心"),
   },
   {
     name: "遠東 SOGO 中壢店",
@@ -47,6 +56,49 @@ function queryKey(value: string) {
 
 function landmarkFor(query: string) {
   return TAIWAN_LANDMARKS.find((landmark) => landmark.matches(queryKey(query)));
+}
+
+function googlePlacesApiKey() {
+  const key = (env as unknown as { GOOGLE_PLACES_API_KEY?: string }).GOOGLE_PLACES_API_KEY;
+  return typeof key === "string" && key.trim() ? key.trim() : null;
+}
+
+function sessionToken(value: unknown) {
+  return typeof value === "string" && /^[A-Za-z0-9_-]{8,128}$/.test(value) ? value : undefined;
+}
+
+async function googleSuggestions(query: string, key: string, token?: string): Promise<PlaceSuggestion[]> {
+  const response = await fetch(GOOGLE_AUTOCOMPLETE_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Goog-Api-Key": key,
+      "X-Goog-FieldMask": "suggestions.placePrediction.place,suggestions.placePrediction.text.text,suggestions.placePrediction.structuredFormat.mainText.text,suggestions.placePrediction.structuredFormat.secondaryText.text",
+    },
+    body: JSON.stringify({
+      input: query,
+      includedRegionCodes: ["tw"],
+      languageCode: "zh-TW",
+      regionCode: "TW",
+      includeQueryPredictions: false,
+      ...(token ? { sessionToken: token } : {}),
+    }),
+  });
+  if (!response.ok) throw new Error("Google Places autocomplete failed");
+  const payload = await response.json() as { suggestions?: unknown[] };
+  return (payload.suggestions || []).map(googlePlaceSuggestion).filter((item): item is PlaceSuggestion => Boolean(item));
+}
+
+function googlePlaceSuggestion(item: unknown): PlaceSuggestion | null {
+  if (!item || typeof item !== "object") return null;
+  const prediction = (item as { placePrediction?: unknown }).placePrediction;
+  if (!prediction || typeof prediction !== "object") return null;
+  const row = prediction as { place?: unknown; text?: { text?: unknown }; structuredFormat?: { mainText?: { text?: unknown }; secondaryText?: { text?: unknown } } };
+  const placeId = typeof row.place === "string" && /^places\/[A-Za-z0-9_-]+$/.test(row.place) ? row.place : "";
+  const fallback = typeof row.text?.text === "string" ? row.text.text.trim() : "";
+  const name = typeof row.structuredFormat?.mainText?.text === "string" ? row.structuredFormat.mainText.text.trim() : fallback;
+  const address = typeof row.structuredFormat?.secondaryText?.text === "string" ? row.structuredFormat.secondaryText.text.trim() : fallback;
+  return placeId && name ? { name: name.slice(0, 160), address: address.slice(0, 200), provider: "google", placeId } : null;
 }
 
 function waitForNominatimSlot() {
@@ -87,7 +139,7 @@ function placeSuggestion(item: unknown): PlaceSuggestion | null {
     : typeof namedetails.name === "string" ? namedetails.name
       : typeof row.name === "string" ? row.name
         : displayName.split(",")[0];
-  return { name: name.trim().slice(0, 160), address: displayName.slice(0, 200) };
+  return { name: name.trim().slice(0, 160), address: displayName.slice(0, 200), provider: "osm" };
 }
 
 export async function POST(request: Request) {
@@ -96,14 +148,27 @@ export async function POST(request: Request) {
     if (!limit.allowed) return json(request, { error: `地點搜尋過於頻繁，請 ${limit.retryAfterSeconds} 秒後再試` }, 429);
     const body = await request.json() as Record<string, unknown>;
     const query = cleanQuery(body.query);
+    const token = sessionToken(body.sessionToken);
     if (query.length < 2) return json(request, { error: "請輸入至少兩個字再搜尋地點" }, 400);
     const cacheKey = queryKey(query);
     const cached = cache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) return json(request, { results: cached.results, cached: true });
 
+    // Two-character searches still use the free/local fallbacks. Requiring three
+    // characters before a paid provider lookup prevents broad, low-intent calls.
+    const googleKey = googlePlacesApiKey();
+    if (googleKey && query.length >= 3) {
+      try {
+        const results = await googleSuggestions(query, googleKey, token);
+        if (results.length) return json(request, { results, provider: "google" });
+      } catch {
+        // Keep venue creation usable while Google is unavailable or misconfigured.
+      }
+    }
+
     const landmark = landmarkFor(query);
     if (landmark) {
-      const results = [{ name: landmark.name, address: landmark.address }];
+      const results = [{ name: landmark.name, address: landmark.address, provider: "local" as const }];
       cache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, results });
       return json(request, { results, preferred: true });
     }
