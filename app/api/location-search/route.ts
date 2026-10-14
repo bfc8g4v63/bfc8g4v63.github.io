@@ -91,7 +91,7 @@ async function googleSuggestions(query: string, key: string, token?: string): Pr
   });
   if (!response.ok) throw new Error("Google Places autocomplete failed");
   const payload = await response.json() as { suggestions?: unknown[] };
-  return (payload.suggestions || []).map(googlePlaceSuggestion).filter((item): item is PlaceSuggestion => Boolean(item));
+  return prioritizeZhongli((payload.suggestions || []).map(googlePlaceSuggestion).filter((item): item is PlaceSuggestion => Boolean(item)));
 }
 
 function googlePlaceSuggestion(item: unknown): PlaceSuggestion | null {
@@ -104,6 +104,15 @@ function googlePlaceSuggestion(item: unknown): PlaceSuggestion | null {
   const name = typeof row.structuredFormat?.mainText?.text === "string" ? row.structuredFormat.mainText.text.trim() : fallback;
   const address = typeof row.structuredFormat?.secondaryText?.text === "string" ? row.structuredFormat.secondaryText.text.trim() : fallback;
   return placeId && name ? { name: name.slice(0, 160), address: address.slice(0, 200), provider: "google", placeId } : null;
+}
+
+function prioritizeZhongli(results: PlaceSuggestion[]) {
+  const score = (place: PlaceSuggestion) => {
+    const text = `${place.name} ${place.address}`.toLocaleLowerCase("zh-TW");
+    if (text.includes("中壢") || text.includes("zhongli")) return 2;
+    return text.includes("桃園") || text.includes("taoyuan") ? 1 : 0;
+  };
+  return [...results].sort((left, right) => score(right) - score(left));
 }
 
 function waitForNominatimSlot() {
@@ -131,7 +140,7 @@ async function nominatimSuggestions(query: string) {
   });
   if (!response.ok) throw new Error("Nominatim search failed");
   const payload = await response.json();
-  return Array.isArray(payload) ? payload.map(placeSuggestion).filter((item): item is PlaceSuggestion => Boolean(item)) : [];
+  return Array.isArray(payload) ? prioritizeZhongli(payload.map(placeSuggestion).filter((item): item is PlaceSuggestion => Boolean(item))) : [];
 }
 
 function placeSuggestion(item: unknown): PlaceSuggestion | null {

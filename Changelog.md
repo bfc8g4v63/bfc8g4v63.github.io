@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.2.129 · 2026-10-14
+
+- Rank results containing 中壢 ahead of nearby Taoyuan matches.
+
 ## v1.2.128 · 2026-10-14
 
 - Prefer Zhongli, Taoyuan results for general venue and address searches without collecting browser location data.

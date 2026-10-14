@@ -186,6 +186,8 @@ test("venue suggestions search after a typing pause and fill a chosen Taiwan add
   assert.match(route, /locationBias: ZHONGLI_LOCATION_BIAS/);
   assert.match(route, /viewbox: ZHONGLI_VIEWBOX/);
   assert.match(route, /中壢 \$\{query\}, 桃園, 台灣/);
+  assert.match(route, /function prioritizeZhongli/);
+  assert.match(route, /text\.includes\("中壢"\)/);
   assert.match(route, /query\.length >= 3/);
   assert.match(detailsRoute, /GOOGLE_PLACES_API_KEY/);
   assert.match(detailsRoute, /X-Goog-FieldMask": "displayName,formattedAddress"/);
@@ -682,7 +684,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.128/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.129/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -711,9 +713,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.128/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.128/);
-  assert.match(worker, /good-days-github-v128/);
+  assert.match(page, /\/app\.js\?v=1\.2\.129/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.129/);
+  assert.match(worker, /good-days-github-v129/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
