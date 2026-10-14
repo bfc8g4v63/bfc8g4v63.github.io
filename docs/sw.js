@@ -1,7 +1,7 @@
-const CACHE = "good-days-github-v124";
+const CACHE = "good-days-github-v125";
 self.addEventListener("install", (event) => event.waitUntil(
   caches.open(CACHE)
-    .then((cache) => cache.addAll(["/", "/styles.css?v=1.2.124", "/app.js?v=1.2.124", "/e/app.js?v=1.2.124"]))
+    .then((cache) => cache.addAll(["/", "/styles.css?v=1.2.125", "/app.js?v=1.2.125", "/e/app.js?v=1.2.125"]))
     .then(() => self.skipWaiting())
 ));
 self.addEventListener("activate", (event) => event.waitUntil(

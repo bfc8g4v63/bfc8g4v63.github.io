@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { normalizeLineCommand } from "../app/api/line/commands.ts";
+import { locationSearchQueries } from "../lib/location-search.ts";
 import { arrangementNameKey } from "../lib/arrangement.ts";
 
 test("legacy host renders the GitHub Pages handoff", async () => {
@@ -170,10 +171,11 @@ test("contact phone accepts Taiwan numbers and international E.164 while rejecti
 });
 
 test("venue suggestions search after a typing pause and fill a chosen Taiwan address", async () => {
-  const [route, client, styles] = await Promise.all([
+  const [route, client, styles, locationSearch] = await Promise.all([
     readFile(new URL("../app/api/location-search/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../docs/app.js", import.meta.url), "utf8"),
     readFile(new URL("../docs/styles.css", import.meta.url), "utf8"),
+    readFile(new URL("../lib/location-search.ts", import.meta.url), "utf8"),
   ]);
   assert.match(route, /NOMINATIM_SEARCH_URL/);
   assert.match(route, /rateLimit\(request, "location-search", 6, 60 \* 1000\)/);
@@ -187,8 +189,9 @@ test("venue suggestions search after a typing pause and fill a chosen Taiwan add
   assert.match(route, /桃園市中壢區元化路357號/);
   assert.match(route, /query\.includes\("中壢"\) && query\.includes\("sogo"\)/);
   assert.match(route, /replaceAll\("臺", "台"\)/);
-  assert.match(route, /replace\(\/\(\?:國民\)\?運動\$\//);
-  assert.match(route, /台北市\|新北市\|桃園市/);
+  assert.match(locationSearch, /separateTaiwanAddress/);
+  assert.match(route, /locationSearchQueries/);
+  assert.match(route, /MIN_NOMINATIM_INTERVAL_MS = 1_100/);
   assert.doesNotMatch(client, /id="location-search"/);
   assert.match(client, /輸入至少 2 個字/);
   assert.match(client, /query\.length < 2/);
@@ -202,6 +205,20 @@ test("venue suggestions search after a typing pause and fill a chosen Taiwan add
   assert.match(client, /OpenStreetMap contributors/);
   assert.match(styles, /\.location-lookup-hint \{ color:var\(--ink-soft\); font-size:14px; font-weight:700; \}/);
   assert.match(styles, /\.location-suggestion\.is-active/);
+});
+
+test("location search uses general Taiwan address variants instead of venue-specific rewrites", () => {
+  assert.deepEqual(locationSearchQueries("桃園市中壢區三光路350號"), [
+    "桃園市 中壢區 三光路 350號",
+    "中壢區 三光路 350號",
+    "桃園市中壢區三光路350號",
+  ]);
+  assert.deepEqual(locationSearchQueries("臺北市 信義區 市府路45號"), [
+    "臺北市 信義區 市府路 45號",
+    "信義區 市府路 45號",
+    "臺北市 信義區 市府路45號",
+  ]);
+  assert.deepEqual(locationSearchQueries("　台北101　"), ["台北101"]);
 });
 
 test("venues, addresses, map navigation and weekdays stay consistent across surfaces", async () => {
@@ -649,7 +666,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.124/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.125/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -678,9 +695,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.124/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.124/);
-  assert.match(worker, /good-days-github-v124/);
+  assert.match(page, /\/app\.js\?v=1\.2\.125/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.125/);
+  assert.match(worker, /good-days-github-v125/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 

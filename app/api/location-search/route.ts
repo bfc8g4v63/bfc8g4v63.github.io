@@ -1,9 +1,13 @@
 import { json, preflight } from "../cors";
 import { rateLimit } from "../rate-limit";
+import { locationSearchQueries } from "../../../lib/location-search";
 
 const NOMINATIM_SEARCH_URL = "https://nominatim.openstreetmap.org/search";
 const CACHE_TTL_MS = 5 * 60 * 1000;
+const MIN_NOMINATIM_INTERVAL_MS = 1_100;
 const cache = new Map<string, { expiresAt: number; results: PlaceSuggestion[] }>();
+let nextNominatimRequestAt = 0;
+let nominatimRequestQueue = Promise.resolve();
 
 type PlaceSuggestion = { name: string; address: string };
 
@@ -30,7 +34,7 @@ export function OPTIONS(request: Request) {
 }
 
 function cleanQuery(value: unknown) {
-  return typeof value === "string" ? value.replace(/\s+/g, " ").trim().slice(0, 100) : "";
+  return typeof value === "string" ? value.normalize("NFKC").replace(/\s+/g, " ").trim().slice(0, 100) : "";
 }
 
 function queryKey(value: string) {
@@ -45,10 +49,32 @@ function landmarkFor(query: string) {
   return TAIWAN_LANDMARKS.find((landmark) => landmark.matches(queryKey(query)));
 }
 
-function lookupQuery(query: string) {
-  const normalized = query.replaceAll("臺", "台").replaceAll("巿", "市");
-  const expanded = normalized.replace(/(?:國民)?運動$/, (suffix) => `${suffix}中心`);
-  return expanded.replace(/^(?:台北市|新北市|桃園市|台中市|台南市|高雄市)/, "");
+function waitForNominatimSlot() {
+  const slot = nominatimRequestQueue.then(async () => {
+    const waitMs = Math.max(0, nextNominatimRequestAt - Date.now());
+    if (waitMs) await new Promise((resolve) => setTimeout(resolve, waitMs));
+    nextNominatimRequestAt = Date.now() + MIN_NOMINATIM_INTERVAL_MS;
+  });
+  nominatimRequestQueue = slot.catch(() => undefined);
+  return slot;
+}
+
+async function nominatimSuggestions(query: string) {
+  await waitForNominatimSlot();
+  const lookup = /^\d{1,4}$/.test(query) ? `台北 ${query}, 台灣` : `${query}, 台灣`;
+  const params = new URLSearchParams({
+    q: lookup, format: "jsonv2", addressdetails: "1", namedetails: "1", countrycodes: "tw", limit: "5", "accept-language": "zh-TW",
+  });
+  const response = await fetch(`${NOMINATIM_SEARCH_URL}?${params}`, {
+    headers: {
+      Accept: "application/json",
+      "Accept-Language": "zh-TW,zh;q=0.9",
+      "User-Agent": "GoodDaysFamilyEvents/1.2 (https://bfc8g4v63.github.io/)",
+    },
+  });
+  if (!response.ok) throw new Error("Nominatim search failed");
+  const payload = await response.json();
+  return Array.isArray(payload) ? payload.map(placeSuggestion).filter((item): item is PlaceSuggestion => Boolean(item)) : [];
 }
 
 function placeSuggestion(item: unknown): PlaceSuggestion | null {
@@ -82,21 +108,11 @@ export async function POST(request: Request) {
       return json(request, { results, preferred: true });
     }
 
-    const normalizedQuery = lookupQuery(query);
-    const lookup = /^\d{1,4}$/.test(normalizedQuery) ? `台北 ${normalizedQuery}, 台灣` : `${normalizedQuery}, 台灣`;
-    const params = new URLSearchParams({
-      q: lookup, format: "jsonv2", addressdetails: "1", namedetails: "1", countrycodes: "tw", limit: "5", "accept-language": "zh-TW",
-    });
-    const response = await fetch(`${NOMINATIM_SEARCH_URL}?${params}`, {
-      headers: {
-        Accept: "application/json",
-        "Accept-Language": "zh-TW,zh;q=0.9",
-        "User-Agent": "GoodDaysFamilyEvents/1.2 (https://bfc8g4v63.github.io/)",
-      },
-    });
-    if (!response.ok) return json(request, { error: "目前無法搜尋地點，請稍後再試或自行填寫地址" }, 502);
-    const payload = await response.json();
-    const results = Array.isArray(payload) ? payload.map(placeSuggestion).filter((item): item is PlaceSuggestion => Boolean(item)) : [];
+    let results: PlaceSuggestion[] = [];
+    for (const lookup of locationSearchQueries(query)) {
+      results = await nominatimSuggestions(lookup);
+      if (results.length) break;
+    }
     cache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, results });
     if (cache.size > 100) cache.delete(cache.keys().next().value as string);
     return json(request, { results });
