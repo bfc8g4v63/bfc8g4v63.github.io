@@ -5,14 +5,14 @@
 ## 目前狀態
 
 - 目前階段：Phase 3 — 影片與容量
-- 本次版本：v1.2.123（待發布）
-- 上線狀態：首位總管理者已建立「陳水金家族」與第一顆膠囊；照片、影片、互動、整理與容量保護待本次版本發布，並待管理者以實機檔案完成上傳與播放驗收。
+- 本次版本：v1.2.123（已發布；待實機驗收）
+- 上線狀態：首位總管理者已建立「陳水金家族」與第一顆膠囊；照片、影片、互動、整理與容量保護已部署，待管理者以實機檔案完成上傳與播放驗收。
 
 ### 發布紀錄
 
 - Site version 170：`d102ad573e653aa5c6b169c2191da698c7cff384`
-- 正式網址：`https://good-days-family-events.x0925234139.chatgpt.site`
-- 免費入口遷移：Cloudflare Worker `gooddays.carewear.workers.dev` 會以固定上游安全轉送回憶膠囊，並保留既有資料、LINE 綁定、提醒與私有 R2 媒體。登入 callback 與 R2 CORS 需一併加入此公開入口後，再完成實機登入與上傳驗收；既有服務不會先刪除或重建。隔離目的 D1 `good-days-family` 保留給未來完整搬遷使用。
+- 家人入口：`https://bfc8g4v63.github.io/memory-capsule/`。此網址是唯一可分享的入口，會安全地交接到目前承載登入與私有媒體 API 的入口；既有資料、LINE 綁定、提醒與私有 R2 媒體均不重建或刪除。
+- 入口設定：LINE callback 與 R2 CORS 必須依目前承載登入與私有媒體 API 的 HTTPS 入口完成設定，才可進行實機登入與上傳驗收；隔離目的 D1 `good-days-family` 保留給未來完整搬遷使用。
 
 ## Phase 0 — 外部設定
 
@@ -20,7 +20,7 @@
 | --- | --- | --- |
 | Cloudflare R2 私有 bucket | 已完成 | `water-capsule-media-prod`；亞洲太平洋、自動位置、公開存取停用。 |
 | R2 存取權杖 | 已完成 | 僅能讀取、寫入與列出上述 bucket 的物件；不能管理 bucket；值只保留於部署 secrets。 |
-| LINE Login Web channel | 已完成 | 「水金呼吸 回憶膠囊」；callback 為 `https://good-days-family-events.x0925234139.chatgpt.site/api/memory/auth/callback`。 |
+| LINE Login Web channel | 待驗收 | 「水金呼吸 回憶膠囊」已建立；必須確認 LINE Developers 的 callback 與目前承載登入 API 的 HTTPS callback 完全一致。家人僅使用 GitHub Pages 入口連結。 |
 | 部署 secret | 已完成 | LINE、session、bootstrap 與 R2 設定皆只在正式部署平台保存；不得提交到 Git。 |
 | 首位總管理者 | 待指定 | 以該管理者的 LINE Login 完成首次登入，再以一次性 bootstrap secret 建立家族。 |
 | R2 binding | 已決定 | bucket 位於家族 Cloudflare 帳號，現階段由受限 S3 相容 API 權杖使用；`.openai/hosting.json` 保持 `r2: null`，避免誤綁其他專案的 Worker。 |
@@ -53,7 +53,7 @@
 - [x] 私有 R2 照片直傳：受邀成員僅能上傳 JPEG、PNG、WebP、HEIC／HEIF，單張上限 20 MB；上傳網址最長 15 分鐘，顯示網址最長 5 分鐘。
 - [x] 受控讀取與立即顯示；每張相片保留上傳者 LINE 公開暱稱與時間，沒有公開 bucket URL。
 - [x] 家族入口在桌面與手機都將登入、上傳、選擇相片與切換帳號 CTA 置中，並有自動化回歸檢查。
-- [ ] 在 Cloudflare R2 CORS 加入免費家族入口 `https://gooddays.carewear.workers.dev`（保留既有正式來源、PUT／GET／HEAD 與必要 headers）；bucket 的公開開發 URL 維持停用。未完成前，從免費入口直傳會遭瀏覽器阻擋。
+- [ ] 在 Cloudflare R2 CORS 加入目前承載登入與私有媒體 API 的 HTTPS 入口（PUT／GET／HEAD 與必要 headers）；bucket 的公開開發 URL 維持停用。未完成前，家人從入口進入後的直傳會遭瀏覽器阻擋。
 - [x] 管理者可建立單次、具有效期限的家人邀請連結，並可複製、查看及撤銷未使用邀請。
 - [x] 邀請連結先顯示「以 LINE 接受邀請」頁面；登入成功才依 LINE immutable subject 加入家族。邀請不能建立總管理者，只有總管理者能建立共同管理者邀請。
 - [x] 管理者可查看家人目前 LINE 暱稱與頭像；總管理者可設定共同管理者、停用或恢復家人。

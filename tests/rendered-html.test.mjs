@@ -16,6 +16,17 @@ test("legacy host renders the GitHub Pages handoff", async () => {
   assert.match(page, /https:\/\/bfc8g4v63\.github\.io/);
 });
 
+test("memory capsule is shared through the GitHub Pages entry without exposing the legacy host", async () => {
+  const [entry, readme] = await Promise.all([
+    readFile(new URL("../docs/memory-capsule/index.html", import.meta.url), "utf8"),
+    readFile(new URL("../README.md", import.meta.url), "utf8"),
+  ]);
+  assert.match(entry, /https:\/\/bfc8g4v63\.github\.io\/memory-capsule\//);
+  assert.match(entry, /memory-capsule-continue/);
+  assert.doesNotMatch(entry, /chatgpt\.site/);
+  assert.match(readme, /https:\/\/bfc8g4v63\.github\.io\/memory-capsule\//);
+});
+
 test("free Cloudflare entry keeps the upstream fixed and never becomes an open proxy", async () => {
   const proxy = await readFile(new URL("../cloudflare/gooddays-proxy-worker.mjs", import.meta.url), "utf8");
   assert.match(proxy, /const UPSTREAM_ORIGIN = "https:\/\/good-days-family-events\.x0925234139\.chatgpt\.site"/);

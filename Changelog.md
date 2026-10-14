@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.2.132 · 2026-10-14
+
+- 「水金呼吸・回憶膠囊」新增 GitHub Pages 可分享入口 `https://bfc8g4v63.github.io/memory-capsule/`，避免把內部部署網址傳給家人。
+- 同步更新進度紀錄，明確區分已部署功能與待完成的 LINE callback、R2 CORS、手機實機驗收。
+
 ## v1.2.131 · 2026-10-14
 
 - Add a free official nationwide National Sports Center index, prioritizing Zhongli and returning up to 10 relevant facilities without consuming geocoder limits.

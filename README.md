@@ -6,7 +6,7 @@
 
 活動網站網址：https://bfc8g4v63.github.io/
 
-回憶膠囊的免費入口：https://gooddays.carewear.workers.dev/memory-capsule
+回憶膠囊入口：https://bfc8g4v63.github.io/memory-capsule/
 
 ## 規劃中的家族專案
 
