@@ -22,9 +22,10 @@ const TAIWAN_LANDMARKS: Array<PlaceSuggestion & { matches: (query: string) => bo
   {
     name: "中壢國民運動中心",
     address: "桃園市中壢區三光路350號",
-    // A useful no-key fallback for the common abbreviated name. Google Places
-    // handles the general case when GOOGLE_PLACES_API_KEY is configured.
-    matches: (query) => query.includes("中壢") && query.includes("運動") && query.includes("中心"),
+    // Match each progressively typed prefix too: for example, 「中壢國民運」.
+    // Google Places handles the general case when GOOGLE_PLACES_API_KEY is configured.
+    matches: (query) => "中壢國民運動中心".startsWith(query)
+      || (query.includes("中壢") && query.includes("運動") && query.includes("中心")),
   },
   {
     name: "遠東 SOGO 中壢店",

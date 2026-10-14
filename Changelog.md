@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.2.127 · 2026-10-14
+
+- Fix landmark suggestions while the official venue name is still being typed, including 「中壢國民運」.
+
 ## v1.2.126 · 2026-10-14
 
 - Add server-side Google Places Autocomplete with session-based Place Details lookup and OpenStreetMap fallback for Taiwan venue and address search.
