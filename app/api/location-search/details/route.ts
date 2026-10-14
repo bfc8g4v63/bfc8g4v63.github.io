@@ -3,6 +3,8 @@ import { rateLimit } from "../../rate-limit";
 import { env } from "cloudflare:workers";
 
 const GOOGLE_PLACE_DETAILS_URL = "https://places.googleapis.com/v1";
+const GOOGLE_PLACE_DETAILS_DAILY_LIMIT = 60;
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 export function OPTIONS(request: Request) {
   return preflight(request);
@@ -31,6 +33,10 @@ export async function POST(request: Request) {
     const placeId = placePath(body.placeId);
     const key = googlePlacesApiKey();
     if (!placeId || !key) return json(request, { error: "目前無法取得完整地址" }, 400);
+    const dailyLimit = await rateLimit(request, "location-google-place-details-daily", GOOGLE_PLACE_DETAILS_DAILY_LIMIT, DAY_MS);
+    if (!dailyLimit.allowed) {
+      return json(request, { error: "今日地址補齊使用量已達保護上限，請明天再試或自行填寫地址" }, 429);
+    }
     const params = new URLSearchParams();
     const token = sessionToken(body.sessionToken);
     if (token) params.set("sessionToken", token);

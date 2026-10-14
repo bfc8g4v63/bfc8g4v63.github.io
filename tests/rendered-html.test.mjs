@@ -204,8 +204,12 @@ test("venue suggestions search after a typing pause and fill a chosen Taiwan add
   assert.match(detailsRoute, /GOOGLE_PLACES_API_KEY/);
   assert.match(detailsRoute, /X-Goog-FieldMask": "displayName,formattedAddress"/);
   assert.match(detailsRoute, /rateLimit\(request, "location-search-details", 6, 60 \* 1000\)/);
+  assert.match(detailsRoute, /GOOGLE_PLACE_DETAILS_DAILY_LIMIT = 60/);
+  assert.match(detailsRoute, /location-google-place-details-daily/);
   assert.match(route, /nationalSportsCentersFor/);
   assert.match(route, /rateLimit\(request, "location-search", 20, 60 \* 1000\)/);
+  assert.match(route, /GOOGLE_AUTOCOMPLETE_DAILY_LIMIT = 240/);
+  assert.match(route, /location-google-autocomplete-daily/);
   assert.match(route, /countrycodes: "tw"/);
   assert.match(route, /User-Agent": "GoodDaysFamilyEvents/);
   assert.match(route, /CACHE_TTL_MS/);
@@ -703,7 +707,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.131/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.133/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -732,9 +736,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.131/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.131/);
-  assert.match(worker, /good-days-github-v131/);
+  assert.match(page, /\/app\.js\?v=1\.2\.133/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.133/);
+  assert.match(worker, /good-days-github-v133/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 

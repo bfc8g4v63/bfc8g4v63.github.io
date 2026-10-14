@@ -1,5 +1,9 @@
 # Changelog
 
+## v1.2.133 · 2026-10-14
+
+- Add durable per-IP daily safeguards for paid Google Places requests: up to 240 autocomplete lookups and 60 address-detail lookups each day. Cached and official National Sports Center results remain unrestricted.
+
 ## v1.2.132 · 2026-10-14
 
 - 「水金呼吸・回憶膠囊」新增 GitHub Pages 可分享入口 `https://bfc8g4v63.github.io/memory-capsule/`，避免把內部部署網址傳給家人。

@@ -11,6 +11,11 @@ const ZHONGLI_LOCATION_BIAS = { circle: { center: { latitude: 24.9537, longitude
 const ZHONGLI_VIEWBOX = "121.14,25.08,121.31,24.85";
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const MIN_NOMINATIM_INTERVAL_MS = 1_100;
+// Per-IP daily caps are stored in D1 when available. They only apply to a
+// request that will use the paid Google provider; cached and official results
+// remain available without consuming this allowance.
+const GOOGLE_AUTOCOMPLETE_DAILY_LIMIT = 240;
+const DAY_MS = 24 * 60 * 60 * 1000;
 const cache = new Map<string, { expiresAt: number; results: PlaceSuggestion[] }>();
 let nextNominatimRequestAt = 0;
 let nominatimRequestQueue = Promise.resolve();
@@ -196,6 +201,10 @@ export async function POST(request: Request) {
 
     const googleKey = googlePlacesApiKey();
     if (googleKey && query.length >= 3) {
+      const dailyLimit = await rateLimit(request, "location-google-autocomplete-daily", GOOGLE_AUTOCOMPLETE_DAILY_LIMIT, DAY_MS);
+      if (!dailyLimit.allowed) {
+        return json(request, { error: "今日地點建議使用量已達保護上限，請明天再試或自行填寫地址" }, 429);
+      }
       try {
         const results = await googleSuggestions(query, googleKey, token);
         if (results.length) return json(request, { results: combineSuggestions(localResults, results), provider: "google" });
