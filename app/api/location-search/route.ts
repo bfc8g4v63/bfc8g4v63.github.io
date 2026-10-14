@@ -1,6 +1,7 @@
 import { json, preflight } from "../cors";
 import { rateLimit } from "../rate-limit";
 import { locationSearchQueries } from "../../../lib/location-search";
+import { nationalSportsCentersFor } from "../../../lib/national-sports-centers";
 import { env } from "cloudflare:workers";
 
 const NOMINATIM_SEARCH_URL = "https://nominatim.openstreetmap.org/search";
@@ -172,8 +173,6 @@ function placeSuggestion(item: unknown): PlaceSuggestion | null {
 
 export async function POST(request: Request) {
   try {
-    const limit = await rateLimit(request, "location-search", 12, 60 * 1000);
-    if (!limit.allowed) return json(request, { error: `地點搜尋過於頻繁，請 ${limit.retryAfterSeconds} 秒後再試` }, 429);
     const body = await request.json() as Record<string, unknown>;
     const query = cleanQuery(body.query);
     const token = sessionToken(body.sessionToken);
@@ -182,14 +181,18 @@ export async function POST(request: Request) {
     const cached = cache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) return json(request, { results: cached.results, cached: true });
 
+    const officialCenters = nationalSportsCentersFor(query).map((center) => ({ ...center, provider: "local" as const }));
+    if (officialCenters.length) {
+      cache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, results: officialCenters });
+      return json(request, { results: officialCenters, preferred: true, source: "official-sports-data" });
+    }
+
+    const limit = await rateLimit(request, "location-search", 20, 60 * 1000);
+    if (!limit.allowed) return json(request, { error: `地點搜尋過於頻繁，請 ${limit.retryAfterSeconds} 秒後再試` }, 429);
+
     // Two-character searches still use the free/local fallbacks. Requiring three
     // characters before a paid provider lookup prevents broad, low-intent calls.
     const localResults = localSuggestions(query);
-    // Completing the official local venue name never needs a provider request.
-    if ("中壢國民運動中心".startsWith(cacheKey)) {
-      cache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, results: localResults });
-      return json(request, { results: localResults, preferred: true });
-    }
 
     const googleKey = googlePlacesApiKey();
     if (googleKey && query.length >= 3) {

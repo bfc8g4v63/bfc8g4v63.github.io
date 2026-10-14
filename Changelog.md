@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.2.131 · 2026-10-14
+
+- Add a free official nationwide National Sports Center index, prioritizing Zhongli and returning up to 10 relevant facilities without consuming geocoder limits.
+- Raise third-party address-search protection to 20 requests per minute while leaving cached and official-index results unrestricted.
+
 ## v1.2.130 · 2026-10-14
 
 - Keep the Zhongli National Sports Center at the top of generic national-sports-center searches, return up to 10 fallback results, and raise the normal typing limit to 12 searches per minute.

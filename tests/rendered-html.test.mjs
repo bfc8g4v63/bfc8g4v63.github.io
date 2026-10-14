@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 import { normalizeLineCommand } from "../app/api/line/commands.ts";
 import { locationSearchQueries } from "../lib/location-search.ts";
+import { nationalSportsCentersFor } from "../lib/national-sports-centers.ts";
 import { arrangementNameKey } from "../lib/arrangement.ts";
 
 test("legacy host renders the GitHub Pages handoff", async () => {
@@ -192,14 +193,14 @@ test("venue suggestions search after a typing pause and fill a chosen Taiwan add
   assert.match(detailsRoute, /GOOGLE_PLACES_API_KEY/);
   assert.match(detailsRoute, /X-Goog-FieldMask": "displayName,formattedAddress"/);
   assert.match(detailsRoute, /rateLimit\(request, "location-search-details", 6, 60 \* 1000\)/);
-  assert.match(route, /rateLimit\(request, "location-search", 12, 60 \* 1000\)/);
+  assert.match(route, /nationalSportsCentersFor/);
+  assert.match(route, /rateLimit\(request, "location-search", 20, 60 \* 1000\)/);
   assert.match(route, /countrycodes: "tw"/);
   assert.match(route, /User-Agent": "GoodDaysFamilyEvents/);
   assert.match(route, /CACHE_TTL_MS/);
   assert.match(route, /中壢國民運動中心/);
   assert.match(route, /桃園市中壢區三光路350號/);
   assert.match(route, /"中壢國民運動中心"\.startsWith\(query\)/);
-  assert.match(route, /"中壢國民運動中心"\.includes\(query\)/);
   assert.match(route, /function combineSuggestions/);
   assert.match(route, /limit: "10"/);
   assert.match(route, /query\.includes\("中壢"\) && query\.includes\("運動"\) && query\.includes\("中心"\)/);
@@ -240,6 +241,10 @@ test("location search uses general Taiwan address variants instead of venue-spec
     "臺北市 信義區 市府路45號",
   ]);
   assert.deepEqual(locationSearchQueries("　台北101　"), ["台北101"]);
+  const centers = nationalSportsCentersFor("國民運動中心");
+  assert.equal(centers[0]?.name, "中壢國民運動中心");
+  assert.equal(centers.length, 10);
+  assert.equal(nationalSportsCentersFor("桃園運動中心")[0]?.name, "桃園國民運動中心");
 });
 
 test("venues, addresses, map navigation and weekdays stay consistent across surfaces", async () => {
@@ -687,7 +692,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.130/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.131/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -716,9 +721,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.130/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.130/);
-  assert.match(worker, /good-days-github-v130/);
+  assert.match(page, /\/app\.js\?v=1\.2\.131/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.131/);
+  assert.match(worker, /good-days-github-v131/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
