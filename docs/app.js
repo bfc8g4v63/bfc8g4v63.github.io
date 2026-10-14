@@ -444,7 +444,7 @@ function openEventForm(event, managerAuth = null, returnTo = null) {
             ${field('日期 <span>必填；點選年、月、日後可用滑鼠滾輪調整</span>', "eventDate", event?.eventDate || localToday(), 'required type="date" data-date-wheel aria-label="日期；點選年、月、日後可用滑鼠滾輪調整"')}
             ${timePicker(event?.startTime)}
           </div>
-          <div class="location-lookup"><label>地點 <span>必填；填場館、店名或集合點</span><input name="location" value="${esc(event?.location)}" required type="text" autocomplete="off" autocapitalize="sentences" autocorrect="off" spellcheck="false" inputmode="text" aria-autocomplete="list" aria-controls="location-suggestions" aria-expanded="false" data-form-type="other" data-1p-ignore="true" data-lpignore="true" placeholder="例如：101、中壢 SOGO"></label><small class="location-lookup-hint">輸入至少 3 個字，停一下就會顯示地址建議；點選即可帶入。</small><div id="location-suggestions" class="location-suggestions" role="listbox" aria-live="polite" hidden></div></div>
+          <div class="location-lookup"><label>地點 <span>必填；填場館、店名或集合點</span><input name="location" value="${esc(event?.location)}" required type="text" autocomplete="off" autocapitalize="sentences" autocorrect="off" spellcheck="false" inputmode="text" aria-autocomplete="list" aria-controls="location-suggestions" aria-expanded="false" data-form-type="other" data-1p-ignore="true" data-lpignore="true" placeholder="例如：101、中壢 SOGO"></label><small class="location-lookup-hint">輸入至少 2 個字，停一下就會顯示地址建議；點選即可帶入。</small><div id="location-suggestions" class="location-suggestions" role="listbox" aria-live="polite" hidden></div></div>
           ${field('地址 <span>建議填寫；提供 Google 地圖導航</span>', "eventAddress", event?.address, 'type="text" autocomplete="off" autocapitalize="sentences" autocorrect="off" spellcheck="false" inputmode="text" aria-autocomplete="none" data-form-type="other" data-1p-ignore="true" data-lpignore="true" placeholder="例如：臺北市信義區西村里市府路45號"')}
           <label>行前資訊卡 <span>選填；例如集合點、停車、裝備與注意事項</span><textarea name="description" rows="3" placeholder="例如：18:40 在入口集合；請自備球拍與飲水。">${esc(event?.description)}</textarea></label>
           <details class="advanced-settings" ${editing ? "open" : ""}>
@@ -527,7 +527,7 @@ function openEventForm(event, managerAuth = null, returnTo = null) {
   };
   const searchLocationSuggestions = async () => {
     const query = locationInput.value.trim();
-    if (query.length < 3) return;
+    if (query.length < 2) return;
     const searchSequence = ++locationSearchSequence;
     locationSuggestions.innerHTML = '<p class="form-hint">正在尋找地址建議…</p>';
     locationSuggestions.hidden = false;
@@ -549,7 +549,7 @@ function openEventForm(event, managerAuth = null, returnTo = null) {
   };
   locationInput.addEventListener("input", () => {
     clearLocationSuggestions();
-    if (locationInput.value.trim().length >= 3) locationSearchTimer = setTimeout(searchLocationSuggestions, 650);
+    if (locationInput.value.trim().length >= 2) locationSearchTimer = setTimeout(searchLocationSuggestions, 650);
   });
   locationInput.addEventListener("keydown", (event) => {
     if (!locationResults.length) return;

@@ -180,10 +180,19 @@ test("venue suggestions search after a typing pause and fill a chosen Taiwan add
   assert.match(route, /countrycodes: "tw"/);
   assert.match(route, /User-Agent": "GoodDaysFamilyEvents/);
   assert.match(route, /CACHE_TTL_MS/);
+  assert.match(route, /中壢國民運動中心/);
+  assert.match(route, /桃園市中壢區三光路350號/);
+  assert.match(route, /query\.includes\("中壢"\) && query\.includes\("國民運動"\)/);
   assert.match(route, /遠東 SOGO 中壢店/);
   assert.match(route, /桃園市中壢區元化路357號/);
   assert.match(route, /query\.includes\("中壢"\) && query\.includes\("sogo"\)/);
+  assert.match(route, /replaceAll\("臺", "台"\)/);
+  assert.match(route, /replace\(\/\(\?:國民\)\?運動\$\//);
+  assert.match(route, /台北市\|新北市\|桃園市/);
   assert.doesNotMatch(client, /id="location-search"/);
+  assert.match(client, /輸入至少 2 個字/);
+  assert.match(client, /query\.length < 2/);
+  assert.match(client, /locationInput\.value\.trim\(\)\.length >= 2/);
   assert.match(client, /requestJson\("\/location-search", \{ query \}\)/);
   assert.match(client, /setTimeout\(searchLocationSuggestions, 650\)/);
   assert.match(client, /locationInput\.addEventListener\("keydown"/);
@@ -640,7 +649,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.114/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.124/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -669,9 +678,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.114/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.114/);
-  assert.match(worker, /good-days-github-v114/);
+  assert.match(page, /\/app\.js\?v=1\.2\.124/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.124/);
+  assert.match(worker, /good-days-github-v124/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 

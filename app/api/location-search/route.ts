@@ -9,6 +9,11 @@ type PlaceSuggestion = { name: string; address: string };
 
 const TAIWAN_LANDMARKS: Array<PlaceSuggestion & { matches: (query: string) => boolean }> = [
   {
+    name: "中壢國民運動中心",
+    address: "桃園市中壢區三光路350號",
+    matches: (query) => query.includes("中壢") && query.includes("國民運動"),
+  },
+  {
     name: "遠東 SOGO 中壢店",
     address: "桃園市中壢區元化路357號",
     matches: (query) => query.includes("中壢") && query.includes("sogo"),
@@ -29,11 +34,21 @@ function cleanQuery(value: unknown) {
 }
 
 function queryKey(value: string) {
-  return value.toLocaleLowerCase("zh-TW").replace(/[\s－—-]/g, "");
+  return value
+    .toLocaleLowerCase("zh-TW")
+    .replaceAll("臺", "台")
+    .replaceAll("巿", "市")
+    .replace(/[\s－—-]/g, "");
 }
 
 function landmarkFor(query: string) {
   return TAIWAN_LANDMARKS.find((landmark) => landmark.matches(queryKey(query)));
+}
+
+function lookupQuery(query: string) {
+  const normalized = query.replaceAll("臺", "台").replaceAll("巿", "市");
+  const expanded = normalized.replace(/(?:國民)?運動$/, (suffix) => `${suffix}中心`);
+  return expanded.replace(/^(?:台北市|新北市|桃園市|台中市|台南市|高雄市)/, "");
 }
 
 function placeSuggestion(item: unknown): PlaceSuggestion | null {
@@ -67,7 +82,8 @@ export async function POST(request: Request) {
       return json(request, { results, preferred: true });
     }
 
-    const lookup = /^\d{1,4}$/.test(query) ? `台北 ${query}, 台灣` : `${query}, 台灣`;
+    const normalizedQuery = lookupQuery(query);
+    const lookup = /^\d{1,4}$/.test(normalizedQuery) ? `台北 ${normalizedQuery}, 台灣` : `${normalizedQuery}, 台灣`;
     const params = new URLSearchParams({
       q: lookup, format: "jsonv2", addressdetails: "1", namedetails: "1", countrycodes: "tw", limit: "5", "accept-language": "zh-TW",
     });
