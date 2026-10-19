@@ -755,7 +755,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.136/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.137/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -784,9 +784,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.136/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.136/);
-  assert.match(worker, /good-days-github-v136/);
+  assert.match(page, /\/app\.js\?v=1\.2\.137/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.137/);
+  assert.match(worker, /good-days-github-v137/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -1060,12 +1060,13 @@ test("同行卡 stays event-bound, opt-in, and never opens a direct-message chan
   assert.match(styles, /\.companions-section/);
 });
 
-test("one LINE group can serve several upcoming activities without sending ended activity data", async () => {
-  const [schema, schemaInit, migration, adminLine, webhook, client, guide] = await Promise.all([
+test("a creator management code automatically reuses its regular LINE groups unless deliberately changed", async () => {
+  const [schema, schemaInit, migration, adminLine, eventsRoute, webhook, client, guide] = await Promise.all([
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
     readFile(new URL("../db/init.ts", import.meta.url), "utf8"),
     readFile(new URL("../drizzle/0013_loud_shotgun.sql", import.meta.url), "utf8"),
     readFile(new URL("../app/api/admin/line/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/events/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/line/webhook/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../docs/app.js", import.meta.url), "utf8"),
     readFile(new URL("../docs/line-bot-guide.html", import.meta.url), "utf8"),
@@ -1105,13 +1106,16 @@ test("one LINE group can serve several upcoming activities without sending ended
   assert.doesNotMatch(arrangementReply, /正在整理|pushText\(/);
   assert.match(webhook, /totalPages > 5/);
   assert.match(webhook, /安排 20260930/);
-  assert.match(client, /選擇既有通知群組/);
-  assert.match(client, /function offerExistingLineGroups/);
-  assert.match(client, /要把這場也加入通知群組嗎？/);
-  assert.match(client, /這場也加入通知群組/);
-  assert.match(client, /preselectSingleGroup: groups\.length === 1/);
-  assert.match(client, /publishNow: false/);
-  assert.match(client, /autoReuseLineGroup/);
+  assert.match(eventsRoute, /async function inheritedNotificationGroups/);
+  assert.match(eventsRoute, /verifyCredential\(editCode, candidate\.editCodeHash\)/);
+  assert.match(eventsRoute, /lineGroups\.isTest/);
+  assert.match(eventsRoute, /await inheritNotificationGroups\(id, inheritedGroups\)/);
+  assert.match(eventsRoute, /notificationGroups: inheritedGroups/);
+  assert.match(client, /已自動沿用通知群組/);
+  assert.match(client, /同一組建立者名稱與管理碼的新活動會自動使用這些群組/);
+  assert.match(client, /另選通知群組/);
+  assert.match(client, /發布到已綁定群組/);
+  assert.match(client, /groupIds: notificationGroups\.map/);
   assert.match(client, /合併發布近期活動/);
   assert.match(guide, /群組庫/);
   assert.match(guide, /安排 20260930/);

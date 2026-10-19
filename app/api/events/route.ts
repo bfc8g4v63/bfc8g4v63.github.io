@@ -1,11 +1,11 @@
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { ensureSchema } from "../../../db/init";
 import {
-  activityLineGroups, events, lineBindCodes, lineBindings, lineReminderDeliveries, lineReminderSettings, rsvps,
+  activityLineGroups, events, lineBindCodes, lineBindings, lineGroups, lineReminderDeliveries, lineReminderSettings, rsvps,
 } from "../../../db/schema";
 import { json, preflight } from "../cors";
-import { clean, hashCredential, requireEventManager } from "../admin/auth";
+import { clean, hashCredential, requireEventManager, verifyCredential } from "../admin/auth";
 import { lineConfig, pushText } from "../line/lib";
 import { rateLimit } from "../rate-limit";
 import { eventShareUrl, shortShareCode } from "../../../lib/event-share";
@@ -54,6 +54,39 @@ function managerUrl(id: string, token: string) {
   // Keep the capability in the fragment so it is never sent as part of the
   // page request or a referrer header.
   return `https://bfc8g4v63.github.io/?manage=${encodeURIComponent(id)}#token=${encodeURIComponent(token)}`;
+}
+
+// A creator identity is the deliberate pair of the displayed creator name and
+// their management code.  When that pair has already used a non-test LINE
+// group, a newly created activity inherits the same destinations.  This keeps
+// the normal path simple without exposing another creator's group library.
+async function inheritedNotificationGroups(creatorName: string, editCode: string) {
+  const db = getDb();
+  const candidates = await db.select({ id: events.id, editCodeHash: events.editCodeHash })
+    .from(events).where(eq(events.creatorName, creatorName)).orderBy(desc(events.createdAt)).limit(30);
+  for (const candidate of candidates) {
+    if (!await verifyCredential(editCode, candidate.editCodeHash)) continue;
+    const groups = await eventNotificationGroups(candidate.id);
+    if (!groups.length) continue;
+    const known = await db.select({ groupId: lineGroups.groupId, isTest: lineGroups.isTest })
+      .from(lineGroups).where(inArray(lineGroups.groupId, groups.map((group) => group.groupId)));
+    const testGroupIds = new Set(known.filter((group) => group.isTest).map((group) => group.groupId));
+    const regularGroups = groups.filter((group) => !testGroupIds.has(group.groupId));
+    if (regularGroups.length) return regularGroups;
+  }
+  return [];
+}
+
+async function inheritNotificationGroups(eventId: string, groups: Awaited<ReturnType<typeof inheritedNotificationGroups>>) {
+  if (!groups.length) return;
+  const db = getDb();
+  const boundAt = new Date().toISOString();
+  await db.insert(activityLineGroups).values(groups.map((group) => ({
+    eventId, groupId: group.groupId, groupName: group.groupName, boundAt,
+  })));
+  const primary = groups[0];
+  await db.insert(lineBindings).values({ eventId, groupId: primary.groupId, groupName: primary.groupName, boundAt });
+  await db.insert(lineReminderSettings).values({ eventId }).onConflictDoNothing({ target: lineReminderSettings.eventId });
 }
 
 async function notifyBoundGroup(event: typeof events.$inferSelect, message: string) {
@@ -139,6 +172,7 @@ export async function POST(request: Request) {
     }
     if (fee < 0) return json(request, { error: `每人費用請填 0 到 ${MAX_FEE_PER_PERSON.toLocaleString("zh-TW")} 的整數` }, 400);
     if (contactPhone === null) return json(request, { error: contactPhoneError(body.contactPhone) }, 400);
+    const inheritedGroups = await inheritedNotificationGroups(creatorName, editCode);
     const id = crypto.randomUUID();
     const token = crypto.randomUUID();
     const shareCode = shortShareCode(token);
@@ -160,6 +194,7 @@ export async function POST(request: Request) {
       editCodeHash: await hashCredential(editCode),
       managerTokenHash: await hashCredential(managerToken),
     });
+    await inheritNotificationGroups(id, inheritedGroups);
     return json(request, {
       id,
       shareToken: token,
@@ -167,6 +202,7 @@ export async function POST(request: Request) {
       // Returned only at creation time. The database stores only its hash.
       managerToken,
       managerUrl: managerUrl(id, managerToken),
+      notificationGroups: inheritedGroups,
     }, 201);
   } catch (error) {
     return json(request, { error: error instanceof Error ? error.message : "建立活動失敗" }, 500);

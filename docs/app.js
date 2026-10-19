@@ -808,18 +808,20 @@ function removeManagerReturnLink(eventId) {
 function openCreatorNextSteps(event, managerAuth, issuedManagerUrl = "") {
   activeModalClose = closeModal;
   const shareUrl = event.shareUrl;
+  const notificationGroups = Array.isArray(event.notificationGroups) ? event.notificationGroups : [];
+  const groupNames = notificationGroups.map((group) => group.groupName).filter(Boolean).join("、");
   const privateManagerUrl = issuedManagerUrl || (managerAuth.type === "token" ? managerUrl(event.id, managerAuth.value) : "");
   const returnToCreatorNextSteps = () => openCreatorNextSteps(event, managerAuth, privateManagerUrl);
   modalRoot.innerHTML = `
     <div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="created-title">
       <button class="modal-close" data-close aria-label="關閉">×</button>
-      <p class="eyebrow">活動已建立</p><h2 id="created-title">下一步：分享或綁定 LINE</h2>
-      <p>活動邀請已建立完成。可直接選擇已綁定的群組發送邀請，或進入後台建立新的群組綁定。</p>
+      <p class="eyebrow">活動已建立</p><h2 id="created-title">下一步：分享或發布</h2>
+      <p>${notificationGroups.length ? "已自動沿用這組建立者名稱與管理碼的通知群組；可直接發布活動邀請。" : "活動邀請已建立完成。可設定 LINE 小幫手後發布到通知群組。"}</p>
       <label>活動分享連結<input id="created-share-url" value="${esc(shareUrl)}" readonly></label>
-      <div id="creator-existing-group" hidden></div>
+      ${notificationGroups.length ? `<div class="line-status connected"><strong>已自動沿用通知群組：${esc(groupNames)}</strong><p>同一組建立者名稱與管理碼的新活動會自動使用這些群組。需要不同群組時，再點選「另選通知群組」。</p></div>` : ""}
       ${privateManagerUrl ? `<div class="line-status warning"><strong>請保存管理連結</strong><p>這個連結可修改、取消或永久刪除活動，也可管理 LINE 小幫手；請勿分享給參加者。可選擇只儲存在目前這台裝置。</p><label>管理連結<input id="created-manager-url" value="${esc(privateManagerUrl)}" readonly></label><div class="inline-actions creator-manager-actions"><button class="secondary" id="copy-manager-link">複製管理連結</button><button class="secondary" id="save-manager-return">儲存在這台裝置</button></div></div>` : ""}
       <p class="form-error" id="form-error" role="alert" hidden></p>
-      <div class="form-actions creator-next-actions"><button class="secondary" id="copy-created-share">複製分享連結</button><button class="primary" id="publish-created-event">選群組並發布</button><button class="secondary" id="start-line-binding">設定 LINE 小幫手</button></div>
+      <div class="form-actions creator-next-actions"><button class="secondary" id="copy-created-share">複製分享連結</button><button class="primary" id="publish-created-event">${notificationGroups.length ? "發布到已綁定群組" : "選群組並發布"}</button>${notificationGroups.length ? '<button class="secondary" id="choose-different-line-group">另選通知群組</button>' : '<button class="secondary" id="start-line-binding">設定 LINE 小幫手</button>'}</div>
     </section></div>`;
   document.querySelector("#copy-created-share").addEventListener("click", async () => {
     await navigator.clipboard.writeText(shareUrl);
@@ -834,35 +836,34 @@ function openCreatorNextSteps(event, managerAuth, issuedManagerUrl = "") {
     clickEvent.currentTarget.textContent = saved ? "已儲存於這台裝置" : "無法儲存";
     if (saved) showNotice("管理入口已儲存在這台裝置，可從「管理我的活動」直接回訪");
   });
-  document.querySelector("#start-line-binding").addEventListener("click", () => {
+  document.querySelector("#start-line-binding")?.addEventListener("click", () => {
     void openAdminFromCredential(event.id, managerAuth, document.querySelector("#form-error"));
   });
-  document.querySelector("#publish-created-event").addEventListener("click", () => {
+  document.querySelector("#choose-different-line-group")?.addEventListener("click", () => {
     void openLineGroupPicker(event, managerAuth, returnToCreatorNextSteps, { publishNow: true, afterSave: () => closeModal() });
   });
-  void offerExistingLineGroups(event, managerAuth, privateManagerUrl);
-}
-
-async function offerExistingLineGroups(event, managerAuth, issuedManagerUrl = "") {
-  const holder = document.querySelector("#creator-existing-group");
-  if (!holder) return;
-  try {
-    const result = await requestJson("/admin/line", { action: "list_groups", ...managerPayload(event.id, managerAuth) });
-    if (!holder.isConnected) return;
-    const groups = (result.groups || []).filter((group) => !group.isTest);
-    if (!groups.length) return;
-    const groupLabel = groups.length === 1 ? "1 個既有通知群組" : `${groups.length} 個既有通知群組`;
-    holder.hidden = false;
-    holder.innerHTML = `<section class="creator-existing-group"><strong>要把這場也加入通知群組嗎？</strong><p>已找到同一組建立者名稱與管理碼曾使用的 ${groupLabel}。加入後只會套用群組與原有提醒，並不會立即發送邀請。</p><div class="creator-existing-group-actions"><button class="primary" type="button" id="reuse-existing-group">這場也加入通知群組</button><button class="secondary" type="button" id="skip-existing-group">這次先不要</button></div></section>`;
-    document.querySelector("#reuse-existing-group")?.addEventListener("click", () => {
-      void openLineGroupPicker(event, managerAuth, () => openCreatorNextSteps(event, managerAuth, issuedManagerUrl), {
-        preselectSingleGroup: groups.length === 1,
-        publishNow: false,
-        afterSave: () => closeModal(),
+  document.querySelector("#publish-created-event").addEventListener("click", async (clickEvent) => {
+    if (!notificationGroups.length) {
+      void openLineGroupPicker(event, managerAuth, returnToCreatorNextSteps, { publishNow: true, afterSave: () => closeModal() });
+      return;
+    }
+    const button = clickEvent.currentTarget;
+    const original = button.textContent;
+    button.disabled = true;
+    button.textContent = "發布中…";
+    try {
+      const saved = await requestJson("/admin/line", {
+        action: "set_event_groups", groupIds: notificationGroups.map((group) => group.groupId), publishNow: true,
+        ...managerPayload(event.id, managerAuth),
       });
-    });
-    document.querySelector("#skip-existing-group")?.addEventListener("click", () => { holder.hidden = true; });
-  } catch {}
+      showNotice(saved.invitationWarning || (saved.invitationQueued ? "活動邀請正在發送" : "已發布到已綁定通知群組"));
+      closeModal();
+    } catch (error) {
+      button.disabled = false;
+      button.textContent = original;
+      showFormError(document.querySelector("#created-title")?.closest("section"), error.message || "無法發布活動邀請");
+    }
+  });
 }
 
 function openCreatorRecovery() {
@@ -1194,7 +1195,7 @@ function linePanel(line) {
       <p>${groups.length ? "可為這場活動選擇多個群組；每個群組都會收到活動邀請與原本設定的行前提醒。群組成員輸入「活動」會列出即時人數，輸入「安排」會顯示安排圖卡。這與上方的私訊提醒是兩個獨立設定。" : "可從已綁定的群組庫選擇一或多個群組；測試群組需另外確認才會發送。這不會啟用管理者私訊提醒。"}</p>
       <div id="binding-code-area"></div>
       <div class="inline-actions">
-        ${groups.length ? '<button class="line-button" id="line-event-update">發送活動異動</button><button class="secondary" id="line-announcement">發送群組公告</button><button class="secondary" id="line-existing">選擇通知群組</button><button class="secondary" id="line-publish">合併發布近期活動</button><button class="secondary" id="line-seven-day-test">測試 7 天提醒</button><button class="secondary" id="line-one-day-test">測試 1 天提醒</button><button class="secondary" id="line-two-hour-test">測試 2 小時提醒</button><button class="text-danger" id="line-unbind">移除此活動</button>' : '<button class="secondary" id="line-existing">選擇既有通知群組</button><button class="line-button" id="line-code">綁定新群組</button>'}
+        ${groups.length ? '<button class="line-button" id="line-event-update">發送活動異動</button><button class="secondary" id="line-announcement">發送群組公告</button><button class="secondary" id="line-existing">另選通知群組</button><button class="secondary" id="line-publish">合併發布近期活動</button><button class="secondary" id="line-seven-day-test">測試 7 天提醒</button><button class="secondary" id="line-one-day-test">測試 1 天提醒</button><button class="secondary" id="line-two-hour-test">測試 2 小時提醒</button><button class="text-danger" id="line-unbind">移除此活動</button>' : '<button class="secondary" id="line-existing">選擇既有通知群組</button><button class="line-button" id="line-code">綁定新群組</button>'}
       </div>
     </div>
     ${commandCard}
