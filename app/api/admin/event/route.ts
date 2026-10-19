@@ -1,8 +1,8 @@
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, or, sql } from "drizzle-orm";
 import { getRequestExecutionContext } from "vinext/shims/request-context";
 import { ensureSchema } from "../../../../db/init";
 import { getDb } from "../../../../db";
-import { activityLineGroups, events, lineBindings, lineCommandLogs, lineManagerTargets, lineReminderSettings, mealAssignments, mealTables, rsvps } from "../../../../db/schema";
+import { activityLineGroups, companionCards, companionRequests, events, lineBindings, lineCommandLogs, lineManagerTargets, lineReminderSettings, mealAssignments, mealTables, rsvps } from "../../../../db/schema";
 import { json, preflight } from "../../cors";
 import { clean, hashCode, requireEventManager } from "../auth";
 import { lineConfig, managerRsvpCard, pushMessages } from "../../line/lib";
@@ -192,9 +192,13 @@ export async function POST(request: Request) {
     if (action === "create_rsvp") {
       if (access.event.status !== "active") return json(request, { error: access.event.status === "completed" ? "活動已結束，不能再新增報名" : "活動已取消，不能再新增報名" }, 400);
       const name = clean(body.name, 60);
-      const response = body.response === "not_attending" ? "not_attending" : "attending";
+      const response = body.response === "not_attending"
+        ? "not_attending"
+        : body.response === "waitlisted"
+          ? "waitlisted"
+          : "attending";
       const partySize = wholeNumber(body.partySize, 1, 999);
-      if (!name || (response === "attending" && !partySize)) {
+      if (!name || (response !== "not_attending" && !partySize)) {
         return json(request, { error: "請確認姓名、出席狀態與參加人數" }, 400);
       }
       const [duplicate] = await db.select({ id: rsvps.id }).from(rsvps).where(and(
@@ -206,7 +210,7 @@ export async function POST(request: Request) {
         eventId: access.event.id,
         name,
         response,
-        partySize: response === "attending" ? partySize! : 0,
+        partySize: response === "not_attending" ? 0 : partySize!,
         paymentStatus: response === "attending" && access.event.feePerPerson > 0 ? "unpaid" : "not_applicable",
         diet: clean(body.diet, 120),
         note: clean(body.note, 300),
@@ -220,17 +224,23 @@ export async function POST(request: Request) {
         eventId: access.event.id,
         eventTitle: access.event.title,
         name,
-        partySize: response === "attending" ? partySize! : 0,
-        change: "管理者代為新增報名",
+        partySize: response === "not_attending" ? 0 : partySize!,
+        change: response === "waitlisted" ? "管理者代為加入候補" : "管理者代為新增報名",
       });
-      return json(request, { ok: true, message: `已代為新增「${name}」的回覆` });
+      return json(request, { ok: true, message: response === "waitlisted" ? `已將「${name}」加入候補名單` : `已代為新增「${name}」的回覆` });
     }
     if (action === "update_rsvp") {
       const rsvpId = clean(body.rsvpId, 80);
       const name = clean(body.name, 60);
-      const response = body.response === "attending" ? "attending" : body.response === "not_attending" ? "not_attending" : "";
+      const response = body.response === "attending"
+        ? "attending"
+        : body.response === "waitlisted"
+          ? "waitlisted"
+          : body.response === "not_attending"
+            ? "not_attending"
+            : "";
       const partySize = wholeNumber(body.partySize, 1, 999);
-      if (!rsvpId || !name || !response || (response === "attending" && !partySize)) {
+      if (!rsvpId || !name || !response || (response !== "not_attending" && !partySize)) {
         return json(request, { error: "請確認姓名、出席狀態與參加人數" }, 400);
       }
       const [rsvp] = await db.select({ id: rsvps.id, name: rsvps.name, partySize: rsvps.partySize, response: rsvps.response, paymentStatus: rsvps.paymentStatus })
@@ -240,7 +250,7 @@ export async function POST(request: Request) {
         eq(rsvps.eventId, access.event.id), eq(rsvps.name, name),
       )).limit(1);
       if (duplicate && duplicate.id !== rsvp.id) return json(request, { error: `「${name}」已有一筆回覆，請先確認是否為同一人` }, 409);
-      const nextPartySize = response === "attending" ? partySize : 0;
+      const nextPartySize = response === "not_attending" ? 0 : partySize;
       const seatingChanged = rsvp.response !== response || rsvp.partySize !== nextPartySize;
       const nextPaymentStatus = response !== "attending" || access.event.feePerPerson <= 0
         ? "not_applicable"
@@ -248,6 +258,13 @@ export async function POST(request: Request) {
           ? "unpaid"
           : rsvp.paymentStatus;
       if (seatingChanged) await db.delete(mealAssignments).where(eq(mealAssignments.rsvpId, rsvp.id));
+      if (response !== "attending") {
+        await db.delete(companionCards).where(eq(companionCards.rsvpId, rsvp.id));
+        await db.delete(companionRequests).where(or(
+          eq(companionRequests.fromRsvpId, rsvp.id),
+          eq(companionRequests.toRsvpId, rsvp.id),
+        ));
+      }
       await db.update(rsvps).set({
         name,
         response,
@@ -255,13 +272,32 @@ export async function POST(request: Request) {
         partySize: nextPartySize,
         diet: clean(body.diet, 120),
         note: clean(body.note, 300),
-        ...(response === "not_attending" ? { shareName: false } : {}),
+        ...(response !== "attending" ? { shareName: false } : {}),
         updatedAt: new Date().toISOString(),
       }).where(eq(rsvps.id, rsvp.id));
       const paymentReset = seatingChanged && response === "attending" && access.event.feePerPerson > 0;
+      if (seatingChanged) {
+        await queueManagerNotification({
+          eventId: access.event.id,
+          eventTitle: access.event.title,
+          name,
+          partySize: response === "not_attending" ? 0 : nextPartySize,
+          change: response === "waitlisted"
+            ? "加入候補"
+            : response === "attending" && rsvp.response === "waitlisted"
+              ? "候補遞補為參加"
+              : response === "not_attending"
+                ? "取消參加"
+                : "更新人數",
+        });
+      }
       return json(request, {
         ok: true,
-        message: seatingChanged
+        message: response === "waitlisted" && rsvp.response !== "waitlisted"
+          ? `已將「${rsvp.name}」放入候補名單`
+          : response === "attending" && rsvp.response === "waitlisted"
+            ? `已將「${rsvp.name}」遞補為參加${paymentReset ? "，收款狀態已改為待收" : ""}`
+          : seatingChanged
           ? `已更新「${rsvp.name}」的回覆，原本的活動安排已清除${paymentReset ? "，收款狀態已改為待收" : ""}`
           : `已更新「${rsvp.name}」的回覆`,
       });
@@ -339,6 +375,8 @@ export async function POST(request: Request) {
       summary: {
         attendingPeople: attending.reduce((sum, item) => sum + item.partySize, 0),
         attendingReplies: attending.length,
+        waitlistPeople: responses.filter((item) => item.response === "waitlisted").reduce((sum, item) => sum + item.partySize, 0),
+        waitlistReplies: responses.filter((item) => item.response === "waitlisted").length,
         notAttendingReplies: responses.filter((item) => item.response === "not_attending").length,
         fee: feeSummary,
       },

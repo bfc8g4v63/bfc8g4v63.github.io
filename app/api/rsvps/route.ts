@@ -77,7 +77,11 @@ export async function POST(request: Request) {
     const participantCode = clean(body.participantCode, 80);
     const suppliedAttendeeToken = clean(body.attendeeToken, 160);
     const name = clean(body.name, 60);
-    const response = body.response === "not_attending" ? "not_attending" : "attending";
+    const response = body.response === "not_attending"
+      ? "not_attending"
+      : body.response === "waitlisted"
+        ? "waitlisted"
+        : "attending";
     const partySize = Math.max(
       1,
       typeof body.partySize === "number" && Number.isFinite(body.partySize)
@@ -150,7 +154,7 @@ export async function POST(request: Request) {
       if (attendanceChanged) {
         await db.delete(mealAssignments).where(eq(mealAssignments.rsvpId, existing.id));
       }
-      if (response === "not_attending") {
+      if (response !== "attending") {
         await db.delete(companionCards).where(eq(companionCards.rsvpId, existing.id));
         await db.delete(companionRequests).where(or(
           eq(companionRequests.fromRsvpId, existing.id),
@@ -160,17 +164,19 @@ export async function POST(request: Request) {
       await db.update(rsvps).set(values).where(eq(rsvps.id, existing.id));
     }
     else await db.insert(rsvps).values({ id: crypto.randomUUID(), ...values });
-    const shouldNotifyManagers = existing ? attendanceChanged : response === "attending";
+    const shouldNotifyManagers = existing ? attendanceChanged : response !== "not_attending";
     if (shouldNotifyManagers) {
       const change = !existing
         ? "新增報名"
-        : response !== "attending"
-          ? "取消參加"
+        : response === "waitlisted"
+          ? existing.response === "attending" ? "改為候補" : "加入候補"
+          : response !== "attending"
+            ? "取消參加"
           : existing.response !== "attending"
-            ? "改為參加"
+            ? existing.response === "waitlisted" ? "候補遞補為參加" : "改為參加"
             : "更新人數";
       const notification = notifyPairedManagers({
-        eventId, eventTitle: event.title, name: values.name, partySize: response === "attending" ? partySize : 0, change,
+        eventId, eventTitle: event.title, name: values.name, partySize: response === "not_attending" ? 0 : partySize, change,
       });
       const context = getRequestExecutionContext();
       if (context) context.waitUntil(notification);
@@ -181,7 +187,7 @@ export async function POST(request: Request) {
     const message = errorMessages(error);
     if (message.includes("capacity_exceeded")) {
       return json(request, {
-        error: "這個活動已額滿；已報名者仍可用相同姓名更新內容、減少人數或改為不參加。",
+        error: "這個活動已額滿；可改選「加入候補名單」，已報名者仍可用相同姓名更新內容、減少人數或改為不參加。",
       }, 409);
     }
     return json(request, { error: message || "回覆失敗" }, 500);

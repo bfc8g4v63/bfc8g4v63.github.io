@@ -14,7 +14,7 @@
   const demonRuleCard = document.querySelector("#demon-rule-card");
   const demonRuleToggle = document.querySelector("#demon-rule-toggle");
   const demonRuleDetails = document.querySelector("#demon-rule-details");
-  const API = "https://good-days-family-events.x0925234139.chatgpt.site/api";
+  const API = "https://gooddays.carewear.workers.dev/api";
   const accessGate = document.querySelector("#access-gate");
   const accessForm = document.querySelector("#access-form");
   const accessPassword = document.querySelector("#access-password");

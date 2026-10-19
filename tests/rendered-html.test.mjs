@@ -62,13 +62,21 @@ test("memory owner quota control keeps its CTA centered and full-width on mobile
 });
 
 test("free Cloudflare entry keeps the upstream fixed and never becomes an open proxy", async () => {
-  const proxy = await readFile(new URL("../cloudflare/gooddays-proxy-worker.mjs", import.meta.url), "utf8");
+  const [proxy, homeClient, eventClient] = await Promise.all([
+    readFile(new URL("../cloudflare/gooddays-proxy-worker.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../docs/app.js", import.meta.url), "utf8"),
+    readFile(new URL("../docs/e/app.js", import.meta.url), "utf8"),
+  ]);
   assert.match(proxy, /const UPSTREAM_ORIGIN = "https:\/\/good-days-family-events\.x0925234139\.chatgpt\.site"/);
   assert.match(proxy, /const PUBLIC_ORIGIN = "https:\/\/gooddays\.carewear\.workers\.dev"/);
   assert.match(proxy, /new URL\(`\$\{incoming\.pathname\}\$\{incoming\.search\}`, UPSTREAM_ORIGIN\)/);
   assert.match(proxy, /headers\.delete\("host"\)/);
   assert.match(proxy, /redirect: "manual"/);
   assert.match(proxy, /rewriteInternalLocation\(location\)/);
+  assert.match(homeClient, /https:\/\/gooddays\.carewear\.workers\.dev\/api/);
+  assert.match(eventClient, /https:\/\/gooddays\.carewear\.workers\.dev\/api/);
+  assert.doesNotMatch(homeClient, /chatgpt\.site/);
+  assert.doesNotMatch(eventClient, /chatgpt\.site/);
 });
 
 test("memory capsule Phase 1 keeps LINE identity, invitation and family scopes server-side", async () => {
@@ -741,7 +749,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.133/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.136/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -770,9 +778,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.133/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.133/);
-  assert.match(worker, /good-days-github-v133/);
+  assert.match(page, /\/app\.js\?v=1\.2\.136/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.136/);
+  assert.match(worker, /good-days-github-v136/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -889,7 +897,7 @@ test("RSVP capacity is enforced atomically while existing attendees can reduce t
   assert.match(rsvp, /function errorMessages/);
   assert.match(rsvp, /message\.includes\("capacity_exceeded"\)/);
   assert.match(rsvp, /這個活動已額滿/);
-  assert.match(eventClient, /目前已額滿；已報名者仍可更新內容/);
+  assert.match(eventClient, /目前已額滿。可先留下候補人數與備註/);
 });
 
 test("only a verified creator can cancel or permanently delete an activity", async () => {
@@ -1161,6 +1169,41 @@ test("managers can send a targeted announcement and reuse the pretrip informatio
   assert.match(reminders, /description: events\.description/);
 });
 
+test("waitlists preserve capacity while giving managers a deliberate promotion path", async () => {
+  const [rsvpRoute, adminRoute, homeClient, eventClient, styles] = await Promise.all([
+    readFile(new URL("../app/api/rsvps/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/event/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../docs/app.js", import.meta.url), "utf8"),
+    readFile(new URL("../docs/e/app.js", import.meta.url), "utf8"),
+    readFile(new URL("../docs/styles.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(rsvpRoute, /body\.response === "waitlisted"/);
+  assert.match(rsvpRoute, /候補遞補為參加/);
+  assert.match(adminRoute, /response === "waitlisted"/);
+  assert.match(adminRoute, /waitlistPeople/);
+  assert.match(homeClient, /data-rsvp-promote/);
+  assert.match(homeClient, /加入候補名單/);
+  assert.match(eventClient, /加入候補名單/);
+  assert.match(eventClient, /候補不會計入名額或活動費用/);
+  assert.match(styles, /\.response-pill\.waitlisted/);
+});
+
+test("activity change notices use the notification center and keep action buttons aligned", async () => {
+  const [eventsRoute, client, styles] = await Promise.all([
+    readFile(new URL("../app/api/events/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../docs/app.js", import.meta.url), "utf8"),
+    readFile(new URL("../docs/styles.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(eventsRoute, /notificationChanges/);
+  assert.match(eventsRoute, /notificationGroupCount/);
+  assert.match(client, /function openLineEventChangeNotification/);
+  assert.match(client, /發送活動異動/);
+  assert.match(client, /暫不通知/);
+  assert.match(styles, /\.notification-action-row \{ display:grid; grid-template-columns:repeat\(2,minmax\(0,1fr\)\); width:100%; gap:12px; margin-top:20px; \}/);
+  assert.match(styles, /\.notification-action-row>button \{ display:inline-flex; align-items:center; justify-content:center; width:100%; min-height:52px; text-align:center; \}/);
+  assert.match(styles, /\.creator-next-actions,.creator-manager-actions,.creator-existing-group-actions,.notification-action-row \{ grid-template-columns:1fr; \}/);
+});
+
 test("completed activities keep their history while repeat activities start clean", async () => {
   const [eventsRoute, rsvpRoute, adminRoute, client, eventClient, reminders] = await Promise.all([
     readFile(new URL("../app/api/events/route.ts", import.meta.url), "utf8"),
@@ -1281,8 +1324,8 @@ test("creator next-step actions stay aligned across desktop and mobile layouts",
   assert.match(styles, /\.creator-next-actions>button \{ display:inline-flex; align-items:center; justify-content:center; width:100%; min-height:58px/);
   assert.match(styles, /\.creator-manager-actions \{ display:grid; grid-template-columns:repeat\(2,minmax\(0,1fr\)\); width:100%; margin-top:12px; \}/);
   assert.match(styles, /\.creator-existing-group-actions \{ display:grid; grid-template-columns:repeat\(2,minmax\(0,1fr\)\); gap:12px; \}/);
-  assert.match(styles, /\.creator-next-actions,\.creator-manager-actions,\.creator-existing-group-actions \{ grid-template-columns:1fr; \}/);
-  assert.match(styles, /\.creator-next-actions>button,\.creator-manager-actions>button,\.creator-existing-group-actions>button \{ min-height:58px; \}/);
+  assert.match(styles, /\.creator-next-actions,\.creator-manager-actions,\.creator-existing-group-actions,.notification-action-row \{ grid-template-columns:1fr; \}/);
+  assert.match(styles, /\.creator-next-actions>button,\.creator-manager-actions>button,\.creator-existing-group-actions>button,.notification-action-row>button \{ min-height:58px; \}/);
 });
 
 test("contact details keep matching field heights and preserve the international-phone guidance", async () => {

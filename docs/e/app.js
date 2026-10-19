@@ -1,4 +1,4 @@
-const API = "https://good-days-family-events.x0925234139.chatgpt.site/api";
+const API = "https://gooddays.carewear.workers.dev/api";
 const root = document.querySelector("#event-app");
 const modalRoot = document.querySelector("#modal-root");
 const shareToken = new URLSearchParams(location.search).get("s") || "";
@@ -128,7 +128,7 @@ function renderEvent(event) {
       ${event.description ? `<section class="pretrip-card"><strong>行前資訊</strong><p>${esc(event.description)}</p></section>` : ""}
       <p class="attendance"><strong>${people} 人參加</strong>${event.capacity ? `<span>／上限 ${event.capacity} 人</span>` : ""}</p>
       ${event.feePerPerson > 0 ? `<p class="fee-note">活動費用：每人 ${formatMoney(event.feePerPerson)}</p>` : ""}
-      ${event.status === "cancelled" ? '<p class="form-error">此活動已取消</p>' : event.status === "completed" ? '<p class="form-hint">此活動已結束，報名名單與活動資訊保留供查看。</p>' : isFull ? '<div class="rsvp-full-state"><button class="primary" id="rsvp">活動已額滿</button><p class="form-hint">目前已額滿；已報名者仍可更新內容、減少人數或改為不參加。</p></div>' : '<button class="primary" id="rsvp">我要參加</button>'}
+      ${event.status === "cancelled" ? '<p class="form-error">此活動已取消</p>' : event.status === "completed" ? '<p class="form-hint">此活動已結束，報名名單與活動資訊保留供查看。</p>' : isFull ? '<div class="rsvp-full-state"><button class="primary" id="rsvp">加入候補名單</button><p class="form-hint">目前已額滿。可先留下候補人數與備註；有名額後由活動管理者確認遞補，候補資料不會公開。</p></div>' : '<button class="primary" id="rsvp">我要參加</button>'}
       ${rosterHtml}
       ${event.contactName ? `<p class="contact">活動聯絡人：${esc(event.contactName)}</p>` : ""}
       <p class="privacy-note">電話、飲食、備註與管理資訊只會讓活動管理者看到。</p>
@@ -159,19 +159,26 @@ async function loadEvent() {
 function closeModal() { modalRoot.innerHTML = ""; }
 
 function openRsvp() {
+  const isFull = Boolean(currentEvent.capacity && (currentEvent.summary?.attendingPeople || 0) >= currentEvent.capacity);
+  const initialResponse = isFull ? "waitlisted" : "attending";
   modalRoot.innerHTML = `
     <div class="modal-backdrop"><section class="modal rsvp-modal" role="dialog" aria-modal="true" aria-labelledby="rsvp-title">
       <button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">回覆活動</p><h2 id="rsvp-title">${esc(currentEvent.title)}</h2>
       <form id="rsvp-form"><label>您的姓名 <span>必填</span><input name="name" required autofocus placeholder="例如：王奶奶"></label>
-        <fieldset><legend>是否參加？</legend><label class="choice"><input type="radio" name="response" value="attending" checked><span>✓ 我要參加</span></label><label class="choice"><input type="radio" name="response" value="not_attending"><span>這次無法參加</span></label></fieldset>
-        <div id="attending-fields"><label>總共幾人參加？<input name="partySize" type="number" min="1" step="1" inputmode="numeric" value="1" required></label>${currentEvent.feePerPerson > 0 ? `<p class="fee-note" id="rsvp-fee-total">本戶應收：${formatMoney(currentEvent.feePerPerson)}（每人 ${formatMoney(currentEvent.feePerPerson)}）</p>` : ""}<label>飲食需求<input name="diet" placeholder="例如：吃素、不吃牛（可留白）"></label><label>想告訴主辦人<textarea name="note" rows="2" placeholder="可留白"></textarea></label>${currentEvent.attendanceVisibility === "opt_in" ? '<label class="toggle"><input name="shareName" type="checkbox" value="true"><span>公開我的顯示名稱給同場參加者</span></label>' : ""}${currentEvent.attendanceVisibility === "all" ? '<p class="form-hint">此活動設定為全部名單；完成報名後，您的顯示名稱會提供給已報名的同場參加者查看。</p>' : ""}</div>
+        <fieldset><legend>是否參加？</legend><label class="choice"><input type="radio" name="response" value="attending" ${initialResponse === "attending" ? "checked" : ""}><span>✓ 我要參加</span></label><label class="choice"><input type="radio" name="response" value="waitlisted" ${initialResponse === "waitlisted" ? "checked" : ""}><span>加入候補名單</span></label><label class="choice"><input type="radio" name="response" value="not_attending"><span>這次無法參加</span></label></fieldset>
+        <div id="attending-fields"><label id="party-size-label">總共幾人參加？<input name="partySize" type="number" min="1" step="1" inputmode="numeric" value="1" required></label>${currentEvent.feePerPerson > 0 ? `<p class="fee-note" id="rsvp-fee-total">本戶應收：${formatMoney(currentEvent.feePerPerson)}（每人 ${formatMoney(currentEvent.feePerPerson)}）</p>` : ""}<label>飲食需求<input name="diet" placeholder="例如：吃素、不吃牛（可留白）"></label><label>想告訴主辦人<textarea name="note" rows="2" placeholder="可留白"></textarea></label>${currentEvent.attendanceVisibility === "opt_in" ? '<label class="toggle" id="share-name-field"><input name="shareName" type="checkbox" value="true"><span>公開我的顯示名稱給同場參加者</span></label>' : ""}${currentEvent.attendanceVisibility === "all" ? '<p class="form-hint" id="all-roster-hint">此活動設定為全部名單；完成報名後，您的顯示名稱會提供給已報名的同場參加者查看。</p>' : ""}<p class="form-hint" id="waitlist-hint" hidden>候補不會計入名額或活動費用，也不會公開給同場參加者；管理者確認有名額後才會遞補。</p></div>
         <p class="form-hint">一支手機可以代填多位親友；輸入與原先完全相同的姓名，才會更新該人的回覆，不會新增重複資料。</p><p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button class="primary">確認送出</button><button type="button" class="text-danger" id="delete-my-rsvp">永久刪除我的回覆</button></div>
       </form>
     </section></div>`;
   const form = document.querySelector("#rsvp-form");
   const syncRsvpFields = () => {
-    const attending = form.elements.response.value === "attending";
-    document.querySelector("#attending-fields").hidden = !attending;
+    const response = form.elements.response.value;
+    const attending = response === "attending";
+    document.querySelector("#attending-fields").hidden = response === "not_attending";
+    document.querySelector("#party-size-label").firstChild.textContent = response === "waitlisted" ? "候補人數？" : "總共幾人參加？";
+    document.querySelector("#waitlist-hint").hidden = response !== "waitlisted";
+    document.querySelector("#share-name-field")?.toggleAttribute("hidden", !attending);
+    document.querySelector("#all-roster-hint")?.toggleAttribute("hidden", !attending);
     const total = document.querySelector("#rsvp-fee-total");
     if (total) total.textContent = `本戶應收：${formatMoney((attending ? Number(form.elements.partySize.value || 0) : 0) * currentEvent.feePerPerson)}（每人 ${formatMoney(currentEvent.feePerPerson)}）`;
   };

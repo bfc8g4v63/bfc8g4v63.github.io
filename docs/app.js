@@ -1,4 +1,4 @@
-const API = "https://good-days-family-events.x0925234139.chatgpt.site/api";
+const API = "https://gooddays.carewear.workers.dev/api";
 let events = [];
 
 const eventsRoot = document.querySelector("#events");
@@ -137,7 +137,7 @@ function eventCard(event) {
         ${event.feePerPerson > 0 ? `<p class="fee-note">活動費用：每人 ${formatMoney(event.feePerPerson)}</p>` : ""}
         <p class="privacy-note">聯絡電話、姓名與飲食備註僅活動管理者可查看</p>
         <div class="card-actions">
-          <button class="primary" data-action="rsvp" data-id="${esc(event.id)}" ${event.status !== "active" ? "disabled" : ""}>${event.status === "completed" ? "活動已結束" : isFull ? "活動已額滿" : "我要參加"}</button>
+          <button class="primary" data-action="rsvp" data-id="${esc(event.id)}" ${event.status !== "active" ? "disabled" : ""}>${event.status === "completed" ? "活動已結束" : isFull ? "加入候補名單" : "我要參加"}</button>
           <button class="icon-button" data-action="share" data-id="${esc(event.id)}">分享</button>
           <button class="icon-button" data-action="admin" data-id="${esc(event.id)}">管理</button>
         </div>
@@ -638,6 +638,8 @@ function openEventForm(event, managerAuth = null, returnTo = null) {
     if (!data) {
       button.disabled = false;
       button.textContent = original;
+    } else if (editing && data.notificationChanges?.length && data.notificationGroupCount) {
+      openLineEventChangeNotification({ ...event, ...body }, managerAuth, data.notificationChanges, returnTo);
     } else if (editing && returnTo) {
       returnTo();
     } else if (!editing) {
@@ -670,6 +672,8 @@ function openEventForm(event, managerAuth = null, returnTo = null) {
 }
 
 function openRsvpForm(event) {
+  const isFull = Boolean(event.capacity && (event.summary?.attendingPeople || 0) >= event.capacity);
+  const initialResponse = isFull ? "waitlisted" : "attending";
   modalRoot.innerHTML = `
     <div class="modal-backdrop">
       <section class="modal rsvp-modal" role="dialog" aria-modal="true" aria-labelledby="rsvp-title">
@@ -679,16 +683,18 @@ function openRsvpForm(event) {
         <form id="rsvp-form">
           ${field('您的姓名 <span>必填</span>', "name", "", 'required autofocus placeholder="例如：王奶奶"')}
           <fieldset><legend>是否參加？</legend>
-            <label class="choice"><input type="radio" name="response" value="attending" checked><span>✓ 我要參加</span></label>
+            <label class="choice"><input type="radio" name="response" value="attending" ${initialResponse === "attending" ? "checked" : ""}><span>✓ 我要參加</span></label>
+            <label class="choice"><input type="radio" name="response" value="waitlisted" ${initialResponse === "waitlisted" ? "checked" : ""}><span>加入候補名單</span></label>
             <label class="choice"><input type="radio" name="response" value="not_attending"><span>這次無法參加</span></label>
           </fieldset>
           <div id="attending-fields">
-            <label>總共幾人參加？<input name="partySize" type="number" min="1" step="1" inputmode="numeric" value="1" required></label>
+            <label id="homepage-party-size-label">總共幾人參加？<input name="partySize" type="number" min="1" step="1" inputmode="numeric" value="1" required></label>
             ${event.feePerPerson > 0 ? `<p class="fee-note" id="rsvp-fee-total">本戶應收：${formatMoney(event.feePerPerson)}（每人 ${formatMoney(event.feePerPerson)}）</p>` : ""}
             ${field("飲食需求", "diet", "", 'placeholder="例如：吃素、不吃牛（可留白）"')}
             <label>想告訴主辦人<textarea name="note" rows="2" placeholder="可留白"></textarea></label>
             ${event.attendanceVisibility === "opt_in" ? '<label class="toggle"><input name="shareName" type="checkbox" value="true"><span>公開我的顯示名稱給同場參加者</span></label>' : ""}
             ${event.attendanceVisibility === "all" ? '<p class="form-hint">此活動設定為全部名單，完成報名後您的顯示名稱會提供給已報名的同場參加者查看。</p>' : ""}
+            <p class="form-hint" id="homepage-waitlist-hint" hidden>候補不會計入名額或活動費用，也不會公開給同場參加者；管理者確認有名額後才會遞補。</p>
           </div>
           <p class="form-hint">一支手機可以代填多位親友；要更新某人的回覆，請用原先報名的裝置再次輸入相同姓名。資料僅活動管理者可查看。</p>
           <p class="form-error" id="form-error" role="alert" hidden></p>
@@ -698,8 +704,11 @@ function openRsvpForm(event) {
     </div>`;
   const form = document.querySelector("#rsvp-form");
   const syncRsvpFields = () => {
-    const attending = form.elements.response.value === "attending";
-    document.querySelector("#attending-fields").hidden = !attending;
+    const response = form.elements.response.value;
+    const attending = response === "attending";
+    document.querySelector("#attending-fields").hidden = response === "not_attending";
+    document.querySelector("#homepage-party-size-label").firstChild.textContent = response === "waitlisted" ? "候補人數？" : "總共幾人參加？";
+    document.querySelector("#homepage-waitlist-hint").hidden = response !== "waitlisted";
     const total = document.querySelector("#rsvp-fee-total");
     if (total) total.textContent = `本戶應收：${formatMoney((attending ? Number(form.elements.partySize.value || 0) : 0) * event.feePerPerson)}（每人 ${formatMoney(event.feePerPerson)}）`;
   };
@@ -1040,7 +1049,7 @@ function openRecoveredActivities(activities, editCode, creatorName) {
 }
 
 function responseLabel(value) {
-  return value === "attending" ? "參加" : "不參加";
+  return value === "attending" ? "參加" : value === "waitlisted" ? "候補" : "不參加";
 }
 
 function paymentLabel(value) {
@@ -1052,10 +1061,10 @@ function adminRows(rsvps, feePerPerson) {
   if (!rsvps.length) return `<tr><td colspan="${hasFee ? 9 : 7}" class="empty-cell">尚未收到回覆</td></tr>`;
   return rsvps.map((item) => `<tr>
     <td><strong>${esc(item.name)}</strong></td><td><span class="response-pill ${esc(item.response)}">${responseLabel(item.response)}</span></td>
-    <td>${item.response === "attending" ? `${item.partySize} 人` : "—"}</td><td>${esc(item.diet || "—")}</td>
+    <td>${item.response !== "not_attending" ? `${item.partySize} 人` : "—"}</td><td>${esc(item.diet || "—")}</td>
     <td>${esc(item.note || "—")}</td><td>${esc(new Date(item.updatedAt).toLocaleString("zh-TW"))}</td>
     ${hasFee ? `<td>${item.response === "attending" ? formatMoney(item.partySize * feePerPerson) : "—"}</td><td>${item.response === "attending" ? `<select class="payment-status" data-rsvp-payment="${esc(item.id)}" aria-label="${esc(item.name)} 的收款狀態"><option value="unpaid" ${(item.paymentStatus || "unpaid") === "unpaid" || item.paymentStatus === "not_applicable" ? "selected" : ""}>待收</option><option value="paid" ${item.paymentStatus === "paid" ? "selected" : ""}>已收</option><option value="waived" ${item.paymentStatus === "waived" ? "selected" : ""}>免收</option></select>` : "—"}</td>` : ""}
-    <td><div class="rsvp-row-actions"><button class="secondary" data-rsvp-edit="${esc(item.id)}">修改回覆</button>${item.response === "attending" ? `<button class="secondary" data-rsvp-cancel="${esc(item.id)}">取消參加</button>` : ""}<button class="text-danger" data-rsvp-delete="${esc(item.id)}">刪除</button></div></td>
+    <td><div class="rsvp-row-actions"><button class="secondary" data-rsvp-edit="${esc(item.id)}">修改回覆</button>${item.response === "waitlisted" ? `<button class="secondary" data-rsvp-promote="${esc(item.id)}">遞補為參加</button>` : ""}${item.response === "attending" ? `<button class="secondary" data-rsvp-cancel="${esc(item.id)}">取消參加</button>` : ""}<button class="text-danger" data-rsvp-delete="${esc(item.id)}">刪除</button></div></td>
   </tr>`).join("");
 }
 
@@ -1067,15 +1076,16 @@ function openManagedRsvpEditor(rsvp, event, managerAuth, returnTo = null) {
     <div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="managed-rsvp-title">
       <button class="modal-close" data-close aria-label="關閉">×</button>
       <p class="eyebrow">建立者代為處理</p><h2 id="managed-rsvp-title">${isNew ? "代為新增報名" : `修改 ${esc(initial.name)} 的回覆`}</h2>
-      <p class="form-hint">${isNew ? "可直接替親友登記，不必離開管理後台或複製活動連結。" : "可受託修改姓名、人數、飲食需求、備註與出席狀態。若改變人數或是否參加，該筆既有活動安排會清除，避免桌次人數不一致。"}</p>
+      <p class="form-hint">${isNew ? "可直接替親友登記，不必離開管理後台或複製活動連結。額滿時可先加入候補名單。" : "候補遞補為參加時，系統會再次檢查名額；若改變人數或是否參加，該筆既有活動安排會清除，避免桌次人數不一致。"}</p>
       <form id="managed-rsvp-form">
         ${field("姓名", "name", initial.name, 'required maxlength="60" autofocus placeholder="例如：豆豆"')}
         <fieldset><legend>是否參加？</legend>
           <label class="choice"><input type="radio" name="response" value="attending" ${initial.response === "attending" ? "checked" : ""}><span>✓ 參加</span></label>
+          <label class="choice"><input type="radio" name="response" value="waitlisted" ${initial.response === "waitlisted" ? "checked" : ""}><span>加入候補名單</span></label>
           <label class="choice"><input type="radio" name="response" value="not_attending" ${initial.response === "not_attending" ? "checked" : ""}><span>這次無法參加</span></label>
         </fieldset>
         <div id="managed-attending-fields">
-          <label>總共幾人參加？<input name="partySize" type="number" min="1" max="999" step="1" inputmode="numeric" value="${initial.response === "attending" ? initial.partySize : 1}" required></label>
+          <label id="managed-party-size-label">總共幾人參加？<input name="partySize" type="number" min="1" max="999" step="1" inputmode="numeric" value="${initial.response !== "not_attending" ? initial.partySize : 1}" required></label>
           ${event.feePerPerson > 0 ? `<p class="fee-note" id="managed-fee-total">本戶應收：${formatMoney((initial.response === "attending" ? initial.partySize : 0) * event.feePerPerson)}（每人 ${formatMoney(event.feePerPerson)}）</p>` : ""}
           ${field("飲食需求", "diet", initial.diet, 'placeholder="例如：吃素、不吃牛（可留白）"')}
           <label>想告訴主辦人<textarea name="note" rows="2" placeholder="可留白">${esc(initial.note)}</textarea></label>
@@ -1086,8 +1096,10 @@ function openManagedRsvpEditor(rsvp, event, managerAuth, returnTo = null) {
     </section></div>`;
   const form = document.querySelector("#managed-rsvp-form");
   const syncFields = () => {
-    const attending = form.elements.response.value === "attending";
-    document.querySelector("#managed-attending-fields").hidden = !attending;
+    const response = form.elements.response.value;
+    const attending = response === "attending";
+    document.querySelector("#managed-attending-fields").hidden = response === "not_attending";
+    document.querySelector("#managed-party-size-label").firstChild.textContent = response === "waitlisted" ? "候補人數？" : "總共幾人參加？";
     const total = document.querySelector("#managed-fee-total");
     if (total) total.textContent = `本戶應收：${formatMoney((attending ? Number(form.elements.partySize.value || 0) : 0) * event.feePerPerson)}（每人 ${formatMoney(event.feePerPerson)}）`;
   };
@@ -1178,11 +1190,11 @@ function linePanel(line) {
     </section>
     <div class="line-status ${groups.length ? "connected" : ""}">
       <small class="line-panel-kind">群組內公開通知</small>
-      <strong>${groups.length ? `通知群組：${groupNames}` : "尚未選擇通知群組"}</strong>
+      <strong>${groups.length ? `活動通知群組：${groupNames}` : "尚未選擇通知群組"}</strong>
       <p>${groups.length ? "可為這場活動選擇多個群組；每個群組都會收到活動邀請與原本設定的行前提醒。群組成員輸入「活動」會列出即時人數，輸入「安排」會顯示安排圖卡。這與上方的私訊提醒是兩個獨立設定。" : "可從已綁定的群組庫選擇一或多個群組；測試群組需另外確認才會發送。這不會啟用管理者私訊提醒。"}</p>
       <div id="binding-code-area"></div>
       <div class="inline-actions">
-        ${groups.length ? '<button class="line-button" id="line-announcement">發送群組公告</button><button class="secondary" id="line-existing">選擇通知群組</button><button class="secondary" id="line-publish">合併發布近期活動</button><button class="secondary" id="line-seven-day-test">測試 7 天提醒</button><button class="secondary" id="line-one-day-test">測試 1 天提醒</button><button class="secondary" id="line-two-hour-test">測試 2 小時提醒</button><button class="text-danger" id="line-unbind">移除此活動</button>' : '<button class="secondary" id="line-existing">選擇既有通知群組</button><button class="line-button" id="line-code">綁定新群組</button>'}
+        ${groups.length ? '<button class="line-button" id="line-event-update">發送活動異動</button><button class="secondary" id="line-announcement">發送群組公告</button><button class="secondary" id="line-existing">選擇通知群組</button><button class="secondary" id="line-publish">合併發布近期活動</button><button class="secondary" id="line-seven-day-test">測試 7 天提醒</button><button class="secondary" id="line-one-day-test">測試 1 天提醒</button><button class="secondary" id="line-two-hour-test">測試 2 小時提醒</button><button class="text-danger" id="line-unbind">移除此活動</button>' : '<button class="secondary" id="line-existing">選擇既有通知群組</button><button class="line-button" id="line-code">綁定新群組</button>'}
       </div>
     </div>
     ${commandCard}
@@ -1240,6 +1252,38 @@ function openLineAnnouncement(event, managerAuth) {
       box.textContent = error.message || "公告發送失敗";
       box.hidden = false;
     } finally { button.disabled = false; }
+  });
+}
+
+function openLineEventChangeNotification(event, managerAuth, changes = [], returnTo = null) {
+  activeModalClose = returnTo || closeModal;
+  const changeList = changes.filter(Boolean).map((change) => `・${change}`).join("\n");
+  const defaultMessage = changeList
+    ? `活動資訊有更新，請以最新內容為準。\n${changeList}`
+    : "活動資訊有更新，請以最新內容為準。";
+  modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="line-event-update-title"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">LINE 通知中心</p><h2 id="line-event-update-title">發送活動異動</h2><p>只會傳送給這場活動已選定的通知群組。請確認內容後再發送；候補、飲食與個人資料不會包含在群組公告中。</p><form id="line-event-update-form"><label>異動內容<textarea name="message" rows="6" maxlength="1200" required>${esc(defaultMessage)}</textarea></label><p class="form-error" hidden></p><div class="form-actions notification-action-row"><button type="button" class="secondary" id="skip-line-event-update">暫不通知</button><button type="submit" class="primary">發送異動通知</button></div></form></section></div>`;
+  const finish = () => returnTo ? returnTo() : closeModal();
+  document.querySelector("#skip-line-event-update")?.addEventListener("click", finish);
+  document.querySelector("#line-event-update-form")?.addEventListener("submit", async (submitEvent) => {
+    submitEvent.preventDefault();
+    const form = submitEvent.currentTarget;
+    const button = form.querySelector('[type="submit"]');
+    button.disabled = true;
+    button.textContent = "發送中…";
+    try {
+      await requestJson("/admin/line", {
+        action: "send_announcement",
+        message: form.elements.message.value,
+        includePretripInfo: false,
+        ...managerPayload(event.id, managerAuth),
+      });
+      showNotice("活動異動已發送到 LINE 通知群組");
+      finish();
+    } catch (error) {
+      showFormError(form, error.message || "無法發送活動異動");
+      button.disabled = false;
+      button.textContent = "發送異動通知";
+    }
   });
 }
 
@@ -1744,6 +1788,7 @@ function openAdminDashboard(data, managerAuth, returnTo = null) {
         <div class="stats-grid">
           <div><strong>${data.summary.attendingPeople}</strong><span>參加人數</span></div>
           <div><strong>${data.summary.attendingReplies}</strong><span>參加回覆</span></div>
+          <div><strong>${data.summary.waitlistPeople || 0}</strong><span>候補人數</span></div>
           <div><strong>${data.summary.notAttendingReplies}</strong><span>不參加</span></div>
           <div><strong>${remaining === null ? "不限" : remaining}</strong><span>剩餘名額</span></div>
         </div>
@@ -1760,7 +1805,7 @@ function openAdminDashboard(data, managerAuth, returnTo = null) {
         <section class="admin-section" id="participant-list">
           <div class="admin-section-title"><div><p class="eyebrow">僅管理者可見</p><h3>參與者名單</h3></div><span>${data.rsvps.length} 筆回覆</span></div>
           ${event.status === "active" ? '<div class="admin-toolbar"><button class="primary" id="create-rsvp">＋ 代為新增報名</button></div>' : '<p class="form-hint">這場活動已不再接受新報名；既有名單、收款與安排仍可查看或整理。</p>'}
-          <p class="form-hint">可直接按「代為新增報名」替多位親友登記；要更正既有回覆時，請按該列「修改回覆」。受託取消可按「取消參加」；只有誤登或重複資料才使用「刪除」。</p>
+          <p class="form-hint">額滿時可先納入候補名單；有名額後按「遞補為參加」即可再次核對名額。候補資料不會列入座位、收款或公開名單。</p>
           <div class="table-scroll"><table><thead><tr><th>姓名</th><th>回覆</th><th>人數</th><th>飲食</th><th>備註</th><th>更新時間</th>${fee.feePerPerson > 0 ? "<th>應收</th><th>收款狀態</th>" : ""}<th>管理</th></tr></thead><tbody>${adminRows(data.rsvps, fee.feePerPerson)}</tbody></table></div>
           <p class="form-error" id="rsvp-error" role="alert" hidden></p>
         </section>
@@ -1819,6 +1864,12 @@ function openAdminDashboard(data, managerAuth, returnTo = null) {
     button.addEventListener("click", () => {
       const rsvp = data.rsvps.find((item) => item.id === button.dataset.rsvpCancel);
       if (rsvp) void manageRsvp("cancel_rsvp", rsvp, event, managerAuth);
+    });
+  });
+  document.querySelectorAll("[data-rsvp-promote]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const rsvp = data.rsvps.find((item) => item.id === button.dataset.rsvpPromote);
+      if (rsvp) openManagedRsvpEditor({ ...rsvp, response: "attending" }, event, managerAuth, returnToAdmin);
     });
   });
   document.querySelectorAll("[data-rsvp-delete]").forEach((button) => {
@@ -1923,6 +1974,9 @@ function openAdminDashboard(data, managerAuth, returnTo = null) {
   document.querySelector("#line-one-day-test")?.addEventListener("click", (clickEvent) => sendLineTest(clickEvent, "one_day"));
   document.querySelector("#line-two-hour-test")?.addEventListener("click", (clickEvent) => sendLineTest(clickEvent, "two_hours"));
   document.querySelector("#line-announcement")?.addEventListener("click", () => openLineAnnouncement(event, managerAuth));
+  document.querySelector("#line-event-update")?.addEventListener("click", () => {
+    openLineEventChangeNotification(event, managerAuth, ["活動資訊有更新，請以最新內容為準。"], returnToAdmin);
+  });
   document.querySelector("#line-unbind")?.addEventListener("click", async () => {
     if (!confirm("確定將這場活動移出通知群組？群組本身與其他活動不會受影響。")) return;
     try {

@@ -2,7 +2,7 @@ import { and, desc, eq, inArray, or } from "drizzle-orm";
 import { getDb } from "../../../db";
 import { ensureSchema } from "../../../db/init";
 import {
-  events, lineBindings, lineManagerBatchBindCodes, lineManagerBindCodes,
+  activityLineGroups, events, lineBindings, lineManagerBatchBindCodes, lineManagerBindCodes,
   lineManagerTargets, mealAssignments, mealTables, rsvps,
 } from "../../../db/schema";
 import { clean, verifyCredential } from "../admin/auth";
@@ -116,12 +116,14 @@ export async function POST(request: Request) {
     }
     const eventIds = matches.map((event) => event.id);
     const chunks = eventIdChunks(eventIds);
-    const [attendeeGroups, bindingGroups, managerTargetGroups, tableGroups, assignmentGroups] = await Promise.all([
+    const [attendeeGroups, bindingGroups, activityGroupRows, managerTargetGroups, tableGroups, assignmentGroups] = await Promise.all([
       Promise.all(chunks.map((ids) => db.select({ id: rsvps.id, eventId: rsvps.eventId, partySize: rsvps.partySize }).from(rsvps).where(and(
         inArray(rsvps.eventId, ids), eq(rsvps.response, "attending"),
       )))),
       Promise.all(chunks.map((ids) => db.select({ eventId: lineBindings.eventId, groupName: lineBindings.groupName }).from(lineBindings)
         .where(inArray(lineBindings.eventId, ids)))),
+      Promise.all(chunks.map((ids) => db.select({ eventId: activityLineGroups.eventId, groupName: activityLineGroups.groupName }).from(activityLineGroups)
+        .where(inArray(activityLineGroups.eventId, ids)))),
       Promise.all(chunks.map((ids) => db.select({ eventId: lineManagerTargets.eventId }).from(lineManagerTargets)
         .where(inArray(lineManagerTargets.eventId, ids)))),
       Promise.all(chunks.map((ids) => db.select({ eventId: mealTables.eventId }).from(mealTables)
@@ -130,7 +132,7 @@ export async function POST(request: Request) {
         .where(inArray(mealAssignments.eventId, ids)))),
     ]);
     const attendeeRows = attendeeGroups.flat();
-    const bindingRows = bindingGroups.flat();
+    const bindingRows = [...bindingGroups.flat(), ...activityGroupRows.flat()];
     const managerTargetRows = managerTargetGroups.flat();
     const tableRows = tableGroups.flat();
     const assignmentRows = assignmentGroups.flat();
@@ -152,7 +154,13 @@ export async function POST(request: Request) {
       const remaining = Math.max(0, attendee.partySize - (assignedPeopleByRsvp.get(rsvpId) || 0));
       unassignedPeopleByEvent.set(attendee.eventId, (unassignedPeopleByEvent.get(attendee.eventId) || 0) + remaining);
     }
-    const lineGroupByEvent = new Map(bindingRows.map((binding) => [binding.eventId, binding.groupName]));
+    const lineGroupNamesByEvent = new Map<string, Set<string>>();
+    for (const binding of bindingRows) {
+      const names = lineGroupNamesByEvent.get(binding.eventId) || new Set<string>();
+      names.add(binding.groupName);
+      lineGroupNamesByEvent.set(binding.eventId, names);
+    }
+    const lineGroupByEvent = new Map([...lineGroupNamesByEvent].map(([eventId, names]) => [eventId, [...names].join("、")]));
     const managerTargetCountByEvent = new Map<string, number>();
     for (const target of managerTargetRows) {
       managerTargetCountByEvent.set(target.eventId, (managerTargetCountByEvent.get(target.eventId) || 0) + 1);

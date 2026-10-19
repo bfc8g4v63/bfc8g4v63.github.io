@@ -211,16 +211,26 @@ export async function PATCH(request: Request) {
     const cancelledAt = status === "cancelled"
       ? (existing.status === "cancelled" ? existing.cancelledAt : new Date().toISOString())
       : null;
+    const nextDescription = body.description === undefined ? existing.description : clean(body.description, 1000);
+    const nextCapacity = body.capacity === undefined ? existing.capacity
+      : typeof body.capacity === "number" && body.capacity > 0
+        ? Math.min(Math.floor(body.capacity), 999) : null;
+    const notificationChanges = [
+      existing.title !== title ? `活動名稱：${title}` : "",
+      existing.eventDate !== eventDate ? `日期：${eventDate}` : "",
+      existing.startTime !== startTime ? `時間：${startTime}` : "",
+      existing.location !== location ? `地點：${location}` : "",
+      existing.address !== address ? `地址：${address || "未填寫"}` : "",
+      existing.description !== nextDescription ? "行前資訊已更新" : "",
+    ].filter(Boolean);
     await getDb().update(events).set({
       title, eventDate, startTime, location, address, status, accessMode: mode, attendanceVisibility: visibility,
       shareToken, shareCode, participantCodeHash, cancelledAt,
-      description: body.description === undefined ? existing.description : clean(body.description, 1000),
+      description: nextDescription,
       creatorName: body.creatorName === undefined ? existing.creatorName : clean(body.creatorName, 60),
       contactName: body.contactName === undefined ? existing.contactName : clean(body.contactName, 60),
       contactPhone,
-      capacity: body.capacity === undefined ? existing.capacity
-        : typeof body.capacity === "number" && body.capacity > 0
-          ? Math.min(Math.floor(body.capacity), 999) : null,
+      capacity: nextCapacity,
       feePerPerson: fee,
       updatedAt: new Date().toISOString(),
     }).where(and(eq(events.id, id), eq(events.editCodeHash, existing.editCodeHash)));
@@ -230,7 +240,14 @@ export async function PATCH(request: Request) {
         `活動取消通知\n「${existing.title}」原訂 ${existing.eventDate} ${existing.startTime} 的活動已由建立者取消。`,
       );
     }
-    return json(request, { ok: true, shareToken, shareUrl: eventShareUrl(shareCode, shareToken) });
+    const notificationGroups = notificationChanges.length && status === "active"
+      ? await eventNotificationGroups(id)
+      : [];
+    return json(request, {
+      ok: true, shareToken, shareUrl: eventShareUrl(shareCode, shareToken),
+      notificationChanges,
+      notificationGroupCount: notificationGroups.length,
+    });
   } catch (error) {
     return json(request, { error: error instanceof Error ? error.message : "修改活動失敗" }, 500);
   }
