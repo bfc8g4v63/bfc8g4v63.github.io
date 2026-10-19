@@ -61,6 +61,22 @@ test("memory owner quota control keeps its CTA centered and full-width on mobile
   assert.match(styles, /\.memory-quota-control \.memory-secondary \{ width:100%; \}/);
 });
 
+test("memory retention only lets the owner permanently clean content after 30 days", async () => {
+  const [retention, page, styles] = await Promise.all([
+    readFile(new URL("../app/api/memory/families/[familyId]/retention/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/memory-capsule/MemoryCapsuleApp.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(retention, /requireFamilyRole\(request, familyId, \["owner"\]\)/);
+  assert.match(retention, /const RETENTION_DAYS = 30/);
+  assert.match(retention, /signedR2Url\("DELETE", item\.objectKey/);
+  assert.match(retention, /action: "retention_purged"/);
+  assert.match(page, /30 天保留區/);
+  assert.match(page, /永久清理已逾期內容/);
+  assert.match(styles, /\.memory-retention \{ display:flex; align-items:end; justify-content:space-between/);
+  assert.match(styles, /\.memory-retention \.memory-cta-wrap,.memory-retention \.memory-danger-button \{ width:100%; \}/);
+});
+
 test("free Cloudflare entry keeps the upstream fixed and never becomes an open proxy", async () => {
   const [proxy, homeClient, eventClient] = await Promise.all([
     readFile(new URL("../cloudflare/gooddays-proxy-worker.mjs", import.meta.url), "utf8"),
