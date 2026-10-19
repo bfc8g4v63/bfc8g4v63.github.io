@@ -55,7 +55,7 @@ function canonicalKey(key: string) {
 }
 
 /** Produces a short-lived, single-object S3-compatible URL for the private R2 bucket. */
-export async function signedR2Url(method: "GET" | "HEAD" | "PUT" | "DELETE", objectKey: string, options: { contentType?: string; expiresIn?: number } = {}) {
+export async function signedR2Url(method: "GET" | "HEAD" | "PUT" | "DELETE", objectKey: string, options: { contentType?: string; expiresIn?: number; responseContentDisposition?: string } = {}) {
   const { accessKeyId, secretAccessKey, bucket, endpoint, region } = config();
   const { amzDate, date } = timestamp(new Date());
   const credentialScope = `${date}/${region}/s3/aws4_request`;
@@ -69,6 +69,7 @@ export async function signedR2Url(method: "GET" | "HEAD" | "PUT" | "DELETE", obj
     ["X-Amz-Expires", String(Math.min(Math.max(options.expiresIn ?? 300, 30), 900))],
     ["X-Amz-SignedHeaders", signedHeaders],
   ];
+  if (options.responseContentDisposition) entries.push(["response-content-disposition", options.responseContentDisposition]);
   const canonicalQuery = entries.sort(([left], [right]) => left.localeCompare(right)).map(([key, value]) => `${rfc3986(key)}=${rfc3986(value)}`).join("&");
   const canonicalHeaders = `${options.contentType ? `content-type:${options.contentType.trim()}\n` : ""}host:${url.host}\n`;
   const canonicalRequest = [method, url.pathname, canonicalQuery, canonicalHeaders, signedHeaders, "UNSIGNED-PAYLOAD"].join("\n");
@@ -80,6 +81,12 @@ export async function signedR2Url(method: "GET" | "HEAD" | "PUT" | "DELETE", obj
   const signature = hex(await hmac(signingKey, stringToSign));
   url.search = `${canonicalQuery}&X-Amz-Signature=${signature}`;
   return url.toString();
+}
+
+/** Keeps a media fallback download name safe for a Content-Disposition response header. */
+export function downloadDisposition(filename: string) {
+  const safeName = filename.replace(/[^\p{L}\p{N}._-]+/gu, "_").slice(0, 150) || "family-memory";
+  return `attachment; filename*=UTF-8''${encodeURIComponent(safeName)}`;
 }
 
 export function safeObjectFilename(filename: string, fallbackExtension = ".bin") {

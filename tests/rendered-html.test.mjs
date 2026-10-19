@@ -147,6 +147,8 @@ test("memory capsule media, interaction and curation remain family-scoped with c
   assert.match(complete, /actualSize !== media\.byteSize/);
   assert.match(r2, /MEMORY_R2_SECRET_ACCESS_KEY/);
   assert.match(r2, /AWS4-HMAC-SHA256/);
+  assert.match(r2, /response-content-disposition/);
+  assert.match(r2, /downloadDisposition/);
   assert.match(page, /使用 LINE 進入/);
   assert.match(page, /使用 LINE 接受邀請/);
   assert.match(page, /建立邀請連結/);
@@ -156,6 +158,8 @@ test("memory capsule media, interaction and curation remain family-scoped with c
   assert.match(page, /＋ 新增相片／影片/);
   assert.match(page, /video\/mp4,video\/quicktime/);
   assert.match(page, /<video controls playsInline/);
+  assert.match(page, /播放不相容？下載原始影片/);
+  assert.match(page, /download=\{item\.originalFilename\}/);
   assert.match(page, /15 \* 60/);
   assert.match(page, /正在重試/);
   assert.match(page, /安全儲存回應/);
@@ -174,6 +178,8 @@ test("memory capsule media, interaction and curation remain family-scoped with c
   assert.match(members, /body\.role !== "admin" && body\.role !== "member"/);
   assert.match(styles, /\.memory-cta-wrap \{ display:flex; justify-content:center; align-items:center/);
   assert.match(styles, /\.memory-media-card img,\.memory-media-card video/);
+  assert.match(styles, /\.memory-video-fallback \{ display:flex; justify-content:center; align-items:center/);
+  assert.match(styles, /\.memory-video-fallback \.memory-secondary \{ width:100%; \}/);
   assert.match(styles, /\.memory-storage-meter/);
   assert.match(styles, /\.memory-community-grid \{ display:grid/);
   assert.match(styles, /@media \(max-width:680px\) \{ \.memory-community/);

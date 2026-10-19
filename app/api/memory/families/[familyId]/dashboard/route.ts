@@ -2,7 +2,7 @@ import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { getDb } from "../../../../../../db";
 import { memoryCapsules, memoryComments, memoryFamilies, memoryFamilyMembers, memoryMedia, memoryReactions } from "../../../../../../db/schema";
 import { requireFamilyRole } from "../../../auth";
-import { signedR2Url } from "../../../r2";
+import { downloadDisposition, signedR2Url } from "../../../r2";
 
 export async function GET(request: Request, context: { params: Promise<{ familyId: string }> }) {
   try {
@@ -47,7 +47,10 @@ export async function GET(request: Request, context: { params: Promise<{ familyI
       heartsByMedia.set(reaction.targetId, { count: current.count + 1, mine: current.mine || reaction.memberId === access.membership.id });
     }
     const media = await Promise.all(rows.map(async (row) => ({
-      ...row, url: await signedR2Url("GET", row.objectKey, { expiresIn: 300 }), comments: commentsByMedia.get(row.id) || [],
+      ...row,
+      url: await signedR2Url("GET", row.objectKey, { expiresIn: 300 }),
+      downloadUrl: row.mimeType.startsWith("video/") ? await signedR2Url("GET", row.objectKey, { expiresIn: 300, responseContentDisposition: downloadDisposition(row.originalFilename) }) : "",
+      comments: commentsByMedia.get(row.id) || [],
       heartCount: heartsByMedia.get(row.id)?.count || 0, heartedByMe: heartsByMedia.get(row.id)?.mine || false,
     })));
     const [usage] = await db.select({ usedBytes: sql<number>`coalesce(sum(${memoryMedia.byteSize}), 0)` }).from(memoryMedia).where(and(
