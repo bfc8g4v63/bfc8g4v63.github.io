@@ -46,6 +46,21 @@ test("memory capsule moderation keeps reports family-scoped and hides only after
   assert.match(styles, /\.memory-reports/);
 });
 
+test("memory owner quota control keeps its CTA centered and full-width on mobile", async () => {
+  const [settings, page, styles] = await Promise.all([
+    readFile(new URL("../app/api/memory/families/[familyId]/settings/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/memory-capsule/MemoryCapsuleApp.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(settings, /requireFamilyRole\(request, familyId, \["owner"\]\)/);
+  assert.match(page, /setQuotaGb\(String\(Math\.max\(1, Math\.round\(nextDashboard\.storage\.quotaBytes/);
+  assert.match(page, /className="memory-storage memory-quota-control"/);
+  assert.match(page, /className="memory-cta-wrap"><button className="memory-secondary"/);
+  assert.match(styles, /\.memory-quota-control \{ display:flex; align-items:end; justify-content:space-between; gap:16px; \}/);
+  assert.match(styles, /\.memory-quota-control \.memory-cta-wrap \{ width:100%; \}/);
+  assert.match(styles, /\.memory-quota-control \.memory-secondary \{ width:100%; \}/);
+});
+
 test("free Cloudflare entry keeps the upstream fixed and never becomes an open proxy", async () => {
   const proxy = await readFile(new URL("../cloudflare/gooddays-proxy-worker.mjs", import.meta.url), "utf8");
   assert.match(proxy, /const UPSTREAM_ORIGIN = "https:\/\/good-days-family-events\.x0925234139\.chatgpt\.site"/);

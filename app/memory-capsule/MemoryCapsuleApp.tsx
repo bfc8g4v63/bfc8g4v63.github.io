@@ -90,6 +90,7 @@ export function MemoryCapsuleApp() {
       if (nextSession.signedIn && familyId) {
         const nextDashboard = await json<Dashboard>(`/api/memory/families/${familyId}/dashboard`);
         setDashboard(nextDashboard);
+        setQuotaGb(String(Math.max(1, Math.round(nextDashboard.storage.quotaBytes / (1024 * 1024 * 1024)))));
         setSelectedCapsuleId((current) => current || nextDashboard.capsules[0]?.id || "");
         if (["owner", "admin"].includes(nextDashboard.membership.role)) await loadCommunity(familyId);
         else { setInvites([]); setMembers([]); }
