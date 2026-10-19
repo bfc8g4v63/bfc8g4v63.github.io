@@ -115,6 +115,7 @@ test("free Cloudflare entry keeps the upstream fixed and never becomes an open p
   assert.match(proxy, /responseHeaders\.delete\("set-cookie"\)/);
   assert.match(proxy, /function addApiCorsHeaders/);
   assert.match(proxy, /headers\.set\("Access-Control-Allow-Origin", APP_ORIGIN\)/);
+  assert.match(proxy, /headers\.set\("Access-Control-Allow-Credentials", "true"\)/);
   assert.match(proxy, /request\.method === "OPTIONS"/);
   assert.match(proxy, /redirect: "manual"/);
   assert.match(proxy, /rewriteInternalLocation\(location\)/);
@@ -802,7 +803,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.139/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.140/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -831,9 +832,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.139/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.139/);
-  assert.match(worker, /good-days-github-v139/);
+  assert.match(page, /\/app\.js\?v=1\.2\.140/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.140/);
+  assert.match(worker, /good-days-github-v140/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 

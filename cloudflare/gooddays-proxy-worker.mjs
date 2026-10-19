@@ -29,6 +29,10 @@ function addApiCorsHeaders(request, headers) {
   const incoming = new URL(request.url);
   if (!incoming.pathname.startsWith("/api/") || request.headers.get("origin") !== APP_ORIGIN) return;
   headers.set("Access-Control-Allow-Origin", APP_ORIGIN);
+  // Keep the transition compatible with the previous cached frontend, which
+  // used the browser's default credential mode. The gateway never forwards or
+  // exposes cookies, and the allowed origin remains a single fixed site.
+  headers.set("Access-Control-Allow-Credentials", "true");
   headers.set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
   headers.set("Access-Control-Allow-Headers", "Content-Type");
   headers.set("Access-Control-Max-Age", "86400");
