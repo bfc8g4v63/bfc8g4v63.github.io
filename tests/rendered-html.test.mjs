@@ -77,6 +77,31 @@ test("memory retention only lets the owner permanently clean content after 30 da
   assert.match(styles, /\.memory-retention \.memory-cta-wrap,.memory-retention \.memory-danger-button \{ width:100%; \}/);
 });
 
+test("memory owners can export private ZIP backups with a centered responsive CTA", async () => {
+  const [exportRoute, zip, page, styles, checklist] = await Promise.all([
+    readFile(new URL("../app/api/memory/families/[familyId]/export/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/memory/zip.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/memory-capsule/MemoryCapsuleApp.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../docs/memory-capsule/ACCEPTANCE.md", import.meta.url), "utf8"),
+  ]);
+  assert.match(exportRoute, /requireFamilyRole\(request, familyId, \["owner"\]\)/);
+  assert.match(exportRoute, /const MAX_DIRECT_EXPORT_BYTES = 2 \* 1024 \* 1024 \* 1024/);
+  assert.match(exportRoute, /requestUrl\.searchParams\.get\("check"\) === "1"/);
+  assert.match(exportRoute, /action: "backup_export_started"/);
+  assert.match(exportRoute, /"content-type": "application\/zip"/);
+  assert.match(exportRoute, /signedR2Url\("GET", item\.objectKey/);
+  assert.match(zip, /Data descriptor makes it possible to write private R2 files straight to/);
+  assert.match(page, /下載 ZIP 備份/);
+  assert.match(page, /const startExport = async/);
+  assert.match(page, /className="memory-storage memory-export"/);
+  assert.match(styles, /\.memory-export \{ display:flex; align-items:end; justify-content:space-between; gap:16px; \}/);
+  assert.match(styles, /\.memory-export \.memory-secondary \{ width:100%; \}/);
+  assert.match(checklist, /iPhone Safari/);
+  assert.match(checklist, /Android Chrome/);
+  assert.match(checklist, /LINE 內建瀏覽器/);
+});
+
 test("free Cloudflare entry keeps the upstream fixed and never becomes an open proxy", async () => {
   const [proxy, homeClient, eventClient] = await Promise.all([
     readFile(new URL("../cloudflare/gooddays-proxy-worker.mjs", import.meta.url), "utf8"),

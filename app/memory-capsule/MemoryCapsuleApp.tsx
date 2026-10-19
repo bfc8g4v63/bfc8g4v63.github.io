@@ -56,6 +56,8 @@ export function MemoryCapsuleApp() {
   const [reports, setReports] = useState<Report[]>([]);
   const [retention, setRetention] = useState<Retention | null>(null);
   const [retentionBusy, setRetentionBusy] = useState(false);
+  const [exportCapsuleId, setExportCapsuleId] = useState("");
+  const [exportBusy, setExportBusy] = useState(false);
   const [inviteRole, setInviteRole] = useState<"admin" | "member">("member");
   const [inviteDays, setInviteDays] = useState(7);
   const [inviteUrl, setInviteUrl] = useState("");
@@ -233,6 +235,17 @@ export function MemoryCapsuleApp() {
     catch (reason) { setError(reason instanceof Error ? reason.message : "無法永久清理保留內容"); }
     finally { setRetentionBusy(false); }
   };
+  const exportHref = dashboard ? `/api/memory/families/${dashboard.family.id}/export${exportCapsuleId ? `?capsuleId=${encodeURIComponent(exportCapsuleId)}` : ""}` : "#";
+  const startExport = async () => {
+    if (!dashboard) return;
+    setExportBusy(true); setError("");
+    try {
+      const checkUrl = `${exportHref}${exportHref.includes("?") ? "&" : "?"}check=1`;
+      await json(checkUrl);
+      window.location.assign(exportHref);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "無法建立私密備份"); }
+    finally { setExportBusy(false); }
+  };
   const reportContent = async (targetType: "media" | "comment", targetId: string) => {
     if (!dashboard) return;
     const reason = window.prompt("請簡短說明回報原因（將只提供家族管理者處理）：");
@@ -311,6 +324,7 @@ export function MemoryCapsuleApp() {
     {["owner", "admin"].includes(dashboard.membership.role) && <section className="memory-storage" aria-label="家族儲存空間"><div><p className="memory-kicker">家族空間</p><h2>{formatStorage(dashboard.storage.usedBytes)} <small>/ {formatStorage(dashboard.storage.quotaBytes)}</small></h2><p>目前已確認的照片與影片用量。到 80% 和 90% 會顯示提醒，達上限時會暫停新的上傳。</p></div><div className="memory-storage-meter" aria-label={`已使用 ${Math.min(100, Math.round((dashboard.storage.usedBytes / dashboard.storage.quotaBytes) * 100))}%`}><span style={{ width: `${Math.min(100, (dashboard.storage.usedBytes / dashboard.storage.quotaBytes) * 100)}%` }} /></div>{dashboard.storage.usedBytes / dashboard.storage.quotaBytes >= .9 ? <strong className="memory-storage-alert">空間已達 90%，請整理內容或提高容量。</strong> : dashboard.storage.usedBytes / dashboard.storage.quotaBytes >= .8 ? <strong className="memory-storage-alert">空間已達 80%，請留意接下來的影片上傳。</strong> : null}</section>}
     {dashboard.membership.role === "owner" && <section className="memory-storage memory-quota-control" aria-label="調整家族容量"><label>容量上限（GB）<input type="number" min="1" max="1024" value={quotaGb} onChange={(event) => setQuotaGb(event.target.value)} /></label><div className="memory-cta-wrap"><button className="memory-secondary" onClick={() => { void saveQuota(); }}>儲存容量上限</button></div></section>}
     {dashboard.membership.role === "owner" && retention && <section className="memory-storage memory-retention" aria-label="30 天保留區"><div><p className="memory-kicker">30 天保留區</p><h2>{retention.mediaCount + retention.commentCount} <small>項可永久清理</small></h2><p>只有已軟刪除且超過 {retention.retentionDays} 天的內容會出現在這裡；清理後無法恢復。</p></div><div className="memory-cta-wrap"><button className="memory-danger-button" disabled={retentionBusy || !(retention.mediaCount + retention.commentCount)} onClick={() => { void purgeRetention(); }}>{retentionBusy ? "清理中⋯" : "永久清理已逾期內容"}</button></div></section>}
+    {dashboard.membership.role === "owner" && <section className="memory-storage memory-export" aria-label="下載家族私密備份"><div><p className="memory-kicker">私密備份</p><h2>下載 ZIP 備份</h2><p>ZIP 會包含原始照片／影片和 metadata，不會在 R2 另存公開副本。超過 2 GB 請選單一膠囊分批下載。</p></div><label>備份範圍<select value={exportCapsuleId} onChange={(event) => setExportCapsuleId(event.target.value)} disabled={exportBusy}><option value="">全部家族</option>{dashboard.capsules.map((capsule) => <option key={capsule.id} value={capsule.id}>{capsule.title}</option>)}</select></label><div className="memory-cta-wrap"><button className="memory-secondary" disabled={exportBusy} onClick={() => { void startExport(); }}>{exportBusy ? "準備備份⋯" : "下載 ZIP 備份"}</button></div></section>}
     <section className="memory-section"><div className="memory-section-heading"><div><p className="memory-kicker">家族膠囊</p><h2>一起打開的回憶</h2></div>{["owner", "admin"].includes(dashboard.membership.role) && <div className="memory-cta-wrap"><button className="memory-secondary" onClick={() => openCapsuleEditor()}>＋ 建立膠囊</button></div>}</div>
       {editingCapsule && <section className="memory-editor-card" aria-label={editingCapsule === "new" ? "建立回憶膠囊" : "整理回憶膠囊"}><h3>{editingCapsule === "new" ? "建立新的回憶膠囊" : "整理這顆膠囊"}</h3><label>名稱<input value={capsuleForm.title} maxLength={100} onChange={(event) => setCapsuleForm({ ...capsuleForm, title: event.target.value })} placeholder="例如：2026 過年團圓" /></label><label>日期／年代（選填）<input value={capsuleForm.eraLabel} maxLength={80} onChange={(event) => setCapsuleForm({ ...capsuleForm, eraLabel: event.target.value })} placeholder="例如：2026 年春節" /></label><label>前言（選填）<textarea value={capsuleForm.introduction} maxLength={1200} onChange={(event) => setCapsuleForm({ ...capsuleForm, introduction: event.target.value })} placeholder="寫下這顆膠囊想留給家人的話" /></label>{editingCapsule !== "new" && <label>膠囊封面<select value={capsuleForm.coverMediaId} onChange={(event) => setCapsuleForm({ ...capsuleForm, coverMediaId: event.target.value })}><option value="">使用「宴」字封面</option>{visibleMedia.map((media) => <option key={media.id} value={media.id}>{media.title || media.originalFilename}</option>)}</select></label>}<div className="memory-editor-actions"><button className="memory-secondary" disabled={capsuleBusy} onClick={resetCapsuleForm}>取消</button><button className="memory-primary" disabled={capsuleBusy} onClick={() => { void saveCapsule(); }}>{capsuleBusy ? "儲存中⋯" : "儲存膠囊"}</button></div></section>}
       <div className="memory-capsules">{dashboard.capsules.map((capsule, index) => <article key={capsule.id} className="memory-capsule-card"><button className={`memory-capsule${activeCapsule?.id === capsule.id ? " active" : ""}`} onClick={() => setSelectedCapsuleId(capsule.id)}>{capsule.coverUrl ? <img className="memory-capsule-cover" src={capsule.coverUrl} alt={`${capsule.title} 封面`} /> : <span className="memory-capsule-icon">宴</span>}<span><b>{capsule.title}</b><small>{capsule.eraLabel || "家族回憶"}・{capsule.mediaCount} 項回憶</small></span></button>{["owner", "admin"].includes(dashboard.membership.role) && <div className="memory-capsule-actions"><button onClick={() => openCapsuleEditor(capsule)}>整理</button><button disabled={capsuleBusy || index === 0} onClick={() => { void moveCapsule(capsule.id, "up"); }}>往前</button><button disabled={capsuleBusy || index === dashboard.capsules.length - 1} onClick={() => { void moveCapsule(capsule.id, "down"); }}>往後</button></div>}</article>)}</div>
