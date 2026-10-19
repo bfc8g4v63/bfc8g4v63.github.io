@@ -169,6 +169,8 @@
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
+      mode: "cors",
+      credentials: "omit",
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "小幫手暫時塞車了");
@@ -257,6 +259,8 @@
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
+          mode: "cors",
+          credentials: "omit",
         });
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || "配送暫時塞車了");

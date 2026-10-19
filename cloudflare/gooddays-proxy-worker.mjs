@@ -42,6 +42,10 @@ export default {
     const responseHeaders = new Headers(response.headers);
     const location = responseHeaders.get("location");
     if (location) responseHeaders.set("location", rewriteInternalLocation(location));
+    // This gateway is stateless.  An upstream anti-bot cookie belongs to a
+    // different host and must never be offered to a browser using the public
+    // cross-origin API; some browsers otherwise reject the fetch outright.
+    responseHeaders.delete("set-cookie");
     responseHeaders.set("x-gooddays-entry", "cloudflare-worker");
     return new Response(response.body, { status: response.status, statusText: response.statusText, headers: responseHeaders });
   },

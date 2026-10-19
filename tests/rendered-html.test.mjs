@@ -87,10 +87,13 @@ test("free Cloudflare entry keeps the upstream fixed and never becomes an open p
   assert.match(proxy, /const PUBLIC_ORIGIN = "https:\/\/gooddays\.carewear\.workers\.dev"/);
   assert.match(proxy, /new URL\(`\$\{incoming\.pathname\}\$\{incoming\.search\}`, UPSTREAM_ORIGIN\)/);
   assert.match(proxy, /headers\.delete\("host"\)/);
+  assert.match(proxy, /responseHeaders\.delete\("set-cookie"\)/);
   assert.match(proxy, /redirect: "manual"/);
   assert.match(proxy, /rewriteInternalLocation\(location\)/);
   assert.match(homeClient, /https:\/\/gooddays\.carewear\.workers\.dev\/api/);
   assert.match(eventClient, /https:\/\/gooddays\.carewear\.workers\.dev\/api/);
+  assert.match(homeClient, /credentials: "omit"/);
+  assert.match(eventClient, /credentials: "omit"/);
   assert.doesNotMatch(homeClient, /chatgpt\.site/);
   assert.doesNotMatch(eventClient, /chatgpt\.site/);
 });
@@ -771,7 +774,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.137/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.139/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -800,9 +803,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.137/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.137/);
-  assert.match(worker, /good-days-github-v137/);
+  assert.match(page, /\/app\.js\?v=1\.2\.139/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.139/);
+  assert.match(worker, /good-days-github-v139/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 

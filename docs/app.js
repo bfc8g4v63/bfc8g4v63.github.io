@@ -109,7 +109,7 @@ async function trackSiteVisit() {
   const countValue = document.querySelector("#visitor-count-value");
   if (!countBox || !countValue) return;
   try {
-    const response = await fetch(`${API}/site-stats`, { method: "POST", cache: "no-store" });
+    const response = await fetch(`${API}/site-stats`, { method: "POST", cache: "no-store", mode: "cors", credentials: "omit" });
     const data = await response.json();
     if (!response.ok || typeof data.views !== "number") throw new Error("瀏覽人次暫時無法取得");
     countValue.textContent = new Intl.NumberFormat("zh-TW").format(data.views);
@@ -160,7 +160,7 @@ async function loadEvents() {
   loading.hidden = false;
   errorBox.hidden = true;
   try {
-    const response = await fetch(`${API}/events`, { cache: "no-store" });
+    const response = await fetch(`${API}/events`, { cache: "no-store", mode: "cors", credentials: "omit" });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "讀取活動失敗");
     events = data.events || [];
@@ -419,7 +419,7 @@ function selectedStartTime(form) {
 
 async function requestJson(path, body, method = "POST") {
   const response = await fetch(`${API}${path}`, {
-    method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), mode: "cors", credentials: "omit",
   });
   const data = await response.json();
   if (!response.ok) throw new Error(data.error || "操作失敗");
@@ -659,7 +659,7 @@ function openEventForm(event, managerAuth = null, returnTo = null) {
     if (prompt(`請輸入活動名稱「${event.title}」以確認永久刪除`) !== event.title) return;
     try {
       const response = await fetch(`${API}/events`, {
-        method: "DELETE", headers: { "Content-Type": "application/json" },
+        method: "DELETE", headers: { "Content-Type": "application/json" }, mode: "cors", credentials: "omit",
         body: JSON.stringify(eventManagerPayload(event.id, managerAuth)),
       });
       const data = await response.json();
@@ -2006,7 +2006,7 @@ function showFormError(form, message) {
 async function save(url, method, body, successMessage, form) {
   try {
     const response = await fetch(url, {
-      method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+      method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), mode: "cors", credentials: "omit",
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "操作失敗");

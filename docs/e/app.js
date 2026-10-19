@@ -60,7 +60,7 @@ async function post(path, body, method = "POST", timeoutMs = 10_000) {
   const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(`${API}${path}`, {
-      method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: controller.signal,
+      method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body), signal: controller.signal, mode: "cors", credentials: "omit",
     });
     const data = await response.json();
     if (!response.ok) {
