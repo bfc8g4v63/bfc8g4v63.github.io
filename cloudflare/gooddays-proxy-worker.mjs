@@ -39,6 +39,27 @@ function addApiCorsHeaders(request, headers) {
   headers.append("Vary", "Origin");
 }
 
+function upstreamHeaders(request) {
+  const headers = new Headers(request.headers);
+  // A browser's client-hint, navigation, cookie and edge headers describe the
+  // public page rather than this fixed API gateway. Passing them upstream can
+  // trigger browser-specific bot checks, even though the same API request is
+  // valid. Keep only API-relevant request metadata.
+  for (const name of [
+    "host", "cookie", "origin", "referer", "user-agent",
+    "sec-ch-ua", "sec-ch-ua-mobile", "sec-ch-ua-platform",
+    "sec-fetch-dest", "sec-fetch-mode", "sec-fetch-site",
+    "cf-connecting-ip", "cf-ipcountry", "cf-ray", "x-forwarded-for",
+  ]) headers.delete(name);
+  return headers;
+}
+
+function apiGatewayError(request) {
+  const headers = new Headers({ "content-type": "application/json; charset=utf-8" });
+  addApiCorsHeaders(request, headers);
+  return new Response(JSON.stringify({ error: "活動服務暫時無法連線，請稍後再試。" }), { status: 502, headers });
+}
+
 export default {
   async fetch(request) {
     const upstream = upstreamUrl(request);
@@ -47,17 +68,17 @@ export default {
       addApiCorsHeaders(request, headers);
       return new Response(null, { status: 204, headers });
     }
-    const headers = new Headers(request.headers);
-    // The upstream only receives requests addressed to its fixed host. It must
-    // not accept an end-user supplied host or destination.
-    headers.delete("host");
-
-    const response = await fetch(new Request(upstream, {
-      method: request.method,
-      headers,
-      body: request.method === "GET" || request.method === "HEAD" ? undefined : request.body,
-      redirect: "manual",
-    }));
+    let response;
+    try {
+      response = await fetch(new Request(upstream, {
+        method: request.method,
+        headers: upstreamHeaders(request),
+        body: request.method === "GET" || request.method === "HEAD" ? undefined : request.body,
+        redirect: "manual",
+      }));
+    } catch {
+      return apiGatewayError(request);
+    }
 
     const responseHeaders = new Headers(response.headers);
     const location = responseHeaders.get("location");
