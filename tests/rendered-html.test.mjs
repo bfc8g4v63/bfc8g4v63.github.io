@@ -88,6 +88,9 @@ test("free Cloudflare entry keeps the upstream fixed and never becomes an open p
   assert.match(proxy, /new URL\(`\$\{incoming\.pathname\}\$\{incoming\.search\}`, UPSTREAM_ORIGIN\)/);
   assert.match(proxy, /headers\.delete\("host"\)/);
   assert.match(proxy, /responseHeaders\.delete\("set-cookie"\)/);
+  assert.match(proxy, /function addApiCorsHeaders/);
+  assert.match(proxy, /headers\.set\("Access-Control-Allow-Origin", APP_ORIGIN\)/);
+  assert.match(proxy, /request\.method === "OPTIONS"/);
   assert.match(proxy, /redirect: "manual"/);
   assert.match(proxy, /rewriteInternalLocation\(location\)/);
   assert.match(homeClient, /https:\/\/gooddays\.carewear\.workers\.dev\/api/);

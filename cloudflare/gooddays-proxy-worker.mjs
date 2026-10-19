@@ -9,6 +9,7 @@
  */
 const UPSTREAM_ORIGIN = "https://good-days-family-events.x0925234139.chatgpt.site";
 const PUBLIC_ORIGIN = "https://gooddays.carewear.workers.dev";
+const APP_ORIGIN = "https://bfc8g4v63.github.io";
 
 function upstreamUrl(request) {
   const incoming = new URL(request.url);
@@ -24,9 +25,24 @@ function rewriteInternalLocation(value) {
   return location.toString();
 }
 
+function addApiCorsHeaders(request, headers) {
+  const incoming = new URL(request.url);
+  if (!incoming.pathname.startsWith("/api/") || request.headers.get("origin") !== APP_ORIGIN) return;
+  headers.set("Access-Control-Allow-Origin", APP_ORIGIN);
+  headers.set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
+  headers.set("Access-Control-Allow-Headers", "Content-Type");
+  headers.set("Access-Control-Max-Age", "86400");
+  headers.append("Vary", "Origin");
+}
+
 export default {
   async fetch(request) {
     const upstream = upstreamUrl(request);
+    if (request.method === "OPTIONS" && new URL(request.url).pathname.startsWith("/api/")) {
+      const headers = new Headers();
+      addApiCorsHeaders(request, headers);
+      return new Response(null, { status: 204, headers });
+    }
     const headers = new Headers(request.headers);
     // The upstream only receives requests addressed to its fixed host. It must
     // not accept an end-user supplied host or destination.
@@ -46,6 +62,10 @@ export default {
     // different host and must never be offered to a browser using the public
     // cross-origin API; some browsers otherwise reject the fetch outright.
     responseHeaders.delete("set-cookie");
+    // Upstream error responses do not consistently include CORS headers. Add
+    // them at the public gateway so browser clients can receive the real
+    // validation or server error instead of an opaque "Failed to fetch".
+    addApiCorsHeaders(request, responseHeaders);
     responseHeaders.set("x-gooddays-entry", "cloudflare-worker");
     return new Response(response.body, { status: response.status, statusText: response.statusText, headers: responseHeaders });
   },
