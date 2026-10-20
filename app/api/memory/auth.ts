@@ -210,7 +210,10 @@ export async function exchangeLineCode(request: Request, code: string, nonce: st
     method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body,
   });
   if (!tokenResponse.ok) throw new Error("LINE 登入驗證失敗，請重新開啟邀請連結");
-  const tokens = await tokenResponse.json() as { id_token?: string };
+  // The access token is used only during this callback to ask LINE for the
+  // current public profile. It is never placed in a cookie, database, log or
+  // browser response.
+  const tokens = await tokenResponse.json() as { id_token?: string; access_token?: string };
   if (!tokens.id_token) throw new Error("LINE 未提供可驗證的登入身分");
   const verifyResponse = await fetch("https://api.line.me/oauth2/v2.1/verify", {
     method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" },
@@ -219,7 +222,25 @@ export async function exchangeLineCode(request: Request, code: string, nonce: st
   if (!verifyResponse.ok) throw new Error("LINE 登入身分驗證失敗，請重新嘗試");
   const profile = await verifyResponse.json() as { sub?: string; name?: string; picture?: string; nonce?: string };
   if (!profile.sub || !profile.name || profile.nonce !== nonce) throw new Error("LINE 登入驗證資料不完整，請重新嘗試");
-  return { subject: profile.sub, displayName: profile.name.slice(0, 100), avatarUrl: (profile.picture || "").slice(0, 1000) };
+
+  // The ID-token picture claim can lag behind a freshly changed LINE avatar.
+  // Read the live profile with the one-time token, but only accept it when it
+  // belongs to the same immutable subject verified above.
+  let displayName = profile.name;
+  let avatarUrl = profile.picture || "";
+  if (tokens.access_token) {
+    const currentProfileResponse = await fetch("https://api.line.me/v2/profile", {
+      headers: { authorization: `Bearer ${tokens.access_token}` },
+    });
+    if (currentProfileResponse.ok) {
+      const currentProfile = await currentProfileResponse.json() as { userId?: string; displayName?: string; pictureUrl?: string };
+      if (currentProfile.userId === profile.sub) {
+        displayName = currentProfile.displayName || displayName;
+        avatarUrl = currentProfile.pictureUrl || avatarUrl;
+      }
+    }
+  }
+  return { subject: profile.sub, displayName: displayName.slice(0, 100), avatarUrl: avatarUrl.slice(0, 1000) };
 }
 
 export async function activeMembershipFor(session: MemorySession, familyId?: string) {

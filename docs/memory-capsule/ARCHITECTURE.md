@@ -21,9 +21,10 @@
 3. Worker 在伺服器端驗證 authorization code、`state`、nonce 與 ID token；不可相信瀏覽器自行送來的 user ID 或暱稱。
 4. 系統以 LINE `sub`／user ID 建立或查找 member 記錄。
 5. 保存目前的 public display name 與頭像網址作為顯示快照；登入時可更新顯示資料，但帳號關聯永遠以不可變的 subject 為準。
-6. Worker 建立安全工作階段 cookie；提供明確登出與帳號切換。
+6. Worker 只在 OAuth callback 的當次請求，以暫時的 access token 讀取 LINE 最新公開 profile；確認 profile `userId` 與已驗證的 `sub` 一致後，才更新顯示名稱與頭像快照。token 不寫入 cookie、資料庫、前端或紀錄檔。
+7. Worker 建立安全工作階段 cookie；提供明確登出與帳號切換。
 
-不請求 email、電話、地址、生日或任何生物辨識資料。LINE access token、refresh token、channel secret 只能在執行環境的 secret 保存，絕不可放入資料庫、前端、Git 或紀錄檔。
+不請求 email、電話、地址、生日或任何生物辨識資料。LINE access token 僅在 OAuth callback 記憶體中用於取得當下 public profile，隨請求結束即丟棄；refresh token 與 channel secret 只能在執行環境的 secret 保存。三者均絕不可放入資料庫、前端、Git 或紀錄檔。
 
 ## 3. R2 媒體流程
 

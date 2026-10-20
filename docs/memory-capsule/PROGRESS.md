@@ -34,6 +34,7 @@
 - [x] 新增 `memory_families`、`memory_family_members`、`memory_family_invites` schema 與 Drizzle migration `0016_large_bug.sql`。
 - [x] LINE Login OAuth 起點、callback、`state`、nonce、ID token verify 與安全 session cookie。
 - [x] 每次完成 LINE Login 均同步目前公開暱稱與頭像；若 LINE 舊頭像網址失效，介面以姓名首字安全替代，不顯示破圖。
+- [x] LINE 登入 callback 會以一次性的 access token 讀取最新公開 profile（與已驗證 `sub` 比對後才採用），因此更換 LINE 頭像後的下一次登入可同步更新；token 不保存。頭像元件固定正方形、置中裁切並尊重原始相片方向，避免拉伸或歪斜。
 - [x] Session、登出／切換帳號資料端點；不保存 LINE access token 或 refresh token。
 - [x] 家族 bootstrap、家族邀請建立／撤銷、成員清單、角色變更與停用 API。
 - [x] 每筆家族操作均在伺服器端以 LINE immutable subject、有效 member、`family_id` 與角色檢查。
