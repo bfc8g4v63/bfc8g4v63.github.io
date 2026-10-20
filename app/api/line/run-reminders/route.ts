@@ -6,6 +6,7 @@ import {
 } from "../../../../db/schema";
 import { eventCard, lineConfig, pushMessages } from "../lib";
 import { eventNotificationGroups } from "../groups";
+import { closeElapsedEvents } from "../../../../lib/event-lifecycle";
 
 const taipeiEvening = (eventDate: string, daysBefore: number) =>
   Date.parse(`${eventDate}T18:00:00+08:00`) - daysBefore * 24 * 60 * 60 * 1000;
@@ -41,6 +42,10 @@ export async function POST(request: Request) {
 
   try {
     await ensureSchema();
+    // This endpoint is invoked by the authenticated five-minute GitHub
+    // schedule.  Running the lifecycle here means an activity ends even when
+    // no visitor opens its public or management page.
+    const closed = await closeElapsedEvents();
     const db = getDb();
     const expiry = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     const expired = await db.select({ id: events.id }).from(events).where(
@@ -99,7 +104,7 @@ export async function POST(request: Request) {
         sent.push({ eventId: event.id, reminder: rule.key });
       }
     }
-    return Response.json({ ok: true, checked: rows.length, sent, purged: expired.length });
+    return Response.json({ ok: true, checked: rows.length, sent, purged: expired.length, closed: closed.size });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "提醒排程失敗" }, { status: 500 });
   }

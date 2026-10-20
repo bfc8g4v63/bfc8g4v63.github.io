@@ -1414,7 +1414,7 @@ test("contact details keep matching field heights and preserve the international
 });
 
 test("site operator overview is separately protected and activity creation has server-side anti-abuse guards", async () => {
-  const [operatorRoute, eventsRoute, client, page, styles, schema, init, lifecycle, accessRoute, rsvpRoute] = await Promise.all([
+  const [operatorRoute, eventsRoute, client, page, styles, schema, init, lifecycle, accessRoute, rsvpRoute, reminderRunner, reminderWorkflow] = await Promise.all([
     readFile(new URL("../app/api/site-admin/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/events/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../docs/app.js", import.meta.url), "utf8"),
@@ -1425,6 +1425,8 @@ test("site operator overview is separately protected and activity creation has s
     readFile(new URL("../lib/event-lifecycle.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/events/access/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/rsvps/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/line/run-reminders/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../.github/workflows/line-reminders.yml", import.meta.url), "utf8"),
   ]);
   assert.match(operatorRoute, /SITE_OPERATOR_CODE/);
   assert.match(operatorRoute, /constantTimeEqual/);
@@ -1464,6 +1466,10 @@ test("site operator overview is separately protected and activity creation has s
   assert.match(eventsRoute, /validEventSchedule\(eventDate, startTime, endTime\)/);
   assert.match(accessRoute, /closeElapsedEvents/);
   assert.match(rsvpRoute, /closeElapsedEvents/);
+  assert.match(reminderRunner, /import \{ closeElapsedEvents \} from "\.\.\/\.\.\/\.\.\/\.\.\/lib\/event-lifecycle"/);
+  assert.match(reminderRunner, /const closed = await closeElapsedEvents\(\)/);
+  assert.match(reminderRunner, /closed: closed\.size/);
+  assert.match(reminderWorkflow, /cron: "\*\/5 \* \* \* \*"/);
   assert.match(client, /name="nextCode" type="text"[\s\S]*?autocomplete="off" data-secret/);
   assert.match(styles, /\.operator-stats/);
   assert.match(styles, /\.bot-trap/);
