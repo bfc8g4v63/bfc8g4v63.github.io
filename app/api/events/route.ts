@@ -10,6 +10,7 @@ import { lineConfig, pushText } from "../line/lib";
 import { rateLimit } from "../rate-limit";
 import { eventShareUrl, shortShareCode } from "../../../lib/event-share";
 import { eventNotificationGroups } from "../line/groups";
+import { closeElapsedEvents, validEventSchedule } from "../../../lib/event-lifecycle";
 
 const accessModes = new Set(["public", "unlisted", "private"]);
 const attendanceVisibilities = new Set(["count", "opt_in", "all"]);
@@ -104,11 +105,12 @@ async function notifyBoundGroup(event: typeof events.$inferSelect, message: stri
 export async function GET(request: Request) {
   try {
     await ensureSchema();
+    await closeElapsedEvents();
     const db = getDb();
     const [eventRows, rsvpRows] = await Promise.all([
       db.select({
         id: events.id, title: events.title, eventDate: events.eventDate,
-        startTime: events.startTime, location: events.location, address: events.address,
+        startTime: events.startTime, endTime: events.endTime, location: events.location, address: events.address,
         description: events.description, contactName: events.contactName,
         capacity: events.capacity, status: events.status, accessMode: events.accessMode,
         feePerPerson: events.feePerPerson,
@@ -158,6 +160,7 @@ export async function POST(request: Request) {
     const creatorName = clean(body.creatorName, 60);
     const eventDate = clean(body.eventDate, 10);
     const startTime = clean(body.startTime, 5);
+    const endTime = clean(body.endTime, 5);
     const location = clean(body.location, 160);
     const address = clean(body.address, 200);
     const editCode = clean(body.editCode, 80);
@@ -166,9 +169,10 @@ export async function POST(request: Request) {
     const participantCode = clean(body.participantCode, 80);
     const fee = feePerPerson(body.feePerPerson, -1);
     const contactPhone = normalizeContactPhone(body.contactPhone);
-    if (!title || !creatorName || !eventDate || !startTime || !location) {
-      return json(request, { error: "請填寫活動名稱、日期、時間與地點" }, 400);
+    if (!title || !creatorName || !eventDate || !startTime || !endTime || !location) {
+      return json(request, { error: "請填寫活動名稱、日期、開始與結束時間及地點" }, 400);
     }
+    if (!validEventSchedule(eventDate, startTime, endTime)) return json(request, { error: "結束時間必須晚於同日的開始時間" }, 400);
     if (editCode.length < 6) {
       return json(request, { error: "管理碼至少需要 6 個字元" }, 400);
     }
@@ -183,7 +187,7 @@ export async function POST(request: Request) {
     const shareCode = shortShareCode(token);
     const managerToken = crypto.randomUUID();
     await getDb().insert(events).values({
-      id, title, eventDate, startTime, location, address,
+      id, title, eventDate, startTime, endTime, location, address,
       description: clean(body.description, 1000),
       creatorName,
       contactName: clean(body.contactName, 60),
@@ -219,6 +223,7 @@ export async function PATCH(request: Request) {
     const limit = await rateLimit(request, "event-manage", 12, 15 * 60 * 1000);
     if (!limit.allowed) return json(request, { error: `管理操作過於頻繁，請 ${limit.retryAfterSeconds} 秒後再試` }, 429);
     await ensureSchema();
+    await closeElapsedEvents();
     const body = await request.json() as Record<string, unknown>;
     const access = await requireEventManager(body.id, body.editCode, body.managerToken);
     if ("error" in access) return json(request, { error: access.error }, access.status);
@@ -228,6 +233,7 @@ export async function PATCH(request: Request) {
     const title = body.title === undefined ? existing.title : clean(body.title, 80);
     const eventDate = body.eventDate === undefined ? existing.eventDate : clean(body.eventDate, 10);
     const startTime = body.startTime === undefined ? existing.startTime : clean(body.startTime, 5);
+    const endTime = body.endTime === undefined ? existing.endTime : clean(body.endTime, 5);
     const location = body.location === undefined ? existing.location : clean(body.location, 160);
     const address = body.address === undefined ? existing.address : clean(body.address, 200);
     const mode = body.accessMode === undefined ? existing.accessMode : accessMode(body.accessMode, existing.accessMode);
@@ -237,9 +243,10 @@ export async function PATCH(request: Request) {
     const participantCode = clean(body.participantCode, 80);
     const fee = body.feePerPerson === undefined ? existing.feePerPerson : feePerPerson(body.feePerPerson, -1);
     const contactPhone = body.contactPhone === undefined ? existing.contactPhone : normalizeContactPhone(body.contactPhone);
-    if (!title || !eventDate || !startTime || !location) {
-      return json(request, { error: "請填寫活動名稱、日期、時間與地點" }, 400);
+    if (!title || !eventDate || !startTime || !endTime || !location) {
+      return json(request, { error: "請填寫活動名稱、日期、開始與結束時間及地點" }, 400);
     }
+    if (!validEventSchedule(eventDate, startTime, endTime)) return json(request, { error: "結束時間必須晚於同日的開始時間" }, 400);
     if (mode === "private" && !existing.participantCodeHash && participantCode.length < 4) {
       return json(request, { error: "請設定至少 4 個字的參加碼" }, 400);
     }
@@ -260,12 +267,13 @@ export async function PATCH(request: Request) {
       existing.title !== title ? `活動名稱：${title}` : "",
       existing.eventDate !== eventDate ? `日期：${eventDate}` : "",
       existing.startTime !== startTime ? `時間：${startTime}` : "",
+      existing.endTime !== endTime ? `結束時間：${endTime}` : "",
       existing.location !== location ? `地點：${location}` : "",
       existing.address !== address ? `地址：${address || "未填寫"}` : "",
       existing.description !== nextDescription ? "行前資訊已更新" : "",
     ].filter(Boolean);
     await getDb().update(events).set({
-      title, eventDate, startTime, location, address, status, accessMode: mode, attendanceVisibility: visibility,
+      title, eventDate, startTime, endTime, location, address, status, accessMode: mode, attendanceVisibility: visibility,
       shareToken, shareCode, participantCodeHash, cancelledAt,
       description: nextDescription,
       creatorName: body.creatorName === undefined ? existing.creatorName : clean(body.creatorName, 60),

@@ -8,6 +8,7 @@ import { clean, hashCode, requireEventManager } from "../auth";
 import { lineConfig, managerRsvpCard, pushMessages } from "../../line/lib";
 import { lineManagerUrl } from "../line-manager-link";
 import { rateLimit } from "../../rate-limit";
+import { closeElapsedEvents, validEventSchedule } from "../../../../lib/event-lifecycle";
 import { arrangementNameKey } from "../../../../lib/arrangement";
 import { eventShareUrl, shortShareCode } from "../../../../lib/event-share";
 import { eventNotificationGroups } from "../../line/groups";
@@ -145,6 +146,7 @@ export async function POST(request: Request) {
     const limit = await rateLimit(request, "admin-event", 60, 15 * 60 * 1000);
     if (!limit.allowed) return json(request, { error: `管理操作過於頻繁，請 ${limit.retryAfterSeconds} 秒後再試` }, 429);
     await ensureSchema();
+    await closeElapsedEvents();
     const body = await request.json() as Record<string, unknown>;
     const access = await requireEventManager(body.eventId, body.editCode, body.managerToken);
     if ("error" in access) return json(request, { error: access.error }, access.status);
@@ -153,15 +155,16 @@ export async function POST(request: Request) {
     if (action === "clone_event") {
       const eventDate = clean(body.eventDate, 10);
       const startTime = clean(body.startTime, 5);
+      const endTime = clean(body.endTime, 5);
       const title = clean(body.title, 80) || `${access.event.title}（複製）`;
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(eventDate) || !/^\d{2}:\d{2}$/.test(startTime)) {
-        return json(request, { error: "請選擇新活動的日期與時間" }, 400);
+      if (!validEventSchedule(eventDate, startTime, endTime)) {
+        return json(request, { error: "請選擇同日且晚於開始時間的結束時間" }, 400);
       }
       const id = crypto.randomUUID();
       const shareToken = crypto.randomUUID();
       const shareCode = shortShareCode(shareToken);
       await db.insert(events).values({
-        id, title, eventDate, startTime,
+        id, title, eventDate, startTime, endTime,
         location: access.event.location, address: access.event.address, description: access.event.description,
         creatorName: access.event.creatorName, contactName: access.event.contactName, contactPhone: access.event.contactPhone,
         capacity: access.event.capacity, feePerPerson: access.event.feePerPerson, accessMode: access.event.accessMode,

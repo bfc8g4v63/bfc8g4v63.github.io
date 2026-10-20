@@ -123,7 +123,7 @@ function renderEvent(event) {
     <article class="event-invitation ${isClosed ? "cancelled" : ""}">
       <p class="eyebrow">${event.accessMode === "public" ? "公開活動" : "活動邀請"}</p>
       <h1>${esc(event.title)}</h1>
-      <p class="invitation-meta">日期｜${esc(formatShortDate(event.eventDate))}<br>時間｜${esc(event.startTime)}<br>地點｜${esc(event.location)}${event.address ? `<br>地址｜${esc(event.address)}` : ""}</p>
+      <p class="invitation-meta">日期｜${esc(formatShortDate(event.eventDate))}<br>時間｜${esc(event.startTime)}${event.endTime ? `－${esc(event.endTime)}` : ""}<br>地點｜${esc(event.location)}${event.address ? `<br>地址｜${esc(event.address)}` : ""}</p>
       ${mapUrl ? `<a class="secondary event-map-link" href="${esc(mapUrl)}" target="_blank" rel="noopener noreferrer">在 Google 地圖開啟</a>` : ""}
       ${event.description ? `<section class="pretrip-card"><strong>行前資訊</strong><p>${esc(event.description)}</p></section>` : ""}
       <p class="attendance"><strong>${people} 人參加</strong>${event.capacity ? `<span>／上限 ${event.capacity} 人</span>` : ""}</p>

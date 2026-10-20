@@ -4,6 +4,7 @@ import { ensureSchema } from "../../../../db/init";
 import { events, rsvps } from "../../../../db/schema";
 import { clean, hashCode, verifyCredential } from "../../admin/auth";
 import { json, preflight } from "../../cors";
+import { closeElapsedEvents } from "../../../../lib/event-lifecycle";
 
 export function OPTIONS(request: Request) {
   return preflight(request);
@@ -20,6 +21,7 @@ function eventView(
     title: event.title,
     eventDate: event.eventDate,
     startTime: event.startTime,
+    endTime: event.endTime,
     location: event.location,
     address: event.address,
     description: event.description,
@@ -41,6 +43,7 @@ function eventView(
 export async function POST(request: Request) {
   try {
     await ensureSchema();
+    await closeElapsedEvents();
     const body = await request.json() as Record<string, unknown>;
     const shareToken = clean(body.shareToken, 80);
     const participantCode = clean(body.participantCode, 80);

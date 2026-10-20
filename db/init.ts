@@ -14,6 +14,7 @@ export function ensureSchema() {
         title TEXT NOT NULL,
         event_date TEXT NOT NULL,
         start_time TEXT NOT NULL,
+        end_time TEXT NOT NULL DEFAULT '',
         location TEXT NOT NULL,
         address TEXT NOT NULL DEFAULT '',
         description TEXT NOT NULL DEFAULT '',
@@ -244,6 +245,12 @@ export function ensureSchema() {
     }
     if (!names.has("address")) {
       await database.prepare("ALTER TABLE events ADD COLUMN address TEXT NOT NULL DEFAULT ''").run();
+    }
+    if (!names.has("end_time")) {
+      await database.prepare("ALTER TABLE events ADD COLUMN end_time TEXT NOT NULL DEFAULT ''").run();
+      // Existing events keep a predictable two-hour duration. They can still
+      // be edited by their manager, but no longer remain open forever.
+      await database.prepare("UPDATE events SET end_time = CASE WHEN time(start_time, '+2 hours') > start_time THEN time(start_time, '+2 hours') ELSE '23:59' END WHERE end_time = '' OR end_time IS NULL").run();
     }
     const rsvpColumns = await database.prepare("PRAGMA table_info(rsvps)").all<{ name: string }>();
     const rsvpNames = new Set((rsvpColumns.results || []).map((column) => column.name));

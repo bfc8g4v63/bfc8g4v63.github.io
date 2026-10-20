@@ -8,6 +8,7 @@ import { lineManagerUrl } from "../admin/line-manager-link";
 import { json, preflight } from "../cors";
 import { managerRsvpCard, pushMessages } from "../line/lib";
 import { rateLimit } from "../rate-limit";
+import { closeElapsedEvents } from "../../../lib/event-lifecycle";
 
 function clean(value: unknown, max = 300) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
@@ -71,6 +72,7 @@ export async function POST(request: Request) {
     const limit = await rateLimit(request, "rsvp", 24, 15 * 60 * 1000);
     if (!limit.allowed) return json(request, { error: `回覆過於頻繁，請 ${limit.retryAfterSeconds} 秒後再試` }, 429);
     await ensureSchema();
+    await closeElapsedEvents();
     const body = await request.json() as Record<string, unknown>;
     const eventId = clean(body.eventId, 80);
     const shareToken = clean(body.shareToken, 80);

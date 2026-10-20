@@ -811,7 +811,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.146/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.147/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -840,9 +840,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.146/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.146/);
-  assert.match(worker, /good-days-github-v146/);
+  assert.match(page, /\/app\.js\?v=1\.2\.147/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.147/);
+  assert.match(worker, /good-days-github-v147/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -1293,7 +1293,8 @@ test("completed activities keep their history while repeat activities start clea
   assert.match(adminRoute, /sourceTables/);
   assert.match(adminRoute, /活動已結束，不能再新增報名/);
   assert.match(client, /複製為新活動/);
-  assert.match(client, /timePicker\(event\.startTime, "新時間"\)/);
+  assert.match(client, /timePicker\(event\.startTime, "新開始時間"\)/);
+  assert.match(client, /name="endTime" type="time" required/);
   assert.match(client, /name="eventDate" type="date" data-date-wheel/);
   assert.match(client, /enableTimeWheels\(form\);[\s\S]*enableDateWheels\(form\);/);
   assert.match(client, /結束活動/);
@@ -1409,12 +1410,17 @@ test("contact details keep matching field heights and preserve the international
 });
 
 test("site operator overview is separately protected and activity creation has server-side anti-abuse guards", async () => {
-  const [operatorRoute, eventsRoute, client, page, styles] = await Promise.all([
+  const [operatorRoute, eventsRoute, client, page, styles, schema, init, lifecycle, accessRoute, rsvpRoute] = await Promise.all([
     readFile(new URL("../app/api/site-admin/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/events/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../docs/app.js", import.meta.url), "utf8"),
     readFile(new URL("../docs/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/styles.css", import.meta.url), "utf8"),
+    readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
+    readFile(new URL("../db/init.ts", import.meta.url), "utf8"),
+    readFile(new URL("../lib/event-lifecycle.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/events/access/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/rsvps/route.ts", import.meta.url), "utf8"),
   ]);
   assert.match(operatorRoute, /SITE_OPERATOR_CODE/);
   assert.match(operatorRoute, /constantTimeEqual/);
@@ -1423,9 +1429,9 @@ test("site operator overview is separately protected and activity creation has s
   assert.match(operatorRoute, /verifyOperatorCode/);
   assert.match(operatorRoute, /action === "change_code"/);
   assert.match(operatorRoute, /rateLimit\(request, "site-operator", 5, 15 \* 60 \* 1000\)/);
-  assert.match(operatorRoute, /needs_close_confirmation/);
+  assert.match(operatorRoute, /in_progress/);
   assert.match(operatorRoute, /function operatorActivitySort/);
-  assert.match(operatorRoute, /needs_close_confirmation: 0, upcoming: 1, completed: 2, cancelled: 3/);
+  assert.match(operatorRoute, /in_progress: 0, upcoming: 1, completed: 2, cancelled: 3/);
   assert.match(operatorRoute, /left\.operationalStatus === "upcoming" \? leftTime - rightTime : rightTime - leftTime/);
   assert.match(operatorRoute, /lineGroupNames/);
   assert.doesNotMatch(operatorRoute, /editCodeHash|managerTokenHash|participantCodeHash/);
@@ -1439,7 +1445,15 @@ test("site operator overview is separately protected and activity creation has s
   assert.match(client, /function changeSiteOperatorCode/);
   assert.match(client, /function openSiteOperatorCodeChange/);
   assert.match(client, /變更管理碼/);
-  assert.match(client, /排序以現在為主軸：進行中 → 即將開始（近到遠）→ 已結束／已取消（近到遠）/);
+  assert.match(client, /活動到預計結束時間會自動成為已結束/);
+  assert.match(client, /name="endTime" type="time" required/);
+  assert.match(schema, /endTime: text\("end_time"\)/);
+  assert.match(init, /ALTER TABLE events ADD COLUMN end_time/);
+  assert.match(lifecycle, /closeElapsedEvents/);
+  assert.match(lifecycle, /status: "completed"/);
+  assert.match(eventsRoute, /validEventSchedule\(eventDate, startTime, endTime\)/);
+  assert.match(accessRoute, /closeElapsedEvents/);
+  assert.match(rsvpRoute, /closeElapsedEvents/);
   assert.match(client, /name="nextCode" type="text"[\s\S]*?autocomplete="off" data-secret/);
   assert.match(styles, /\.operator-stats/);
   assert.match(styles, /\.bot-trap/);

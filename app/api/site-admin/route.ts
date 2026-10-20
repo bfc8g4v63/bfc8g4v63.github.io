@@ -6,6 +6,7 @@ import { activityLineGroups, events, lineBindings, lineManagerTargets, lineRemin
 import { clean, hashCredential, verifyCredential } from "../admin/auth";
 import { json, preflight } from "../cors";
 import { rateLimit } from "../rate-limit";
+import { closeElapsedEvents, eventTimestamp } from "../../../lib/event-lifecycle";
 
 type OperatorBindings = { SITE_OPERATOR_CODE?: string };
 
@@ -20,29 +21,20 @@ function constantTimeEqual(left: string, right: string) {
   return difference === 0;
 }
 
-function eventStartsAt(event: { eventDate: string; startTime: string }) {
-  const value = Date.parse(`${event.eventDate}T${event.startTime}:00+08:00`);
-  return Number.isFinite(value) ? value : 0;
-}
-
 function operationalStatus(event: { status: string; eventDate: string; startTime: string }, now = Date.now()) {
   if (event.status === "cancelled" || event.status === "completed") return event.status;
-  const startsAt = eventStartsAt(event);
-  // Activities have a start time but deliberately no guessed duration. Once
-  // the start time has passed, the operator confirms whether it is still in
-  // progress or should be marked completed in its own management dashboard.
-  return startsAt && startsAt <= now ? "needs_close_confirmation" : "upcoming";
+  const startsAt = eventTimestamp(event.eventDate, event.startTime);
+  return startsAt <= now ? "in_progress" : "upcoming";
 }
 
 function operatorActivitySort(left: { operationalStatus: string; eventDate: string; startTime: string }, right: { operationalStatus: string; eventDate: string; startTime: string }) {
-  // Keep the activity nearest to the present at the top in the operational
-  // sense: active first, then the next upcoming activity, then the most
-  // recently finished history. Cancelled entries remain last.
-  const priority = { needs_close_confirmation: 0, upcoming: 1, completed: 2, cancelled: 3 } as const;
+  // Use the current moment as the operating axis: activities under way first,
+  // then the next upcoming activity, then the most recently finished history.
+  const priority = { in_progress: 0, upcoming: 1, completed: 2, cancelled: 3 } as const;
   const priorityDifference = (priority[left.operationalStatus as keyof typeof priority] ?? 4) - (priority[right.operationalStatus as keyof typeof priority] ?? 4);
   if (priorityDifference) return priorityDifference;
-  const leftTime = eventStartsAt(left);
-  const rightTime = eventStartsAt(right);
+  const leftTime = eventTimestamp(left.eventDate, left.startTime);
+  const rightTime = eventTimestamp(right.eventDate, right.startTime);
   return left.operationalStatus === "upcoming" ? leftTime - rightTime : rightTime - leftTime;
 }
 
@@ -58,6 +50,7 @@ export async function POST(request: Request) {
 
     const body = await request.json() as Record<string, unknown>;
     await ensureSchema();
+    await closeElapsedEvents();
     const db = getDb();
     const configuredCode = (env as unknown as OperatorBindings).SITE_OPERATOR_CODE?.trim() || "";
     const [savedCredential] = await db.select().from(siteOperatorCredentials).where(eq(siteOperatorCredentials.key, "primary")).limit(1);
@@ -84,14 +77,14 @@ export async function POST(request: Request) {
     if (!savedCredential && !configuredCode) return json(request, { error: "營運管理尚未完成設定" }, 503);
     if (!await verifyOperatorCode(suppliedCode, savedCredential?.codeHash, configuredCode)) return json(request, { error: "營運管理碼不正確" }, 403);
     const eventRows = await db.select({
-      id: events.id, title: events.title, eventDate: events.eventDate, startTime: events.startTime,
+      id: events.id, title: events.title, eventDate: events.eventDate, startTime: events.startTime, endTime: events.endTime,
       location: events.location, address: events.address, description: events.description,
       creatorName: events.creatorName, contactName: events.contactName, contactPhone: events.contactPhone,
       capacity: events.capacity, feePerPerson: events.feePerPerson, status: events.status,
       accessMode: events.accessMode, attendanceVisibility: events.attendanceVisibility,
       cancelledAt: events.cancelledAt, createdAt: events.createdAt, updatedAt: events.updatedAt,
     }).from(events);
-    if (!eventRows.length) return json(request, { summary: { total: 0, upcoming: 0, needsCloseConfirmation: 0, completed: 0, cancelled: 0 }, activities: [] });
+    if (!eventRows.length) return json(request, { summary: { total: 0, upcoming: 0, inProgress: 0, completed: 0, cancelled: 0 }, activities: [] });
 
     const eventIds = eventRows.map((event) => event.id);
     const [rsvpRows, primaryBindings, activityGroups, reminderRows, managerRows] = await Promise.all([
@@ -120,12 +113,12 @@ export async function POST(request: Request) {
     const managerCount = new Map<string, number>();
     for (const row of managerRows) managerCount.set(row.eventId, (managerCount.get(row.eventId) || 0) + 1);
 
-    const summary = { total: eventRows.length, upcoming: 0, needsCloseConfirmation: 0, completed: 0, cancelled: 0 };
+    const summary = { total: eventRows.length, upcoming: 0, inProgress: 0, completed: 0, cancelled: 0 };
     const now = Date.now();
     const activities = eventRows.map((event) => {
       const operational = operationalStatus(event, now);
       if (operational === "upcoming") summary.upcoming += 1;
-      else if (operational === "needs_close_confirmation") summary.needsCloseConfirmation += 1;
+      else if (operational === "in_progress") summary.inProgress += 1;
       else if (operational === "completed") summary.completed += 1;
       else summary.cancelled += 1;
       return {

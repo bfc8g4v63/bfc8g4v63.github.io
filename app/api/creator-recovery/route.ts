@@ -10,6 +10,7 @@ import { json, preflight } from "../cors";
 import { lineConfig } from "../line/lib";
 import { rateLimit } from "../rate-limit";
 import { eventShareUrl } from "../../../lib/event-share";
+import { closeElapsedEvents } from "../../../lib/event-lifecycle";
 
 export function OPTIONS(request: Request) {
   return preflight(request);
@@ -49,6 +50,7 @@ export async function POST(request: Request) {
     if (creatorName.length < 2) return json(request, { error: "請輸入完整的管理者名稱" }, 400);
 
     await ensureSchema();
+    await closeElapsedEvents();
     const db = getDb();
     // Activities created before recovery was introduced do not have creator_name.
     // Their existing contact name remains the recovery name so no activity is lost.
@@ -69,7 +71,7 @@ export async function POST(request: Request) {
     if (editCode.length < 4) return json(request, { error: "請輸入至少 4 個字元的管理碼" }, 400);
     const rows = await db.select({
       id: events.id, title: events.title, eventDate: events.eventDate,
-      startTime: events.startTime, status: events.status, shareToken: events.shareToken, shareCode: events.shareCode,
+      startTime: events.startTime, endTime: events.endTime, status: events.status, shareToken: events.shareToken, shareCode: events.shareCode,
       capacity: events.capacity,
       editCodeHash: events.editCodeHash,
     }).from(events).where(creatorMatch).orderBy(desc(events.createdAt));
