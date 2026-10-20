@@ -130,7 +130,7 @@ function eventCard(event) {
       <div class="event-body">
         <div class="event-title-row"><h3>${esc(event.title)}</h3>${event.status === "cancelled" ? '<span class="status-cancelled">已取消</span>' : event.status === "completed" ? '<span class="status-cancelled">已結束</span>' : ""}</div>
         <p class="event-meta"><span aria-hidden="true">▣</span>日期｜${esc(formatShortDate(event.eventDate))}</p>
-        <p class="event-meta"><span aria-hidden="true">◷</span>時間｜${esc(event.startTime || "時間未定")}</p>
+        <p class="event-meta"><span aria-hidden="true">◷</span>時間｜${esc(event.startTime || "時間未定")}${event.endTime ? `－${esc(event.endTime)}` : ""}</p>
         ${eventLocationDetails(event)}
         ${event.description ? `<section class="pretrip-card"><strong>行前資訊</strong><p>${esc(event.description)}</p></section>` : ""}
         <div class="attendance"><strong>${people} 人參加</strong><span>${event.capacity ? `／上限 ${event.capacity} 人` : "歡迎全家一起來"}</span></div>
@@ -203,6 +203,14 @@ function timeParts(value) {
   const minute = Number(match[2]);
   if (hour24 > 23 || minute > 59) return { period: "", hour: "", minute: "" };
   return { period: hour24 < 12 ? "am" : "pm", hour: String(hour24 % 12 || 12), minute: String(minute).padStart(2, "0") };
+}
+
+function defaultEndTime(startTime = "") {
+  const match = /^(\d{2}):(\d{2})$/.exec(startTime);
+  if (!match) return "";
+  const startMinutes = Number(match[1]) * 60 + Number(match[2]);
+  const endMinutes = Math.min(startMinutes + 120, 23 * 60 + 59);
+  return `${String(Math.floor(endMinutes / 60)).padStart(2, "0")}:${String(endMinutes % 60).padStart(2, "0")}`;
 }
 
 function timePicker(value = "", label = "時間") {
@@ -427,7 +435,7 @@ async function requestJson(path, body, method = "POST") {
 }
 
 function operationalStatusLabel(status) {
-  return ({ upcoming: "尚未開始", needs_close_confirmation: "進行中／待確認結束", completed: "已結束", cancelled: "已取消" })[status] || "未知";
+  return ({ upcoming: "尚未開始", in_progress: "進行中", completed: "已結束", cancelled: "已取消" })[status] || "未知";
 }
 
 async function requestSiteOperator(code) {
@@ -446,13 +454,13 @@ function renderOperatorDashboard(data, code) {
       ? [activity.reminder.sevenDays && "7天前", activity.reminder.oneDay && "1天前", activity.reminder.twoHours && "2小時前"].filter(Boolean).join("、") || "均關閉"
       : "未設定";
     return `<article class="operator-activity-card">
-      <div class="operator-activity-head"><div><span class="response-pill ${esc(activity.operationalStatus)}">${esc(operationalStatusLabel(activity.operationalStatus))}</span><h3>${esc(activity.title)}</h3></div><p>${esc(formatShortDate(activity.eventDate))}｜${esc(activity.startTime)}</p></div>
+      <div class="operator-activity-head"><div><span class="response-pill ${esc(activity.operationalStatus)}">${esc(operationalStatusLabel(activity.operationalStatus))}</span><h3>${esc(activity.title)}</h3></div><p>${esc(formatShortDate(activity.eventDate))}｜${esc(activity.startTime)}${activity.endTime ? `－${esc(activity.endTime)}` : ""}</p></div>
       <dl class="operator-details"><div><dt>建立者</dt><dd>${esc(activity.creatorName || "—")}</dd></div><div><dt>公開方式</dt><dd>${esc(activity.accessMode === "public" ? "公開" : activity.accessMode === "private" ? "私人" : "不公開")}</dd></div><div><dt>報名</dt><dd>${Number(rsvp.attendingPeople || 0)} 人／${activity.capacity || "不限"}</dd></div><div><dt>候補</dt><dd>${Number(rsvp.waitlistPeople || 0)} 人</dd></div><div><dt>管理提醒</dt><dd>${Number(activity.managerTargetCount || 0)} 人</dd></div><div><dt>LINE 群組</dt><dd>${esc((activity.lineGroupNames || []).join("、") || "未綁定")}</dd></div><div><dt>提醒</dt><dd>${esc(reminders)}</dd></div><div><dt>建立時間</dt><dd>${esc(activity.createdAt || "—")}</dd></div></dl>
       <details class="operator-content"><summary>查看完整活動內容</summary><p><b>地點：</b>${esc(activity.location)}${activity.address ? `<br><b>地址：</b>${esc(activity.address)}` : ""}</p><p><b>聯絡人：</b>${esc(activity.contactName || "未填寫")}${activity.contactPhone ? `｜${esc(activity.contactPhone)}` : ""}</p><p><b>行前資訊：</b>${esc(activity.description || "未填寫")}</p></details>
     </article>`;
   }).join("") || '<p class="empty-cell">目前沒有活動。</p>';
   activeModalClose = closeModal;
-  modalRoot.innerHTML = `<div class="modal-backdrop admin-backdrop"><section class="modal admin-modal operator-modal" role="dialog" aria-modal="true" aria-labelledby="operator-dashboard-title"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">全站營運</p><h2 id="operator-dashboard-title">活動總覽</h2><p class="form-hint">「進行中／待確認結束」表示開始時間已到；因活動沒有預設結束時間，請由該活動建立者確認後標示為結束。</p><div class="operator-stats"><div><strong>${Number(summary.total || 0)}</strong><span>全部活動</span></div><div><strong>${Number(summary.upcoming || 0)}</strong><span>尚未開始</span></div><div><strong>${Number(summary.needsCloseConfirmation || 0)}</strong><span>待確認結束</span></div><div><strong>${Number(summary.completed || 0)}</strong><span>已結束</span></div><div><strong>${Number(summary.cancelled || 0)}</strong><span>已取消</span></div></div><div class="operator-toolbar"><button class="secondary" id="operator-refresh">重新整理</button><button class="secondary" id="operator-change-code">變更管理碼</button><button class="secondary" id="operator-lock">鎖定後台</button></div><section class="operator-activities">${rows}</section></section></div>`;
+  modalRoot.innerHTML = `<div class="modal-backdrop admin-backdrop"><section class="modal admin-modal operator-modal" role="dialog" aria-modal="true" aria-labelledby="operator-dashboard-title"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">全站營運</p><h2 id="operator-dashboard-title">活動總覽</h2><p class="form-hint">活動到預計結束時間會自動成為已結束。排序以現在為主軸：進行中 → 即將開始（近到遠）→ 已結束／已取消（近到遠）。</p><div class="operator-stats"><div><strong>${Number(summary.total || 0)}</strong><span>全部活動</span></div><div><strong>${Number(summary.inProgress || 0)}</strong><span>進行中</span></div><div><strong>${Number(summary.upcoming || 0)}</strong><span>尚未開始</span></div><div><strong>${Number(summary.completed || 0)}</strong><span>已結束</span></div><div><strong>${Number(summary.cancelled || 0)}</strong><span>已取消</span></div></div><div class="operator-toolbar"><button class="secondary" id="operator-refresh">重新整理</button><button class="secondary" id="operator-change-code">變更管理碼</button><button class="secondary" id="operator-lock">鎖定後台</button></div><section class="operator-activities">${rows}</section></section></div>`;
   document.querySelector("#operator-refresh")?.addEventListener("click", async () => {
     try { renderOperatorDashboard(await requestSiteOperator(code), code); }
     catch (error) { showNotice(error.message || "無法重新整理總覽"); }
@@ -518,6 +526,7 @@ function openEventForm(event, managerAuth = null, returnTo = null) {
             ${field('日期 <span>必填；點選年、月、日後可用滑鼠滾輪調整</span>', "eventDate", event?.eventDate || localToday(), 'required type="date" data-date-wheel aria-label="日期；點選年、月、日後可用滑鼠滾輪調整"')}
             ${timePicker(event?.startTime)}
           </div>
+          <label>預計結束時間 <span>必填；到此時間會自動結束（同日且須晚於開始）</span><input name="endTime" type="time" required value="${esc(event?.endTime || defaultEndTime(event?.startTime || "12:00"))}"></label>
           <div class="location-lookup"><label>地點 <span>必填；填場館、店名或集合點</span><input name="location" value="${esc(event?.location)}" required type="text" autocomplete="off" autocapitalize="sentences" autocorrect="off" spellcheck="false" inputmode="text" aria-autocomplete="list" aria-controls="location-suggestions" aria-expanded="false" data-form-type="other" data-1p-ignore="true" data-lpignore="true" placeholder="例如：101、中壢 SOGO"></label><small class="location-lookup-hint">輸入至少 2 個字，停一下就會顯示地址建議；點選即可帶入。</small><div id="location-suggestions" class="location-suggestions" role="listbox" aria-live="polite" hidden></div></div>
           ${field('地址 <span>建議填寫；提供 Google 地圖導航</span>', "eventAddress", event?.address, 'type="text" autocomplete="off" autocapitalize="sentences" autocorrect="off" spellcheck="false" inputmode="text" aria-autocomplete="none" data-form-type="other" data-1p-ignore="true" data-lpignore="true" placeholder="例如：臺北市信義區西村里市府路45號"')}
           <label>行前資訊卡 <span>選填；例如集合點、停車、裝備與注意事項</span><textarea name="description" rows="3" placeholder="例如：18:40 在入口集合；請自備球拍與飲水。">${esc(event?.description)}</textarea></label>
@@ -753,7 +762,7 @@ function openRsvpForm(event) {
       <section class="modal rsvp-modal" role="dialog" aria-modal="true" aria-labelledby="rsvp-title">
         <button class="modal-close" data-close aria-label="關閉">×</button>
         <p class="eyebrow">回覆活動</p><h2 id="rsvp-title">${esc(event.title)}</h2>
-        <p class="modal-event-meta">${esc(formatShortDate(event.eventDate))} · ${esc(event.startTime)}<br>地點｜${esc(event.location)}${event.address ? `<br>地址｜${esc(event.address)}` : ""}</p>
+        <p class="modal-event-meta">${esc(formatShortDate(event.eventDate))} · ${esc(event.startTime)}${event.endTime ? `－${esc(event.endTime)}` : ""}<br>地點｜${esc(event.location)}${event.address ? `<br>地址｜${esc(event.address)}` : ""}</p>
         <form id="rsvp-form">
           ${field('您的姓名 <span>必填</span>', "name", "", 'required autofocus placeholder="例如：王奶奶"')}
           <fieldset><legend>是否參加？</legend>
@@ -1792,7 +1801,7 @@ async function refreshAdminDashboard(eventId, managerAuth, returnTo = null) {
 
 function openCloneEvent(event, managerAuth) {
   activeModalClose = closeModal;
-  modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="clone-event-title"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">重複活動</p><h2 id="clone-event-title">複製成新活動</h2><p>會帶入活動設定、通知群組、提醒與安排區；不會複製報名名單、安排結果或已發送通知。</p><form id="clone-event-form"><label>活動名稱<input name="title" maxlength="80" value="${esc(`${event.title}（複製）`)}" required></label><div class="form-row"><label>新日期 <span>點選年、月、日後可用滑鼠滾輪調整</span><input name="eventDate" type="date" data-date-wheel aria-label="新日期；點選年、月、日後可用滑鼠滾輪調整" value="${esc(event.eventDate)}" required></label>${timePicker(event.startTime, "新時間")}</div><p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button type="submit" class="primary">建立複製活動</button></div></form></section></div>`;
+  modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="clone-event-title"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">重複活動</p><h2 id="clone-event-title">複製成新活動</h2><p>會帶入活動設定、通知群組、提醒與安排區；不會複製報名名單、安排結果或已發送通知。</p><form id="clone-event-form"><label>活動名稱<input name="title" maxlength="80" value="${esc(`${event.title}（複製）`)}" required></label><div class="form-row"><label>新日期 <span>點選年、月、日後可用滑鼠滾輪調整</span><input name="eventDate" type="date" data-date-wheel aria-label="新日期；點選年、月、日後可用滑鼠滾輪調整" value="${esc(event.eventDate)}" required></label>${timePicker(event.startTime, "新開始時間")}</div><label>預計結束時間<input name="endTime" type="time" required value="${esc(event.endTime || defaultEndTime(event.startTime))}"></label><p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button type="submit" class="primary">建立複製活動</button></div></form></section></div>`;
   const form = document.querySelector("#clone-event-form");
   enableTimeWheels(form);
   enableDateWheels(form);
@@ -1804,7 +1813,8 @@ function openCloneEvent(event, managerAuth) {
     try {
       const values = Object.fromEntries(new FormData(form));
       values.startTime = selectedStartTime(form);
-      if (!values.startTime) throw new Error("請完成新時間的上午／下午、時與分。");
+      values.endTime = form.elements.endTime.value;
+      if (!values.startTime || !values.endTime) throw new Error("請完成新活動的開始與結束時間。");
       delete values.timePeriod;
       delete values.timeHour;
       delete values.timeMinute;
