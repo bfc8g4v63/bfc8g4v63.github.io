@@ -426,6 +426,51 @@ async function requestJson(path, body, method = "POST") {
   return data;
 }
 
+function operationalStatusLabel(status) {
+  return ({ upcoming: "尚未開始", needs_close_confirmation: "進行中／待確認結束", completed: "已結束", cancelled: "已取消" })[status] || "未知";
+}
+
+async function requestSiteOperator(code) {
+  return requestJson("/site-admin", { code });
+}
+
+function renderOperatorDashboard(data, code) {
+  const summary = data.summary || {};
+  const rows = (data.activities || []).map((activity) => {
+    const rsvp = activity.rsvpSummary || {};
+    const reminders = activity.reminder
+      ? [activity.reminder.sevenDays && "7天前", activity.reminder.oneDay && "1天前", activity.reminder.twoHours && "2小時前"].filter(Boolean).join("、") || "均關閉"
+      : "未設定";
+    return `<article class="operator-activity-card">
+      <div class="operator-activity-head"><div><span class="response-pill ${esc(activity.operationalStatus)}">${esc(operationalStatusLabel(activity.operationalStatus))}</span><h3>${esc(activity.title)}</h3></div><p>${esc(formatShortDate(activity.eventDate))}｜${esc(activity.startTime)}</p></div>
+      <dl class="operator-details"><div><dt>建立者</dt><dd>${esc(activity.creatorName || "—")}</dd></div><div><dt>公開方式</dt><dd>${esc(activity.accessMode === "public" ? "公開" : activity.accessMode === "private" ? "私人" : "不公開")}</dd></div><div><dt>報名</dt><dd>${Number(rsvp.attendingPeople || 0)} 人／${activity.capacity || "不限"}</dd></div><div><dt>候補</dt><dd>${Number(rsvp.waitlistPeople || 0)} 人</dd></div><div><dt>管理提醒</dt><dd>${Number(activity.managerTargetCount || 0)} 人</dd></div><div><dt>LINE 群組</dt><dd>${esc((activity.lineGroupNames || []).join("、") || "未綁定")}</dd></div><div><dt>提醒</dt><dd>${esc(reminders)}</dd></div><div><dt>建立時間</dt><dd>${esc(activity.createdAt || "—")}</dd></div></dl>
+      <details class="operator-content"><summary>查看完整活動內容</summary><p><b>地點：</b>${esc(activity.location)}${activity.address ? `<br><b>地址：</b>${esc(activity.address)}` : ""}</p><p><b>聯絡人：</b>${esc(activity.contactName || "未填寫")}${activity.contactPhone ? `｜${esc(activity.contactPhone)}` : ""}</p><p><b>行前資訊：</b>${esc(activity.description || "未填寫")}</p></details>
+    </article>`;
+  }).join("") || '<p class="empty-cell">目前沒有活動。</p>';
+  activeModalClose = closeModal;
+  modalRoot.innerHTML = `<div class="modal-backdrop admin-backdrop"><section class="modal admin-modal operator-modal" role="dialog" aria-modal="true" aria-labelledby="operator-dashboard-title"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">全站營運</p><h2 id="operator-dashboard-title">活動總覽</h2><p class="form-hint">「進行中／待確認結束」表示開始時間已到；因活動沒有預設結束時間，請由該活動建立者確認後標示為結束。</p><div class="operator-stats"><div><strong>${Number(summary.total || 0)}</strong><span>全部活動</span></div><div><strong>${Number(summary.upcoming || 0)}</strong><span>尚未開始</span></div><div><strong>${Number(summary.needsCloseConfirmation || 0)}</strong><span>待確認結束</span></div><div><strong>${Number(summary.completed || 0)}</strong><span>已結束</span></div><div><strong>${Number(summary.cancelled || 0)}</strong><span>已取消</span></div></div><div class="operator-toolbar"><button class="secondary" id="operator-refresh">重新整理</button><button class="secondary" id="operator-lock">鎖定後台</button></div><section class="operator-activities">${rows}</section></section></div>`;
+  document.querySelector("#operator-refresh")?.addEventListener("click", async () => {
+    try { renderOperatorDashboard(await requestSiteOperator(code), code); }
+    catch (error) { showNotice(error.message || "無法重新整理總覽"); }
+  });
+  document.querySelector("#operator-lock")?.addEventListener("click", closeModal);
+}
+
+function openSiteOperator() {
+  activeModalClose = closeModal;
+  modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="operator-login-title"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">僅限站方</p><h2 id="operator-login-title">營運管理</h2><p>查看所有活動、目前狀態、建立者、LINE 綁定與提醒設定。</p><form id="operator-login-form" autocomplete="off"><label>營運管理碼<input name="code" type="text" required minlength="12" autocomplete="off" data-secret></label><p id="operator-error" class="form-error" hidden></p><div class="form-actions"><button class="primary" type="submit">開啟活動總覽</button></div></form></section></div>`;
+  document.querySelector("#operator-login-form")?.addEventListener("submit", async (submitEvent) => {
+    submitEvent.preventDefault();
+    const form = submitEvent.currentTarget;
+    const code = new FormData(form).get("code")?.toString() || "";
+    const button = form.querySelector("button[type=submit]");
+    button.disabled = true;
+    try { renderOperatorDashboard(await requestSiteOperator(code), code); }
+    catch (error) { showFormError(form, error.message || "無法開啟營運管理"); }
+    finally { button.disabled = false; }
+  });
+}
+
 function openEventForm(event, managerAuth = null, returnTo = null) {
   const editing = Boolean(event);
   const managerField = editing
@@ -438,6 +483,7 @@ function openEventForm(event, managerAuth = null, returnTo = null) {
         <p class="eyebrow">${editing ? "管理活動" : "新的相聚"}</p>
         <h2 id="event-form-title">${editing ? "修改活動" : "建立活動"}</h2>
         <form id="event-form" autocomplete="off">
+          <div class="bot-trap" aria-hidden="true"><label>網站<input name="website" type="text" tabindex="-1" autocomplete="off"></label></div>
           ${field('活動名稱 <span>必填</span>', "eventTitle", event?.title, 'required type="text" autocomplete="off" autocapitalize="sentences" autocorrect="off" spellcheck="false" inputmode="text" aria-autocomplete="none" data-form-type="other" data-1p-ignore="true" data-lpignore="true" placeholder="例如：阿嬤生日午餐"')}
           ${field('管理者名稱 <span>必填；與管理碼一起查看你管理的活動</span>', "creatorName", event?.creatorName, 'required type="text" autocomplete="off" autocapitalize="sentences" autocorrect="off" spellcheck="false" inputmode="text" aria-autocomplete="none" data-form-type="other" data-1p-ignore="true" data-lpignore="true" placeholder="例如：王小明"')}
           <div class="form-row">
@@ -2100,6 +2146,7 @@ document.addEventListener("click", (clickEvent) => {
   const create = clickEvent.target.closest("[data-create]");
   if (create) return openEventForm();
   if (clickEvent.target.closest("[data-manage-activities]")) return openCreatorRecovery();
+  if (clickEvent.target.closest("[data-site-operator]")) return openSiteOperator();
   const close = clickEvent.target.closest("[data-close]");
   if (close) return requestModalClose();
   if (clickEvent.target.id === "retry") return loadEvents();

@@ -1399,3 +1399,28 @@ test("contact details keep matching field heights and preserve the international
   assert.match(styles, /\.contact-field input \{ min-height:54px; height:54px; \}/);
   assert.match(styles, /\.contact-field-hint \{ display:block; min-height:2\.8em;[\s\S]*?overflow-wrap:anywhere; \}/);
 });
+
+test("site operator overview is separately protected and activity creation has server-side anti-abuse guards", async () => {
+  const [operatorRoute, eventsRoute, client, page, styles] = await Promise.all([
+    readFile(new URL("../app/api/site-admin/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/events/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../docs/app.js", import.meta.url), "utf8"),
+    readFile(new URL("../docs/index.html", import.meta.url), "utf8"),
+    readFile(new URL("../docs/styles.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(operatorRoute, /SITE_OPERATOR_CODE/);
+  assert.match(operatorRoute, /constantTimeEqual/);
+  assert.match(operatorRoute, /rateLimit\(request, "site-operator", 5, 15 \* 60 \* 1000\)/);
+  assert.match(operatorRoute, /needs_close_confirmation/);
+  assert.match(operatorRoute, /lineGroupNames/);
+  assert.doesNotMatch(operatorRoute, /editCodeHash|managerTokenHash|participantCodeHash/);
+  assert.match(eventsRoute, /rateLimit\(request, "event-create", 3, 10 \* 60 \* 1000\)/);
+  assert.match(eventsRoute, /rateLimit\(request, "event-create-daily", 10, 24 \* 60 \* 60 \* 1000\)/);
+  assert.match(eventsRoute, /clean\(body\.website, 200\)/);
+  assert.match(page, /data-site-operator/);
+  assert.match(client, /function openSiteOperator/);
+  assert.match(client, /name="website"/);
+  assert.match(client, /function renderOperatorDashboard/);
+  assert.match(styles, /\.operator-stats/);
+  assert.match(styles, /\.bot-trap/);
+});

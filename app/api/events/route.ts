@@ -145,10 +145,15 @@ function withSummary<T extends { id: string }>(event: T, rows: Array<{ eventId: 
 
 export async function POST(request: Request) {
   try {
-    const limit = await rateLimit(request, "event-create", 8, 60 * 60 * 1000);
+    const limit = await rateLimit(request, "event-create", 3, 10 * 60 * 1000);
     if (!limit.allowed) return json(request, { error: `建立活動過於頻繁，請 ${limit.retryAfterSeconds} 秒後再試` }, 429);
+    const dailyLimit = await rateLimit(request, "event-create-daily", 10, 24 * 60 * 60 * 1000);
+    if (!dailyLimit.allowed) return json(request, { error: `今天建立活動的次數已達上限，請 ${dailyLimit.retryAfterSeconds} 秒後再試` }, 429);
     await ensureSchema();
     const body = await request.json() as Record<string, unknown>;
+    // This is intentionally checked on the server. It does not replace rate
+    // limits, but blocks the common form-filling bots at no cost.
+    if (clean(body.website, 200)) return json(request, { error: "無法建立活動" }, 400);
     const title = clean(body.title, 80);
     const creatorName = clean(body.creatorName, 60);
     const eventDate = clean(body.eventDate, 10);
