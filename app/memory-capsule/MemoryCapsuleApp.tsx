@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import qrcode from "qrcode-generator";
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 
 type Membership = { id: string; familyId: string; role: string; displayName: string; avatarUrl: string; familyName: string };
 type Session = { signedIn: boolean; setupRequired?: boolean; profile?: { displayName: string; avatarUrl: string }; memberships?: Membership[] };
@@ -12,6 +13,7 @@ type Invite = { id: string; role: "admin" | "member"; maxUses: number; useCount:
 type FamilyMember = { id: string; displayName: string; avatarUrl: string; role: "owner" | "admin" | "member"; isActive: boolean; joinedAt: string };
 type Report = { id: string; targetType: "media" | "comment"; targetId: string; reason: string; status: string; createdAt: string; reporterName: string; target: { hiddenAt: string | null; deletedAt: string | null } | null };
 type Retention = { mediaCount: number; commentCount: number; retentionDays: number; eligibleBefore: string };
+type UploadEntry = { id: string; file: File; capsuleId: string; status: "queued" | "preparing" | "uploading" | "complete" | "failed"; progress: number; error?: string; prepared?: { mediaId: string; uploadUrl: string } };
 
 async function json<T>(url: string, init?: RequestInit) {
   const response = await fetch(url, init);
@@ -58,6 +60,7 @@ export function MemoryCapsuleApp() {
   const [retentionBusy, setRetentionBusy] = useState(false);
   const [exportCapsuleId, setExportCapsuleId] = useState("");
   const [exportBusy, setExportBusy] = useState(false);
+  const [uploadQueue, setUploadQueue] = useState<UploadEntry[]>([]);
   const [inviteRole, setInviteRole] = useState<"admin" | "member">("member");
   const [inviteDays, setInviteDays] = useState(7);
   const [inviteUrl, setInviteUrl] = useState("");
@@ -71,9 +74,25 @@ export function MemoryCapsuleApp() {
   const [commentDrafts, setCommentDrafts] = useState<Record<string, { body: string; displayAs: string }>>({});
   const [memoryDraft, setMemoryDraft] = useState({ body: "", displayAs: "" });
   const [quotaGb, setQuotaGb] = useState("20");
-  const fileInput = useRef<HTMLInputElement>(null);
+  const photoInput = useRef<HTMLInputElement>(null);
+  const videoInput = useRef<HTMLInputElement>(null);
 
   const activeCapsule = useMemo(() => dashboard?.capsules.find((capsule) => capsule.id === selectedCapsuleId) || dashboard?.capsules[0], [dashboard, selectedCapsuleId]);
+  const inviteQrDataUrl = useMemo(() => {
+    if (!inviteUrl) return "";
+    const code = qrcode(0, "M");
+    code.addData(inviteUrl);
+    code.make();
+    return code.createDataURL(5, 2);
+  }, [inviteUrl]);
+  const memoryYears = useMemo(() => {
+    const groups = new Map<string, Capsule[]>();
+    for (const capsule of dashboard?.capsules || []) {
+      const year = capsule.eraLabel.match(/(?:19|20)\d{2}/)?.[0] || "其他回憶";
+      groups.set(year, [...(groups.get(year) || []), capsule]);
+    }
+    return [...groups.entries()].sort(([left], [right]) => right.localeCompare(left, "zh-TW"));
+  }, [dashboard?.capsules]);
 
   const loadCommunity = async (familyId: string) => {
     const [nextInvites, nextMembers, nextReports] = await Promise.all([
@@ -259,53 +278,76 @@ export function MemoryCapsuleApp() {
     catch (reason) { setError(reason instanceof Error ? reason.message : "無法處理回報"); }
   };
 
-  const uploadMedia = async (event: FormEvent<HTMLInputElement>) => {
+  const updateUpload = (id: string, patch: Partial<UploadEntry>) => setUploadQueue((entries) => entries.map((entry) => entry.id === id ? { ...entry, ...patch } : entry));
+  const uploadOne = async (entry: UploadEntry) => {
+    if (!dashboard) return false;
+    const file = entry.file;
+    const contentType = file.type.toLowerCase();
+    updateUpload(entry.id, { status: "preparing", progress: 0, error: "" });
+    try {
+      if (contentType.startsWith("video/")) {
+        const duration = await videoDurationSeconds(file);
+        if (duration && duration > 15 * 60) throw new Error("超過 15 分鐘，請先裁剪後再上傳");
+      }
+      const prepared = entry.prepared || await json<{ mediaId: string; uploadUrl: string }>(`/api/memory/families/${dashboard.family.id}/uploads`, {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ capsuleId: entry.capsuleId, filename: file.name, mimeType: contentType, byteSize: file.size }),
+      });
+      updateUpload(entry.id, { prepared, status: "uploading" });
+      let uploaded = false;
+      let uploadFailure: Error | null = null;
+      for (let attempt = 0; attempt < 2 && !uploaded; attempt += 1) {
+        try {
+          await new Promise<void>((resolve, reject) => {
+            const upload = new XMLHttpRequest();
+            upload.open("PUT", prepared.uploadUrl);
+            upload.setRequestHeader("content-type", contentType);
+            upload.upload.onprogress = (progressEvent) => {
+              if (!progressEvent.lengthComputable) return;
+              updateUpload(entry.id, { status: "uploading", progress: Math.min(100, Math.round((progressEvent.loaded / progressEvent.total) * 100)) });
+            };
+            upload.onerror = () => reject(new Error("無法連線至私有儲存空間"));
+            upload.onload = () => upload.status >= 200 && upload.status < 300 ? resolve() : reject(new Error(`安全儲存回應 ${upload.status || "不明"}`));
+            upload.send(file);
+          });
+          uploaded = true;
+        } catch (reason) { uploadFailure = reason instanceof Error ? reason : new Error("上傳失敗"); }
+      }
+      if (!uploaded) throw uploadFailure || new Error("上傳失敗");
+      await json(`/api/memory/families/${dashboard.family.id}/uploads/${prepared.mediaId}/complete`, { method: "POST" });
+      updateUpload(entry.id, { status: "complete", progress: 100, error: "" });
+      return true;
+    } catch (reason) {
+      updateUpload(entry.id, { status: "failed", error: reason instanceof Error ? reason.message : "上傳失敗，請稍後重試" });
+      return false;
+    }
+  };
+  const runUploads = async (entries: UploadEntry[]) => {
+    setUploading(true); setError("");
+    let completed = false;
+    for (const entry of entries) completed = (await uploadOne(entry)) || completed;
+    if (completed) { setProgress("已把回憶放進家族膠囊"); await refresh(); }
+    setUploading(false);
+  };
+  const uploadMedia = (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.currentTarget.files || []);
     event.currentTarget.value = "";
     if (!dashboard || !activeCapsule || !files.length) return;
+    const additions = files.map((file) => ({ id: crypto.randomUUID(), file, capsuleId: activeCapsule.id, status: "queued" as const, progress: 0 }));
+    setUploadQueue((entries) => [...entries.filter((entry) => entry.status !== "complete").slice(-5), ...additions]);
+    void runUploads(additions);
+  };
+  const retryUpload = async (id: string) => {
+    const entry = uploadQueue.find((item) => item.id === id);
+    if (!entry || uploading) return;
     setUploading(true); setError("");
-    try {
-      for (let index = 0; index < files.length; index += 1) {
-        const file = files[index];
-        const contentType = file.type.toLowerCase();
-        if (contentType.startsWith("video/")) {
-          const duration = await videoDurationSeconds(file);
-          if (duration && duration > 15 * 60) throw new Error(`${file.name} 超過 15 分鐘，請先裁剪後再上傳`);
-        }
-        setProgress(`正在準備 ${index + 1}／${files.length}：${file.name}`);
-        const prepared = await json<{ mediaId: string; uploadUrl: string }>(`/api/memory/families/${dashboard.family.id}/uploads`, {
-          method: "POST", headers: { "content-type": "application/json" },
-          body: JSON.stringify({ capsuleId: activeCapsule.id, filename: file.name, mimeType: contentType, byteSize: file.size }),
-        });
-        let uploaded = false;
-        let uploadFailure: Error | null = null;
-        for (let attempt = 0; attempt < 2 && !uploaded; attempt += 1) {
-          if (attempt) setProgress(`正在重試 ${index + 1}／${files.length}：${file.name}`);
-          try {
-            await new Promise<void>((resolve, reject) => {
-              const upload = new XMLHttpRequest();
-              upload.open("PUT", prepared.uploadUrl);
-              upload.setRequestHeader("content-type", contentType);
-              upload.upload.onprogress = (progressEvent) => {
-                if (!progressEvent.lengthComputable) return;
-                const percent = Math.min(100, Math.round((progressEvent.loaded / progressEvent.total) * 100));
-                setProgress(`正在上傳 ${index + 1}／${files.length}：${file.name}（${percent}%）`);
-              };
-              upload.onerror = () => reject(new Error(`${file.name} 無法連線至私有儲存空間，請確認網路後重試`));
-              upload.onload = () => upload.status >= 200 && upload.status < 300 ? resolve() : reject(new Error(`${file.name} 上傳未完成（安全儲存回應 ${upload.status || "不明"}）`));
-              upload.send(file);
-            });
-            uploaded = true;
-          } catch (reason) { uploadFailure = reason instanceof Error ? reason : new Error(`${file.name} 上傳失敗`); }
-        }
-        if (!uploaded) throw uploadFailure || new Error(`${file.name} 上傳失敗，請稍後再試`);
-        await json(`/api/memory/families/${dashboard.family.id}/uploads/${prepared.mediaId}/complete`, { method: "POST" });
-      }
-      setProgress("回憶已放進家族膠囊");
-      await refresh();
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "媒體上傳失敗");
-    } finally { setUploading(false); }
+    const completed = await uploadOne(entry);
+    if (completed) { setProgress("已把回憶放進家族膠囊"); await refresh(); }
+    setUploading(false);
+  };
+  const openCapsule = (capsuleId: string) => {
+    setSelectedCapsuleId(capsuleId);
+    window.setTimeout(() => document.getElementById("memory-active-capsule")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
   };
 
   if (isLoading) return <main className="memory-page"><p className="memory-loading">正在打開家族回憶⋯</p></main>;
@@ -317,6 +359,7 @@ export function MemoryCapsuleApp() {
   if (!dashboard) return <main className="memory-page"><section className="memory-empty"><Avatar name={session.profile?.displayName || "家人"} src={session.profile?.avatarUrl} /><p className="memory-kicker">已使用 LINE 登入</p><h1>{inviteCode ? "準備加入家族" : "尚未加入家族"}</h1><p>{inviteCode ? "請再按一次按鈕，確認以目前的 LINE 帳號接受家族邀請。" : "請向家族管理者索取專屬邀請連結，再由連結進入。"}</p>{error && <p className="memory-error" role="alert">{error}</p>}{inviteCode && <div className="memory-cta-wrap"><button className="memory-primary" onClick={login}>以 LINE 接受邀請</button></div>}<div className="memory-cta-wrap"><button className="memory-secondary" onClick={logout}>切換 LINE 帳號</button></div></section></main>;
 
   const visibleMedia = dashboard.media.filter((item) => item.capsuleId === activeCapsule?.id);
+  const recentMedia = dashboard.media.slice(0, 6);
   return <main className="memory-page">
     <header className="memory-header"><a className="memory-brand" href="/memory-capsule"><span>水</span><b>水金呼吸</b><small>回憶膠囊</small></a><div className="memory-member"><Avatar name={dashboard.membership.displayName} src={dashboard.membership.avatarUrl} small /><span>{dashboard.membership.displayName}</span><button onClick={logout}>登出</button></div></header>
     <section className="memory-hero"><div><p className="memory-kicker">{dashboard.family.displayName}</p><h1>我們的回憶，<br /><em>一直都在。</em></h1><p>照片與影片只屬於受邀家人。每一份回憶都會保留上傳者的 LINE 暱稱與時間。</p></div><div className="memory-hero-orb" aria-hidden="true">水</div></section>
