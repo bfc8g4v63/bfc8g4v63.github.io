@@ -194,7 +194,10 @@ test("memory capsule media, interaction and curation remain family-scoped with c
   assert.match(upload, /MAX_VIDEO_BYTES/);
   assert.match(upload, /storageQuotaBytes/);
   assert.match(upload, /signedR2Url\("PUT"/);
-  assert.match(complete, /signedR2Url\("HEAD"/);
+  assert.match(complete, /signedR2Url\("GET"/);
+  assert.match(complete, /headers: \{ range: "bytes=0-0" \}/);
+  assert.match(complete, /content-range/);
+  assert.match(complete, /Content-Length here: for a range response it is only the one byte read/);
   assert.match(complete, /actualSize !== media\.byteSize/);
   assert.match(r2, /MEMORY_R2_SECRET_ACCESS_KEY/);
   assert.match(r2, /AWS4-HMAC-SHA256/);

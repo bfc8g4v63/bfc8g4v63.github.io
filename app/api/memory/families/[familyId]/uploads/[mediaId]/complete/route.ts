@@ -4,6 +4,13 @@ import { memoryMedia } from "../../../../../../../../db/schema";
 import { requireFamilyRole } from "../../../../../auth";
 import { signedR2Url } from "../../../../../r2";
 
+function verifiedObjectSize(response: Response) {
+  // R2 returns `bytes 0-0/<total>` for a range probe. Do not use
+  // Content-Length here: for a range response it is only the one byte read.
+  const total = response.headers.get("content-range")?.match(/\/(\d+)$/)?.[1];
+  return Number(total || response.headers.get("content-length"));
+}
+
 export async function POST(request: Request, context: { params: Promise<{ familyId: string; mediaId: string }> }) {
   try {
     const { familyId, mediaId } = await context.params;
@@ -13,8 +20,14 @@ export async function POST(request: Request, context: { params: Promise<{ family
       eq(memoryMedia.id, mediaId), eq(memoryMedia.familyId, familyId), eq(memoryMedia.authorMemberId, access.membership.id), eq(memoryMedia.uploadState, "pending"),
     )).limit(1);
     if (!media || new Date(media.uploadExpiresAt).getTime() < Date.now()) return Response.json({ error: "此上傳已過期，請重新選擇相片" }, { status: 410 });
-    const check = await fetch(await signedR2Url("HEAD", media.objectKey, { expiresIn: 120 }));
-    const actualSize = Number(check.headers.get("content-length"));
+    // Some S3-compatible gateways do not return object metadata consistently
+    // for a presigned HEAD request. A signed one-byte GET works with private
+    // R2 objects and lets us validate the real total byte size from
+    // Content-Range without fetching a large video into the Worker.
+    const check = await fetch(await signedR2Url("GET", media.objectKey, { expiresIn: 120 }), {
+      headers: { range: "bytes=0-0" },
+    });
+    const actualSize = verifiedObjectSize(check);
     const actualType = check.headers.get("content-type")?.split(";", 1)[0]?.toLowerCase();
     if (!check.ok || actualSize !== media.byteSize || actualType !== media.mimeType) return Response.json({ error: "R2 未確認相片檔案，請重新上傳" }, { status: 400 });
     await getDb().update(memoryMedia).set({ uploadState: "complete" }).where(eq(memoryMedia.id, media.id));
