@@ -811,7 +811,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.145/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.146/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -840,9 +840,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.145/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.145/);
-  assert.match(worker, /good-days-github-v145/);
+  assert.match(page, /\/app\.js\?v=1\.2\.146/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.146/);
+  assert.match(worker, /good-days-github-v146/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -1424,6 +1424,9 @@ test("site operator overview is separately protected and activity creation has s
   assert.match(operatorRoute, /action === "change_code"/);
   assert.match(operatorRoute, /rateLimit\(request, "site-operator", 5, 15 \* 60 \* 1000\)/);
   assert.match(operatorRoute, /needs_close_confirmation/);
+  assert.match(operatorRoute, /function operatorActivitySort/);
+  assert.match(operatorRoute, /needs_close_confirmation: 0, upcoming: 1, completed: 2, cancelled: 3/);
+  assert.match(operatorRoute, /left\.operationalStatus === "upcoming" \? leftTime - rightTime : rightTime - leftTime/);
   assert.match(operatorRoute, /lineGroupNames/);
   assert.doesNotMatch(operatorRoute, /editCodeHash|managerTokenHash|participantCodeHash/);
   assert.match(eventsRoute, /rateLimit\(request, "event-create", 3, 10 \* 60 \* 1000\)/);
@@ -1436,6 +1439,7 @@ test("site operator overview is separately protected and activity creation has s
   assert.match(client, /function changeSiteOperatorCode/);
   assert.match(client, /function openSiteOperatorCodeChange/);
   assert.match(client, /變更管理碼/);
+  assert.match(client, /排序以現在為主軸：進行中 → 即將開始（近到遠）→ 已結束／已取消（近到遠）/);
   assert.match(client, /name="nextCode" type="text"[\s\S]*?autocomplete="off" data-secret/);
   assert.match(styles, /\.operator-stats/);
   assert.match(styles, /\.bot-trap/);
