@@ -3,7 +3,8 @@ import { getDb } from "../db";
 import { events } from "../db/schema";
 
 export function eventTimestamp(eventDate: string, time: string) {
-  const value = Date.parse(`${eventDate}T${time}:00+08:00`);
+  const normalizedDate = eventDate.replaceAll("/", "-");
+  const value = Date.parse(`${normalizedDate}T${time}:00+08:00`);
   return Number.isFinite(value) ? value : Number.NaN;
 }
 
@@ -21,10 +22,12 @@ export function validEventSchedule(eventDate: string, startTime: string, endTime
 // public RSVP, manager tools and reminders all agree.
 export async function closeElapsedEvents(now = Date.now()) {
   const db = getDb();
-  const activeEvents = await db.select({ id: events.id, eventDate: events.eventDate, endTime: events.endTime })
+  const activeEvents = await db.select({ id: events.id, eventDate: events.eventDate, startTime: events.startTime, endTime: events.endTime })
     .from(events).where(eq(events.status, "active"));
   const expiredIds = activeEvents
-    .filter((event) => eventTimestamp(event.eventDate, event.endTime) <= now)
+    // A legacy row without a usable end time is still never left permanently
+    // open: fall back to its start time until the schema repair fills it.
+    .filter((event) => eventTimestamp(event.eventDate, validEventTime(event.endTime) ? event.endTime : event.startTime) <= now)
     .map((event) => event.id);
   if (!expiredIds.length) return new Set<string>();
   const updatedAt = new Date(now).toISOString();

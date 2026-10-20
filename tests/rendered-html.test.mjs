@@ -1450,8 +1450,10 @@ test("site operator overview is separately protected and activity creation has s
   assert.match(client, /name="endTime" type="time" required/);
   assert.match(schema, /endTime: text\("end_time"\)/);
   assert.match(init, /ALTER TABLE events ADD COLUMN end_time/);
+  assert.match(init, /UPDATE events SET end_time/);
   assert.match(lifecycle, /closeElapsedEvents/);
   assert.match(lifecycle, /status: "completed"/);
+  assert.match(lifecycle, /eventDate\.replaceAll\("\/", "-"\)/);
   assert.match(eventsRoute, /validEventSchedule\(eventDate, startTime, endTime\)/);
   assert.match(accessRoute, /closeElapsedEvents/);
   assert.match(rsvpRoute, /closeElapsedEvents/);
