@@ -434,6 +434,10 @@ async function requestSiteOperator(code) {
   return requestJson("/site-admin", { code });
 }
 
+async function changeSiteOperatorCode(currentCode, nextCode, confirmCode) {
+  return requestJson("/site-admin", { action: "change_code", currentCode, nextCode, confirmCode });
+}
+
 function renderOperatorDashboard(data, code) {
   const summary = data.summary || {};
   const rows = (data.activities || []).map((activity) => {
@@ -448,12 +452,36 @@ function renderOperatorDashboard(data, code) {
     </article>`;
   }).join("") || '<p class="empty-cell">目前沒有活動。</p>';
   activeModalClose = closeModal;
-  modalRoot.innerHTML = `<div class="modal-backdrop admin-backdrop"><section class="modal admin-modal operator-modal" role="dialog" aria-modal="true" aria-labelledby="operator-dashboard-title"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">全站營運</p><h2 id="operator-dashboard-title">活動總覽</h2><p class="form-hint">「進行中／待確認結束」表示開始時間已到；因活動沒有預設結束時間，請由該活動建立者確認後標示為結束。</p><div class="operator-stats"><div><strong>${Number(summary.total || 0)}</strong><span>全部活動</span></div><div><strong>${Number(summary.upcoming || 0)}</strong><span>尚未開始</span></div><div><strong>${Number(summary.needsCloseConfirmation || 0)}</strong><span>待確認結束</span></div><div><strong>${Number(summary.completed || 0)}</strong><span>已結束</span></div><div><strong>${Number(summary.cancelled || 0)}</strong><span>已取消</span></div></div><div class="operator-toolbar"><button class="secondary" id="operator-refresh">重新整理</button><button class="secondary" id="operator-lock">鎖定後台</button></div><section class="operator-activities">${rows}</section></section></div>`;
+  modalRoot.innerHTML = `<div class="modal-backdrop admin-backdrop"><section class="modal admin-modal operator-modal" role="dialog" aria-modal="true" aria-labelledby="operator-dashboard-title"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">全站營運</p><h2 id="operator-dashboard-title">活動總覽</h2><p class="form-hint">「進行中／待確認結束」表示開始時間已到；因活動沒有預設結束時間，請由該活動建立者確認後標示為結束。</p><div class="operator-stats"><div><strong>${Number(summary.total || 0)}</strong><span>全部活動</span></div><div><strong>${Number(summary.upcoming || 0)}</strong><span>尚未開始</span></div><div><strong>${Number(summary.needsCloseConfirmation || 0)}</strong><span>待確認結束</span></div><div><strong>${Number(summary.completed || 0)}</strong><span>已結束</span></div><div><strong>${Number(summary.cancelled || 0)}</strong><span>已取消</span></div></div><div class="operator-toolbar"><button class="secondary" id="operator-refresh">重新整理</button><button class="secondary" id="operator-change-code">變更管理碼</button><button class="secondary" id="operator-lock">鎖定後台</button></div><section class="operator-activities">${rows}</section></section></div>`;
   document.querySelector("#operator-refresh")?.addEventListener("click", async () => {
     try { renderOperatorDashboard(await requestSiteOperator(code), code); }
     catch (error) { showNotice(error.message || "無法重新整理總覽"); }
   });
   document.querySelector("#operator-lock")?.addEventListener("click", closeModal);
+  document.querySelector("#operator-change-code")?.addEventListener("click", () => openSiteOperatorCodeChange(code));
+}
+
+function openSiteOperatorCodeChange(currentCode) {
+  activeModalClose = closeModal;
+  modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="operator-code-title"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">全站營運</p><h2 id="operator-code-title">變更管理碼</h2><p class="form-hint">新管理碼至少 12 個字元。更新後，舊碼會立即失效。</p><form id="operator-code-form" autocomplete="off"><label>新營運管理碼<input name="nextCode" type="text" required minlength="12" maxlength="160" autocomplete="off" data-secret></label><label>再次輸入新管理碼<input name="confirmCode" type="text" required minlength="12" maxlength="160" autocomplete="off" data-secret></label><p class="form-error" hidden></p><div class="form-actions operator-code-actions"><button class="secondary" type="button" id="operator-code-back">返回總覽</button><button class="primary" type="submit">儲存新管理碼</button></div></form></section></div>`;
+  document.querySelector("#operator-code-back")?.addEventListener("click", async () => {
+    try { renderOperatorDashboard(await requestSiteOperator(currentCode), currentCode); }
+    catch (error) { showNotice(error.message || "無法返回活動總覽"); }
+  });
+  document.querySelector("#operator-code-form")?.addEventListener("submit", async (submitEvent) => {
+    submitEvent.preventDefault();
+    const form = submitEvent.currentTarget;
+    const nextCode = new FormData(form).get("nextCode")?.toString() || "";
+    const confirmCode = new FormData(form).get("confirmCode")?.toString() || "";
+    const button = form.querySelector("button[type=submit]");
+    button.disabled = true;
+    try {
+      await changeSiteOperatorCode(currentCode, nextCode, confirmCode);
+      renderOperatorDashboard(await requestSiteOperator(nextCode), nextCode);
+      showNotice("營運管理碼已更新；舊碼已失效。");
+    } catch (error) { showFormError(form, error.message || "無法更新營運管理碼"); }
+    finally { button.disabled = false; }
+  });
 }
 
 function openSiteOperator() {

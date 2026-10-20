@@ -213,6 +213,14 @@ export const siteStats = sqliteTable("site_stats", {
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
+// The initial operator code is a deployment secret. Once the operator changes
+// it, only this deliberately slow, salted hash is retained in D1.
+export const siteOperatorCredentials = sqliteTable("site_operator_credentials", {
+  key: text("key").primaryKey(),
+  codeHash: text("code_hash").notNull(),
+  updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
+});
+
 export const siteVisitWindows = sqliteTable("site_visit_windows", {
   fingerprint: text("fingerprint").primaryKey(),
   expiresAt: integer("expires_at").notNull(),

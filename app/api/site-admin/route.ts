@@ -1,9 +1,9 @@
-import { asc, desc, inArray } from "drizzle-orm";
+import { asc, desc, eq, inArray } from "drizzle-orm";
 import { env } from "cloudflare:workers";
 import { getDb } from "../../../db";
 import { ensureSchema } from "../../../db/init";
-import { activityLineGroups, events, lineBindings, lineManagerTargets, lineReminderSettings, rsvps } from "../../../db/schema";
-import { clean } from "../admin/auth";
+import { activityLineGroups, events, lineBindings, lineManagerTargets, lineReminderSettings, rsvps, siteOperatorCredentials } from "../../../db/schema";
+import { clean, hashCredential, verifyCredential } from "../admin/auth";
 import { json, preflight } from "../cors";
 import { rateLimit } from "../rate-limit";
 
@@ -29,19 +29,43 @@ function operationalStatus(event: { status: string; eventDate: string; startTime
   return Number.isFinite(startsAt) && startsAt <= Date.now() ? "needs_close_confirmation" : "upcoming";
 }
 
+async function verifyOperatorCode(code: string, storedHash: string | undefined, configuredCode: string) {
+  if (storedHash) return verifyCredential(code, storedHash);
+  return Boolean(configuredCode) && constantTimeEqual(code, configuredCode);
+}
+
 export async function POST(request: Request) {
   try {
     const limit = await rateLimit(request, "site-operator", 5, 15 * 60 * 1000);
     if (!limit.allowed) return json(request, { error: `營運管理驗證過於頻繁，請 ${limit.retryAfterSeconds} 秒後再試` }, 429);
 
     const body = await request.json() as Record<string, unknown>;
-    const configuredCode = (env as unknown as OperatorBindings).SITE_OPERATOR_CODE?.trim() || "";
-    const suppliedCode = clean(body.code, 160);
-    if (!configuredCode) return json(request, { error: "營運管理尚未完成設定" }, 503);
-    if (!constantTimeEqual(suppliedCode, configuredCode)) return json(request, { error: "營運管理碼不正確" }, 403);
-
     await ensureSchema();
     const db = getDb();
+    const configuredCode = (env as unknown as OperatorBindings).SITE_OPERATOR_CODE?.trim() || "";
+    const [savedCredential] = await db.select().from(siteOperatorCredentials).where(eq(siteOperatorCredentials.key, "primary")).limit(1);
+    const action = clean(body.action, 32);
+    if (action && action !== "change_code") return json(request, { error: "不支援的營運管理操作" }, 400);
+
+    if (action === "change_code") {
+      const currentCode = clean(body.currentCode, 160);
+      const nextCode = clean(body.nextCode, 160);
+      const confirmCode = clean(body.confirmCode, 160);
+      if (!savedCredential && !configuredCode) return json(request, { error: "營運管理尚未完成設定" }, 503);
+      if (!await verifyOperatorCode(currentCode, savedCredential?.codeHash, configuredCode)) return json(request, { error: "目前的營運管理碼不正確" }, 403);
+      if (nextCode.length < 12) return json(request, { error: "新營運管理碼至少需要 12 個字元" }, 400);
+      if (nextCode !== confirmCode) return json(request, { error: "兩次輸入的新營運管理碼不一致" }, 400);
+      if (currentCode === nextCode) return json(request, { error: "新營運管理碼需與目前不同" }, 400);
+      const now = new Date().toISOString();
+      const nextCodeHash = await hashCredential(nextCode);
+      await db.insert(siteOperatorCredentials).values({ key: "primary", codeHash: nextCodeHash, updatedAt: now })
+        .onConflictDoUpdate({ target: siteOperatorCredentials.key, set: { codeHash: nextCodeHash, updatedAt: now } });
+      return json(request, { ok: true, message: "營運管理碼已更新" });
+    }
+
+    const suppliedCode = clean(body.code, 160);
+    if (!savedCredential && !configuredCode) return json(request, { error: "營運管理尚未完成設定" }, 503);
+    if (!await verifyOperatorCode(suppliedCode, savedCredential?.codeHash, configuredCode)) return json(request, { error: "營運管理碼不正確" }, 403);
     const eventRows = await db.select({
       id: events.id, title: events.title, eventDate: events.eventDate, startTime: events.startTime,
       location: events.location, address: events.address, description: events.description,

@@ -196,6 +196,11 @@ export function ensureSchema() {
         views INTEGER NOT NULL DEFAULT 0,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       )`),
+      database.prepare(`CREATE TABLE IF NOT EXISTS site_operator_credentials (
+        key TEXT PRIMARY KEY NOT NULL,
+        code_hash TEXT NOT NULL,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      )`),
       database.prepare(`CREATE TABLE IF NOT EXISTS api_rate_limits (
         key TEXT PRIMARY KEY NOT NULL,
         count INTEGER NOT NULL,

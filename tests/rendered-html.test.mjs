@@ -113,8 +113,11 @@ test("free Cloudflare entry stays fixed while activity clients retain the Brave-
   assert.match(proxy, /new URL\(`\$\{incoming\.pathname\}\$\{incoming\.search\}`, UPSTREAM_ORIGIN\)/);
   assert.match(proxy, /function upstreamHeaders/);
   assert.match(proxy, /"sec-ch-ua"/);
+  assert.match(proxy, /function isMemoryApiRequest/);
+  assert.match(proxy, /if \(!isMemoryApiRequest\(request\)\) headers\.delete\("cookie"\)/);
+  assert.match(proxy, /function isMemoryAuthRequest/);
   assert.match(proxy, /function apiGatewayError/);
-  assert.match(proxy, /responseHeaders\.delete\("set-cookie"\)/);
+  assert.match(proxy, /if \(!isMemoryAuthRequest\(request\)\) responseHeaders\.delete\("set-cookie"\)/);
   assert.match(proxy, /function addApiCorsHeaders/);
   assert.match(proxy, /headers\.set\("Access-Control-Allow-Origin", APP_ORIGIN\)/);
   assert.match(proxy, /headers\.set\("Access-Control-Allow-Credentials", "true"\)/);
@@ -1415,6 +1418,10 @@ test("site operator overview is separately protected and activity creation has s
   ]);
   assert.match(operatorRoute, /SITE_OPERATOR_CODE/);
   assert.match(operatorRoute, /constantTimeEqual/);
+  assert.match(operatorRoute, /siteOperatorCredentials/);
+  assert.match(operatorRoute, /hashCredential\(nextCode\)/);
+  assert.match(operatorRoute, /verifyOperatorCode/);
+  assert.match(operatorRoute, /action === "change_code"/);
   assert.match(operatorRoute, /rateLimit\(request, "site-operator", 5, 15 \* 60 \* 1000\)/);
   assert.match(operatorRoute, /needs_close_confirmation/);
   assert.match(operatorRoute, /lineGroupNames/);
@@ -1426,6 +1433,10 @@ test("site operator overview is separately protected and activity creation has s
   assert.match(client, /function openSiteOperator/);
   assert.match(client, /name="website"/);
   assert.match(client, /function renderOperatorDashboard/);
+  assert.match(client, /function changeSiteOperatorCode/);
+  assert.match(client, /function openSiteOperatorCodeChange/);
+  assert.match(client, /變更管理碼/);
+  assert.match(client, /name="nextCode" type="text"[\s\S]*?autocomplete="off" data-secret/);
   assert.match(styles, /\.operator-stats/);
   assert.match(styles, /\.bot-trap/);
 });
