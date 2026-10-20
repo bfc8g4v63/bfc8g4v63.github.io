@@ -217,6 +217,7 @@ test("memory capsule media, interaction and curation remain family-scoped with c
   assert.match(page, /15 \* 60/);
   assert.match(page, /正在重試/);
   assert.match(page, /安全儲存回應/);
+  assert.match(page, /const completed = await uploadOne\(\{ \.\.\.entry, prepared: undefined \}\)/);
   assert.match(page, /家族空間/);
   assert.match(page, /寫下一段文字回憶/);
   assert.match(page, /替長輩代傳時，填入長輩稱呼/);

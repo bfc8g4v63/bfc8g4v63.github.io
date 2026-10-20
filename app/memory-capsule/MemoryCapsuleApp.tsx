@@ -347,7 +347,10 @@ export function MemoryCapsuleApp() {
     const entry = uploadQueue.find((item) => item.id === id);
     if (!entry || uploading) return;
     setUploading(true); setError("");
-    const completed = await uploadOne(entry);
+    // Signed R2 URLs are deliberately short-lived. A manual retry must obtain a
+    // fresh URL instead of reusing the failed request's URL after it expires.
+    updateUpload(entry.id, { prepared: undefined, progress: 0, error: "" });
+    const completed = await uploadOne({ ...entry, prepared: undefined });
     if (completed) { setProgress("已把回憶放進家族膠囊"); await refresh(); }
     setUploading(false);
   };
