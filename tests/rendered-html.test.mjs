@@ -815,7 +815,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.148/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.150/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -844,9 +844,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.148/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.148/);
-  assert.match(worker, /good-days-github-v148/);
+  assert.match(page, /\/app\.js\?v=1\.2\.150/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.150/);
+  assert.match(worker, /good-days-github-v150/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -1451,6 +1451,10 @@ test("site operator overview is separately protected and activity creation has s
   assert.match(client, /變更管理碼/);
   assert.match(client, /活動到預計結束時間會自動成為已結束/);
   assert.match(client, /name="endTime" type="time" required/);
+  assert.match(client, /function hasValidEndTime/);
+  assert.match(client, /預計結束時間必須晚於同日的開始時間/);
+  assert.match(client, /timePicker\(event\.startTime, "新開始時間"\)[\s\S]*?name="endTime" type="time" required/);
+  assert.match(client, /in_progress: "進行中"/);
   assert.match(schema, /endTime: text\("end_time"\)/);
   assert.match(init, /ALTER TABLE events ADD COLUMN end_time/);
   assert.match(init, /UPDATE events SET end_time/);
