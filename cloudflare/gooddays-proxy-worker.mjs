@@ -39,6 +39,14 @@ function addApiCorsHeaders(request, headers) {
   headers.append("Vary", "Origin");
 }
 
+function isMemoryApiRequest(request) {
+  return new URL(request.url).pathname.startsWith("/api/memory/");
+}
+
+function isMemoryAuthRequest(request) {
+  return new URL(request.url).pathname.startsWith("/api/memory/auth/");
+}
+
 function upstreamHeaders(request) {
   const headers = new Headers(request.headers);
   // A browser's client-hint, navigation, cookie and edge headers describe the
@@ -46,11 +54,15 @@ function upstreamHeaders(request) {
   // trigger browser-specific bot checks, even though the same API request is
   // valid. Keep only API-relevant request metadata.
   for (const name of [
-    "host", "cookie", "origin", "referer", "user-agent",
+    "host", "origin", "referer", "user-agent",
     "sec-ch-ua", "sec-ch-ua-mobile", "sec-ch-ua-platform",
     "sec-fetch-dest", "sec-fetch-mode", "sec-fetch-site",
     "cf-connecting-ip", "cf-ipcountry", "cf-ray", "x-forwarded-for",
   ]) headers.delete(name);
+  // The public Worker is intentionally stateless for the existing activity
+  // APIs. 回憶膠囊 is the sole exception: its signed HttpOnly session is
+  // required for every private family API call after LINE returns here.
+  if (!isMemoryApiRequest(request)) headers.delete("cookie");
   return headers;
 }
 
@@ -83,10 +95,11 @@ export default {
     const responseHeaders = new Headers(response.headers);
     const location = responseHeaders.get("location");
     if (location) responseHeaders.set("location", rewriteInternalLocation(location));
-    // This gateway is stateless.  An upstream anti-bot cookie belongs to a
-    // different host and must never be offered to a browser using the public
-    // cross-origin API; some browsers otherwise reject the fetch outright.
-    responseHeaders.delete("set-cookie");
+    // Keep the Worker stateless for 好日子 activity APIs, while relaying only
+    // 回憶膠囊's short-lived OAuth state and HttpOnly session cookies. Without
+    // this narrow exception LINE successfully authenticates, but its callback
+    // cannot recover the saved state or retain the finished session.
+    if (!isMemoryAuthRequest(request)) responseHeaders.delete("set-cookie");
     // Upstream error responses do not consistently include CORS headers. Add
     // them at the public gateway so browser clients can receive the real
     // validation or server error instead of an opaque "Failed to fetch".

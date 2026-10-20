@@ -5,7 +5,7 @@
 ## 目前狀態
 
 - 目前階段：Phase 4 — 發布與驗收
-- 本次版本：v1.2.144（待發布；待實機驗收）
+- 本次版本：v1.2.145（待發布；待實機驗收）
 - 上線狀態：首位總管理者已建立「陳水金家族」與第一顆膠囊；照片、影片、互動、整理與容量保護已部署，待管理者以實機檔案完成上傳與播放驗收。
 
 ### 發布紀錄
@@ -21,6 +21,7 @@
 | Cloudflare R2 私有 bucket | 已完成 | `water-capsule-media-prod`；亞洲太平洋、自動位置、公開存取停用。 |
 | R2 存取權杖 | 已完成 | 僅能讀取、寫入與列出上述 bucket 的物件；不能管理 bucket；值只保留於部署 secrets。 |
 | LINE Login Web channel | 待驗收 | 「水金呼吸 回憶膠囊」已建立；必須確認 LINE Developers 的 callback 與目前承載登入 API 的 HTTPS callback 完全一致。家人僅使用 GitHub Pages 入口連結。 |
+| 免費入口 session 轉送 | 已修正 | 僅 `/api/memory/` 可將回憶膠囊的 HttpOnly Cookie 轉送到登入與私有 API；其他好日子 API 保持無 Cookie。 |
 | 部署 secret | 已完成 | LINE、session、bootstrap 與 R2 設定皆只在正式部署平台保存；不得提交到 Git。 |
 | 首位總管理者 | 待指定 | 以該管理者的 LINE Login 完成首次登入，再以一次性 bootstrap secret 建立家族。 |
 | R2 binding | 已決定 | bucket 位於家族 Cloudflare 帳號，現階段由受限 S3 相容 API 權杖使用；`.openai/hosting.json` 保持 `r2: null`，避免誤綁其他專案的 Worker。 |
