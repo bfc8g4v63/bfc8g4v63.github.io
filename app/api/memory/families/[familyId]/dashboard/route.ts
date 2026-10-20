@@ -49,6 +49,9 @@ export async function GET(request: Request, context: { params: Promise<{ familyI
     const media = await Promise.all(rows.map(async (row) => ({
       ...row,
       url: await signedR2Url("GET", row.objectKey, { expiresIn: 300 }),
+      // New uploads place a WebP preview here. Existing media gracefully falls
+      // back to its original file in the browser if this optional object is absent.
+      thumbnailUrl: await signedR2Url("GET", `families/${familyId}/media/${row.id}/thumb.webp`, { expiresIn: 300 }),
       downloadUrl: row.mimeType.startsWith("video/") ? await signedR2Url("GET", row.objectKey, { expiresIn: 300, responseContentDisposition: downloadDisposition(row.originalFilename) }) : "",
       comments: commentsByMedia.get(row.id) || [],
       heartCount: heartsByMedia.get(row.id)?.count || 0, heartedByMe: heartsByMedia.get(row.id)?.mine || false,
@@ -61,7 +64,7 @@ export async function GET(request: Request, context: { params: Promise<{ familyI
     return Response.json({
       family: { id: family.id, displayName: family.displayName }, storage: { usedBytes: Number(usage?.usedBytes || 0), quotaBytes: Number(family.storageQuotaBytes) },
       membership: access.membership, capsules: capsules.map((capsule) => ({
-        ...capsule, mediaCount: counts.get(capsule.id) || 0, coverUrl: media.find((item) => item.id === capsule.coverMediaId)?.url || "",
+        ...capsule, mediaCount: counts.get(capsule.id) || 0, coverUrl: media.find((item) => item.id === capsule.coverMediaId)?.thumbnailUrl || media.find((item) => item.id === capsule.coverMediaId)?.url || "",
         comments: commentsByCapsule.get(capsule.id) || [],
       })), media,
     }, { headers: { "cache-control": "no-store" } });

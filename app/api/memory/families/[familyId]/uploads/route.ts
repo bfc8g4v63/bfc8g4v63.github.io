@@ -29,6 +29,7 @@ export async function POST(request: Request, context: { params: Promise<{ family
     const filename = clean(body.filename, 180);
     const mimeType = clean(body.mimeType, 80).toLowerCase();
     const byteSize = Number(body.byteSize);
+    const wantsThumbnail = body.thumbnail === true;
     const isPhoto = PHOTO_MIME_TYPES.has(mimeType);
     const isVideo = VIDEO_MIME_TYPES.has(mimeType);
     const perFileLimit = isVideo ? MAX_VIDEO_BYTES : MAX_PHOTO_BYTES;
@@ -48,12 +49,21 @@ export async function POST(request: Request, context: { params: Promise<{ family
     const mediaId = crypto.randomUUID();
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
     const objectKey = `families/${familyId}/media/${mediaId}/original/${safeObjectFilename(filename, isVideo ? ".mp4" : ".jpg")}`;
+    const thumbnailKey = `families/${familyId}/media/${mediaId}/thumb.webp`;
     await getDb().insert(memoryMedia).values({
       id: mediaId, familyId, capsuleId, authorMemberId: access.membership.id, objectKey,
       originalFilename: filename, mimeType, byteSize, title: clean(body.title, 120), description: clean(body.description, 1000),
       uploadState: "pending", uploadExpiresAt: expiresAt,
     });
-    return Response.json({ mediaId, uploadUrl: await signedR2Url("PUT", objectKey, { contentType: mimeType, expiresIn: 600 }), expiresAt }, { status: 201, headers: { "cache-control": "no-store" } });
+    return Response.json({
+      mediaId,
+      uploadUrl: await signedR2Url("PUT", objectKey, { contentType: mimeType, expiresIn: 600 }),
+      // The browser only receives this scoped URL when it successfully made a
+      // local preview. The thumbnail uses the same private, short-lived path
+      // as the original and can never be listed or read anonymously.
+      thumbnailUploadUrl: wantsThumbnail ? await signedR2Url("PUT", thumbnailKey, { contentType: "image/webp", expiresIn: 600 }) : "",
+      expiresAt,
+    }, { status: 201, headers: { "cache-control": "no-store" } });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "無法準備相片上傳" }, { status: 500 });
   }

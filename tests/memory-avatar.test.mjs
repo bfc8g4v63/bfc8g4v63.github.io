@@ -23,3 +23,23 @@ test("LINE profile snapshots refresh after login and stale avatars fall back wit
   assert.match(page, /memory-avatar-fallback/);
   assert.match(styles, /\.memory-avatar \{[^}]*aspect-ratio:1 \/ 1[^}]*object-fit:cover[^}]*object-position:center center[^}]*image-orientation:from-image/);
 });
+
+test("media previews are generated privately and optional previews never block original memories", async () => {
+  const [upload, dashboard, page] = await Promise.all([
+    readFile(new URL("../app/api/memory/families/[familyId]/uploads/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/memory/families/[familyId]/dashboard/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/memory-capsule/MemoryCapsuleApp.tsx", import.meta.url), "utf8"),
+  ]);
+  assert.match(upload, /thumbnailUploadUrl/);
+  assert.match(upload, /thumb\.webp/);
+  assert.match(upload, /signedR2Url\("PUT", thumbnailKey/);
+  assert.match(dashboard, /thumbnailUrl: await signedR2Url\("GET"/);
+  assert.match(page, /const THUMBNAIL_MAX_EDGE = 1200/);
+  assert.match(page, /canvas\.toBlob\(resolve, "image\/webp", \.8\)/);
+  assert.match(page, /async function videoThumbnail/);
+  assert.match(page, /const thumbnailPromise = createThumbnail\(file\)/);
+  assert.match(page, /await fetch\(prepared\.thumbnailUploadUrl/);
+  assert.match(page, /\.catch\(\(\) => undefined\)/);
+  assert.match(page, /poster=\{item\.thumbnailUrl \|\| undefined\}/);
+  assert.match(page, /thumbnailFailed \? item\.url : item\.thumbnailUrl/);
+});
