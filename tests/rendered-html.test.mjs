@@ -1474,3 +1474,37 @@ test("site operator overview is separately protected and activity creation has s
   assert.match(styles, /\.operator-stats/);
   assert.match(styles, /\.bot-trap/);
 });
+
+test("activity creation and cloning preserve the frontend-to-API time contract", async () => {
+  const [eventsRoute, adminEventRoute, client] = await Promise.all([
+    readFile(new URL("../app/api/events/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/admin/event/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../docs/app.js", import.meta.url), "utf8"),
+  ]);
+
+  // These are the fields that make a new activity usable. Keep this explicit
+  // contract beside the code so a source sync cannot silently restore an old
+  // form while the API still rejects its request.
+  const requiredCreateFields = ["title", "creatorName", "eventDate", "startTime", "endTime", "location"];
+  const requiredClause = eventsRoute.match(/if \(!title \|\| !creatorName \|\| !eventDate \|\| !startTime \|\| !endTime \|\| !location\)/)?.[0] || "";
+  assert.deepEqual([...requiredClause.matchAll(/!(\w+)/g)].map((match) => match[1]), requiredCreateFields);
+  assert.match(eventsRoute, /const editCode = clean\(body\.editCode, 80\)/);
+  assert.match(eventsRoute, /if \(editCode\.length < 6\)/);
+
+  assert.match(client, /field\('活動名稱 <span>必填<\/span>', "eventTitle",[\s\S]*?'required type="text"/);
+  assert.match(client, /body\.title = String\(body\.eventTitle \|\| ""\)/);
+  assert.match(client, /"creatorName", event\?\.creatorName, 'required type="text"/);
+  assert.match(client, /"eventDate", event\?\.eventDate \|\| localToday\(\), 'required type="date"/);
+  assert.match(client, /\$\{timePicker\(event\?\.startTime\)\}/);
+  assert.match(client, /name="endTime" type="time" required/);
+  assert.match(client, /name="location"[\s\S]*?required type="text"/);
+  assert.match(client, /name="editCode" data-secret required minlength="6"/);
+  assert.match(client, /body\.startTime = selectedStartTime\(form\)/);
+  assert.match(client, /if \(!hasValidEndTime\(body\.startTime, body\.endTime\)\)/);
+  assert.match(eventsRoute, /validEventSchedule\(eventDate, startTime, endTime\)/);
+
+  assert.match(client, /<form id="clone-event-form">[\s\S]*?name="eventDate" type="date"[\s\S]*?timePicker\(event\.startTime, "新開始時間"\)[\s\S]*?name="endTime" type="time" required/);
+  assert.match(client, /values\.startTime = selectedStartTime\(form\)/);
+  assert.match(client, /hasValidEndTime\(values\.startTime, values\.endTime\)/);
+  assert.match(adminEventRoute, /action === "clone_event"[\s\S]*?validEventSchedule\(eventDate, startTime, endTime\)/);
+});
