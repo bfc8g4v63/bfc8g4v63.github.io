@@ -42,6 +42,19 @@ export async function acceptMemoryInvite(identity: LineIdentity, codeHash: strin
   return { familyId: invite.familyId, joined: true };
 }
 
+/**
+ * LINE profile images are revocable URLs. Refresh the display snapshot on
+ * every successful LINE Login so a member's new public avatar is shown across
+ * every family they belong to without ever changing their immutable subject.
+ */
+export async function refreshMemoryMemberProfile(identity: LineIdentity) {
+  await getDb().update(memoryFamilyMembers).set({
+    displayName: identity.displayName,
+    avatarUrl: identity.avatarUrl,
+    updatedAt: new Date().toISOString(),
+  }).where(eq(memoryFamilyMembers.lineSubject, identity.subject));
+}
+
 export async function createMemoryFamily(identity: LineIdentity, nameInput: unknown, slugInput: unknown) {
   const displayName = clean(nameInput, 100);
   const slug = familySlug(slugInput);

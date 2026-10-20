@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.2.146 - 2026-10-20
+
+- 回憶膠囊在每次成功 LINE Login 後同步 LINE 公開暱稱與頭像快照；既有頭像 URL 失效時改為顯示姓名首字，不再留下破圖圖示。
+
 ## 1.2.145 - 2026-10-20
 
 - 修正「水金呼吸・回憶膠囊」經免費 Cloudflare 入口完成 LINE Login 後遺失 OAuth state／session Cookie 的問題；回憶膠囊 API 現在才會安全轉送其必要的 HttpOnly Cookie，既有好日子活動 API 仍維持無 Cookie 的轉送規則。

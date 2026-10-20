@@ -23,8 +23,13 @@ async function json<T>(url: string, init?: RequestInit) {
 }
 
 function Avatar({ name, src, small = false }: { name: string; src?: string; small?: boolean }) {
-  return src ? <img className={`memory-avatar${small ? " small" : ""}`} src={src} alt={`${name} 的 LINE 頭像`} referrerPolicy="no-referrer" />
-    : <span className={`memory-avatar memory-avatar-fallback${small ? " small" : ""}`} aria-label={name}>{name.slice(0, 1)}</span>;
+  const [failedSource, setFailedSource] = useState<string | null>(null);
+  useEffect(() => { setFailedSource(null); }, [src]);
+  const avatarClass = `memory-avatar${small ? " small" : ""}`;
+  if (src && failedSource !== src) {
+    return <img className={avatarClass} src={src} alt={`${name} 的 LINE 頭像`} referrerPolicy="no-referrer" onError={() => setFailedSource(src)} />;
+  }
+  return <span className={`${avatarClass} memory-avatar-fallback`} aria-label={name}>{name.trim().slice(0, 1) || "家"}</span>;
 }
 
 function formatStorage(bytes: number) {

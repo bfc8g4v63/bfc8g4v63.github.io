@@ -5,7 +5,7 @@
 ## 目前狀態
 
 - 目前階段：Phase 4 — 發布與驗收
-- 本次版本：v1.2.145（待發布；待實機驗收）
+- 本次版本：v1.2.146（待發布；待實機驗收）
 - 上線狀態：首位總管理者已建立「陳水金家族」與第一顆膠囊；照片、影片、互動、整理與容量保護已部署，待管理者以實機檔案完成上傳與播放驗收。
 
 ### 發布紀錄
@@ -32,6 +32,7 @@
 
 - [x] 新增 `memory_families`、`memory_family_members`、`memory_family_invites` schema 與 Drizzle migration `0016_large_bug.sql`。
 - [x] LINE Login OAuth 起點、callback、`state`、nonce、ID token verify 與安全 session cookie。
+- [x] 每次完成 LINE Login 均同步目前公開暱稱與頭像；若 LINE 舊頭像網址失效，介面以姓名首字安全替代，不顯示破圖。
 - [x] Session、登出／切換帳號資料端點；不保存 LINE access token 或 refresh token。
 - [x] 家族 bootstrap、家族邀請建立／撤銷、成員清單、角色變更與停用 API。
 - [x] 每筆家族操作均在伺服器端以 LINE immutable subject、有效 member、`family_id` 與角色檢查。

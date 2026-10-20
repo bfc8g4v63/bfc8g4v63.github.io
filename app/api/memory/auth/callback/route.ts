@@ -1,5 +1,5 @@
 import { clearMemoryCookie, consumeOAuthState, createSessionCookie, exchangeLineCode, MEMORY_STATE_COOKIE, publicUrl } from "../../auth";
-import { acceptMemoryInvite } from "../../families";
+import { acceptMemoryInvite, refreshMemoryMemberProfile } from "../../families";
 
 function finish(request: Request, destination: string, cookies: string[]) {
   // A comma-joined Set-Cookie value is not reliably parsed as two cookies by
@@ -18,6 +18,7 @@ export async function GET(request: Request) {
     if (!code) return finish(request, "/memory-capsule?login=failed", [clearMemoryCookie(MEMORY_STATE_COOKIE, request)]);
     const identity = await exchangeLineCode(request, code, state.nonce);
     if (state.inviteCodeHash) await acceptMemoryInvite(identity, state.inviteCodeHash);
+    await refreshMemoryMemberProfile(identity);
     return finish(request, state.returnTo, [await createSessionCookie(identity, request), clearMemoryCookie(MEMORY_STATE_COOKIE, request)]);
   } catch (error) {
     // Keep the browser response deliberately generic, but retain a bounded
