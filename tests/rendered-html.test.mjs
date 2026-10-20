@@ -102,7 +102,7 @@ test("memory owners can export private ZIP backups with a centered responsive CT
   assert.match(checklist, /LINE 內建瀏覽器/);
 });
 
-test("free Cloudflare entry keeps the upstream fixed and never becomes an open proxy", async () => {
+test("free Cloudflare entry stays fixed while activity clients retain the Brave-compatible backend", async () => {
   const [proxy, homeClient, eventClient] = await Promise.all([
     readFile(new URL("../cloudflare/gooddays-proxy-worker.mjs", import.meta.url), "utf8"),
     readFile(new URL("../docs/app.js", import.meta.url), "utf8"),
@@ -121,12 +121,10 @@ test("free Cloudflare entry keeps the upstream fixed and never becomes an open p
   assert.match(proxy, /request\.method === "OPTIONS"/);
   assert.match(proxy, /redirect: "manual"/);
   assert.match(proxy, /rewriteInternalLocation\(location\)/);
-  assert.match(homeClient, /https:\/\/gooddays\.carewear\.workers\.dev\/api/);
-  assert.match(eventClient, /https:\/\/gooddays\.carewear\.workers\.dev\/api/);
+  assert.match(homeClient, /https:\/\/good-days-family-events\.x0925234139\.chatgpt\.site\/api/);
+  assert.match(eventClient, /https:\/\/good-days-family-events\.x0925234139\.chatgpt\.site\/api/);
   assert.match(homeClient, /credentials: "omit"/);
   assert.match(eventClient, /credentials: "omit"/);
-  assert.doesNotMatch(homeClient, /chatgpt\.site/);
-  assert.doesNotMatch(eventClient, /chatgpt\.site/);
 });
 
 test("memory capsule Phase 1 keeps LINE identity, invitation and family scopes server-side", async () => {
@@ -805,7 +803,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.141/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.142/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -834,9 +832,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.141/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.141/);
-  assert.match(worker, /good-days-github-v141/);
+  assert.match(page, /\/app\.js\?v=1\.2\.142/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.142/);
+  assert.match(worker, /good-days-github-v142/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 

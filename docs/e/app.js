@@ -1,4 +1,4 @@
-const API = "https://gooddays.carewear.workers.dev/api";
+const API = "https://good-days-family-events.x0925234139.chatgpt.site/api";
 const root = document.querySelector("#event-app");
 const modalRoot = document.querySelector("#modal-root");
 const shareToken = new URLSearchParams(location.search).get("s") || "";

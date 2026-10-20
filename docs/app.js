@@ -1,4 +1,4 @@
-const API = "https://gooddays.carewear.workers.dev/api";
+const API = "https://good-days-family-events.x0925234139.chatgpt.site/api";
 let events = [];
 
 const eventsRoot = document.querySelector("#events");
