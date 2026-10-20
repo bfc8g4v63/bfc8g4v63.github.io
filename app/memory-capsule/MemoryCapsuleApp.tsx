@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import qrcode from "qrcode-generator";
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 
 type Membership = { id: string; familyId: string; role: string; displayName: string; avatarUrl: string; familyName: string };
 type Session = { signedIn: boolean; setupRequired?: boolean; profile?: { displayName: string; avatarUrl: string }; memberships?: Membership[] };
@@ -12,6 +13,7 @@ type Invite = { id: string; role: "admin" | "member"; maxUses: number; useCount:
 type FamilyMember = { id: string; displayName: string; avatarUrl: string; role: "owner" | "admin" | "member"; isActive: boolean; joinedAt: string };
 type Report = { id: string; targetType: "media" | "comment"; targetId: string; reason: string; status: string; createdAt: string; reporterName: string; target: { hiddenAt: string | null; deletedAt: string | null } | null };
 type Retention = { mediaCount: number; commentCount: number; retentionDays: number; eligibleBefore: string };
+type UploadEntry = { id: string; file: File; capsuleId: string; status: "queued" | "preparing" | "uploading" | "complete" | "failed"; progress: number; error?: string; prepared?: { mediaId: string; uploadUrl: string } };
 
 async function json<T>(url: string, init?: RequestInit) {
   const response = await fetch(url, init);
@@ -58,6 +60,7 @@ export function MemoryCapsuleApp() {
   const [retentionBusy, setRetentionBusy] = useState(false);
   const [exportCapsuleId, setExportCapsuleId] = useState("");
   const [exportBusy, setExportBusy] = useState(false);
+  const [uploadQueue, setUploadQueue] = useState<UploadEntry[]>([]);
   const [inviteRole, setInviteRole] = useState<"admin" | "member">("member");
   const [inviteDays, setInviteDays] = useState(7);
   const [inviteUrl, setInviteUrl] = useState("");
@@ -71,9 +74,25 @@ export function MemoryCapsuleApp() {
   const [commentDrafts, setCommentDrafts] = useState<Record<string, { body: string; displayAs: string }>>({});
   const [memoryDraft, setMemoryDraft] = useState({ body: "", displayAs: "" });
   const [quotaGb, setQuotaGb] = useState("20");
-  const fileInput = useRef<HTMLInputElement>(null);
+  const photoInput = useRef<HTMLInputElement>(null);
+  const videoInput = useRef<HTMLInputElement>(null);
 
   const activeCapsule = useMemo(() => dashboard?.capsules.find((capsule) => capsule.id === selectedCapsuleId) || dashboard?.capsules[0], [dashboard, selectedCapsuleId]);
+  const inviteQrDataUrl = useMemo(() => {
+    if (!inviteUrl) return "";
+    const code = qrcode(0, "M");
+    code.addData(inviteUrl);
+    code.make();
+    return code.createDataURL(5, 2);
+  }, [inviteUrl]);
+  const memoryYears = useMemo(() => {
+    const groups = new Map<string, Capsule[]>();
+    for (const capsule of dashboard?.capsules || []) {
+      const year = capsule.eraLabel.match(/(?:19|20)\d{2}/)?.[0] || "其他回憶";
+      groups.set(year, [...(groups.get(year) || []), capsule]);
+    }
+    return [...groups.entries()].sort(([left], [right]) => right.localeCompare(left, "zh-TW"));
+  }, [dashboard?.capsules]);
 
   const loadCommunity = async (familyId: string) => {
     const [nextInvites, nextMembers, nextReports] = await Promise.all([
@@ -259,53 +278,77 @@ export function MemoryCapsuleApp() {
     catch (reason) { setError(reason instanceof Error ? reason.message : "無法處理回報"); }
   };
 
-  const uploadMedia = async (event: FormEvent<HTMLInputElement>) => {
+  const updateUpload = (id: string, patch: Partial<UploadEntry>) => setUploadQueue((entries) => entries.map((entry) => entry.id === id ? { ...entry, ...patch } : entry));
+  const uploadOne = async (entry: UploadEntry) => {
+    if (!dashboard) return false;
+    const file = entry.file;
+    const contentType = file.type.toLowerCase();
+    updateUpload(entry.id, { status: "preparing", progress: 0, error: "" });
+    try {
+      if (contentType.startsWith("video/")) {
+        const duration = await videoDurationSeconds(file);
+        if (duration && duration > 15 * 60) throw new Error("超過 15 分鐘，請先裁剪後再上傳");
+      }
+      const prepared = entry.prepared || await json<{ mediaId: string; uploadUrl: string }>(`/api/memory/families/${dashboard.family.id}/uploads`, {
+        method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ capsuleId: entry.capsuleId, filename: file.name, mimeType: contentType, byteSize: file.size }),
+      });
+      updateUpload(entry.id, { prepared, status: "uploading" });
+      let uploaded = false;
+      let uploadFailure: Error | null = null;
+      for (let attempt = 0; attempt < 2 && !uploaded; attempt += 1) {
+        if (attempt) updateUpload(entry.id, { status: "uploading", progress: 0, error: "正在重試…" });
+        try {
+          await new Promise<void>((resolve, reject) => {
+            const upload = new XMLHttpRequest();
+            upload.open("PUT", prepared.uploadUrl);
+            upload.setRequestHeader("content-type", contentType);
+            upload.upload.onprogress = (progressEvent) => {
+              if (!progressEvent.lengthComputable) return;
+              updateUpload(entry.id, { status: "uploading", progress: Math.min(100, Math.round((progressEvent.loaded / progressEvent.total) * 100)) });
+            };
+            upload.onerror = () => reject(new Error("無法連線至私有儲存空間"));
+            upload.onload = () => upload.status >= 200 && upload.status < 300 ? resolve() : reject(new Error(`安全儲存回應 ${upload.status || "不明"}`));
+            upload.send(file);
+          });
+          uploaded = true;
+        } catch (reason) { uploadFailure = reason instanceof Error ? reason : new Error("上傳失敗"); }
+      }
+      if (!uploaded) throw uploadFailure || new Error("上傳失敗");
+      await json(`/api/memory/families/${dashboard.family.id}/uploads/${prepared.mediaId}/complete`, { method: "POST" });
+      updateUpload(entry.id, { status: "complete", progress: 100, error: "" });
+      return true;
+    } catch (reason) {
+      updateUpload(entry.id, { status: "failed", error: reason instanceof Error ? reason.message : "上傳失敗，請稍後重試" });
+      return false;
+    }
+  };
+  const runUploads = async (entries: UploadEntry[]) => {
+    setUploading(true); setError("");
+    let completed = false;
+    for (const entry of entries) completed = (await uploadOne(entry)) || completed;
+    if (completed) { setProgress("已把回憶放進家族膠囊"); await refresh(); }
+    setUploading(false);
+  };
+  const uploadMedia = (event: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(event.currentTarget.files || []);
     event.currentTarget.value = "";
     if (!dashboard || !activeCapsule || !files.length) return;
+    const additions = files.map((file) => ({ id: crypto.randomUUID(), file, capsuleId: activeCapsule.id, status: "queued" as const, progress: 0 }));
+    setUploadQueue((entries) => [...entries.filter((entry) => entry.status !== "complete").slice(-5), ...additions]);
+    void runUploads(additions);
+  };
+  const retryUpload = async (id: string) => {
+    const entry = uploadQueue.find((item) => item.id === id);
+    if (!entry || uploading) return;
     setUploading(true); setError("");
-    try {
-      for (let index = 0; index < files.length; index += 1) {
-        const file = files[index];
-        const contentType = file.type.toLowerCase();
-        if (contentType.startsWith("video/")) {
-          const duration = await videoDurationSeconds(file);
-          if (duration && duration > 15 * 60) throw new Error(`${file.name} 超過 15 分鐘，請先裁剪後再上傳`);
-        }
-        setProgress(`正在準備 ${index + 1}／${files.length}：${file.name}`);
-        const prepared = await json<{ mediaId: string; uploadUrl: string }>(`/api/memory/families/${dashboard.family.id}/uploads`, {
-          method: "POST", headers: { "content-type": "application/json" },
-          body: JSON.stringify({ capsuleId: activeCapsule.id, filename: file.name, mimeType: contentType, byteSize: file.size }),
-        });
-        let uploaded = false;
-        let uploadFailure: Error | null = null;
-        for (let attempt = 0; attempt < 2 && !uploaded; attempt += 1) {
-          if (attempt) setProgress(`正在重試 ${index + 1}／${files.length}：${file.name}`);
-          try {
-            await new Promise<void>((resolve, reject) => {
-              const upload = new XMLHttpRequest();
-              upload.open("PUT", prepared.uploadUrl);
-              upload.setRequestHeader("content-type", contentType);
-              upload.upload.onprogress = (progressEvent) => {
-                if (!progressEvent.lengthComputable) return;
-                const percent = Math.min(100, Math.round((progressEvent.loaded / progressEvent.total) * 100));
-                setProgress(`正在上傳 ${index + 1}／${files.length}：${file.name}（${percent}%）`);
-              };
-              upload.onerror = () => reject(new Error(`${file.name} 無法連線至私有儲存空間，請確認網路後重試`));
-              upload.onload = () => upload.status >= 200 && upload.status < 300 ? resolve() : reject(new Error(`${file.name} 上傳未完成（安全儲存回應 ${upload.status || "不明"}）`));
-              upload.send(file);
-            });
-            uploaded = true;
-          } catch (reason) { uploadFailure = reason instanceof Error ? reason : new Error(`${file.name} 上傳失敗`); }
-        }
-        if (!uploaded) throw uploadFailure || new Error(`${file.name} 上傳失敗，請稍後再試`);
-        await json(`/api/memory/families/${dashboard.family.id}/uploads/${prepared.mediaId}/complete`, { method: "POST" });
-      }
-      setProgress("回憶已放進家族膠囊");
-      await refresh();
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "媒體上傳失敗");
-    } finally { setUploading(false); }
+    const completed = await uploadOne(entry);
+    if (completed) { setProgress("已把回憶放進家族膠囊"); await refresh(); }
+    setUploading(false);
+  };
+  const openCapsule = (capsuleId: string) => {
+    setSelectedCapsuleId(capsuleId);
+    window.setTimeout(() => document.getElementById("memory-active-capsule")?.scrollIntoView({ behavior: "smooth", block: "start" }), 0);
   };
 
   if (isLoading) return <main className="memory-page"><p className="memory-loading">正在打開家族回憶⋯</p></main>;
@@ -317,10 +360,12 @@ export function MemoryCapsuleApp() {
   if (!dashboard) return <main className="memory-page"><section className="memory-empty"><Avatar name={session.profile?.displayName || "家人"} src={session.profile?.avatarUrl} /><p className="memory-kicker">已使用 LINE 登入</p><h1>{inviteCode ? "準備加入家族" : "尚未加入家族"}</h1><p>{inviteCode ? "請再按一次按鈕，確認以目前的 LINE 帳號接受家族邀請。" : "請向家族管理者索取專屬邀請連結，再由連結進入。"}</p>{error && <p className="memory-error" role="alert">{error}</p>}{inviteCode && <div className="memory-cta-wrap"><button className="memory-primary" onClick={login}>以 LINE 接受邀請</button></div>}<div className="memory-cta-wrap"><button className="memory-secondary" onClick={logout}>切換 LINE 帳號</button></div></section></main>;
 
   const visibleMedia = dashboard.media.filter((item) => item.capsuleId === activeCapsule?.id);
+  const recentMedia = dashboard.media.slice(0, 6);
   return <main className="memory-page">
     <header className="memory-header"><a className="memory-brand" href="/memory-capsule"><span>水</span><b>水金呼吸</b><small>回憶膠囊</small></a><div className="memory-member"><Avatar name={dashboard.membership.displayName} src={dashboard.membership.avatarUrl} small /><span>{dashboard.membership.displayName}</span><button onClick={logout}>登出</button></div></header>
     <section className="memory-hero"><div><p className="memory-kicker">{dashboard.family.displayName}</p><h1>我們的回憶，<br /><em>一直都在。</em></h1><p>照片與影片只屬於受邀家人。每一份回憶都會保留上傳者的 LINE 暱稱與時間。</p></div><div className="memory-hero-orb" aria-hidden="true">水</div></section>
     {error && <p className="memory-error" role="alert">{error}</p>}
+    <section className="memory-discovery" aria-labelledby="memory-discovery-title"><div><p className="memory-kicker">快速找回憶</p><h2 id="memory-discovery-title">先從這裡打開</h2><p>最近放進來的照片、影片，以及按年份整理的家族相聚。</p></div><div className="memory-discovery-grid"><section className="memory-recent"><h3>最近新增</h3>{recentMedia.length ? <div className="memory-recent-list">{recentMedia.map((item) => <button key={item.id} onClick={() => openCapsule(item.capsuleId)}>{item.mimeType.startsWith("image/") ? <img src={item.url} alt="" /> : <span className="memory-recent-video">影片</span>}<span><b>{item.title || item.originalFilename}</b><small>{new Date(item.createdAt).toLocaleDateString("zh-TW")}</small></span></button>)}</div> : <p>第一份回憶正在等家人放進來。</p>}</section><section className="memory-timeline"><h3>年份／活動</h3><div>{memoryYears.map(([year, capsules]) => <article key={year}><b>{year}</b>{capsules.map((capsule) => <button key={capsule.id} onClick={() => openCapsule(capsule.id)}>{capsule.title}<small>{capsule.mediaCount} 項回憶</small></button>)}</article>)}</div></section></div></section>
     {["owner", "admin"].includes(dashboard.membership.role) && <section className="memory-storage" aria-label="家族儲存空間"><div><p className="memory-kicker">家族空間</p><h2>{formatStorage(dashboard.storage.usedBytes)} <small>/ {formatStorage(dashboard.storage.quotaBytes)}</small></h2><p>目前已確認的照片與影片用量。到 80% 和 90% 會顯示提醒，達上限時會暫停新的上傳。</p></div><div className="memory-storage-meter" aria-label={`已使用 ${Math.min(100, Math.round((dashboard.storage.usedBytes / dashboard.storage.quotaBytes) * 100))}%`}><span style={{ width: `${Math.min(100, (dashboard.storage.usedBytes / dashboard.storage.quotaBytes) * 100)}%` }} /></div>{dashboard.storage.usedBytes / dashboard.storage.quotaBytes >= .9 ? <strong className="memory-storage-alert">空間已達 90%，請整理內容或提高容量。</strong> : dashboard.storage.usedBytes / dashboard.storage.quotaBytes >= .8 ? <strong className="memory-storage-alert">空間已達 80%，請留意接下來的影片上傳。</strong> : null}</section>}
     {dashboard.membership.role === "owner" && <section className="memory-storage memory-quota-control" aria-label="調整家族容量"><label>容量上限（GB）<input type="number" min="1" max="1024" value={quotaGb} onChange={(event) => setQuotaGb(event.target.value)} /></label><div className="memory-cta-wrap"><button className="memory-secondary" onClick={() => { void saveQuota(); }}>儲存容量上限</button></div></section>}
     {dashboard.membership.role === "owner" && retention && <section className="memory-storage memory-retention" aria-label="30 天保留區"><div><p className="memory-kicker">30 天保留區</p><h2>{retention.mediaCount + retention.commentCount} <small>項可永久清理</small></h2><p>只有已軟刪除且超過 {retention.retentionDays} 天的內容會出現在這裡；清理後無法恢復。</p></div><div className="memory-cta-wrap"><button className="memory-danger-button" disabled={retentionBusy || !(retention.mediaCount + retention.commentCount)} onClick={() => { void purgeRetention(); }}>{retentionBusy ? "清理中⋯" : "永久清理已逾期內容"}</button></div></section>}
@@ -333,19 +378,22 @@ export function MemoryCapsuleApp() {
       <div className="memory-community-grid"><section className="memory-invite-card"><h3>建立家人邀請</h3><label>有效期限<select value={inviteDays} onChange={(event) => setInviteDays(Number(event.target.value))} disabled={communityBusy}><option value={1}>1 天</option><option value={7}>7 天</option><option value={30}>30 天</option></select></label>
         {dashboard.membership.role === "owner" && <label>加入後的權限<select value={inviteRole} onChange={(event) => setInviteRole(event.target.value as "admin" | "member")} disabled={communityBusy}><option value="member">一般家人</option><option value="admin">共同管理者</option></select></label>}
         <p className="memory-form-hint">連結只可使用 1 次；管理者可隨時撤銷。</p><div className="memory-cta-wrap"><button className="memory-primary" disabled={communityBusy} onClick={() => { void createInvite(); }}>{communityBusy ? "處理中⋯" : "建立邀請連結"}</button></div>
-        {inviteUrl && <div className="memory-share-result"><label>傳給家人的專屬連結<input value={inviteUrl} readOnly aria-label="傳給家人的專屬邀請連結" onFocus={(event) => event.currentTarget.select()} /></label><div className="memory-cta-wrap"><button className="memory-secondary" onClick={() => { void copyInvite(); }}>{copied ? "已複製連結" : "複製邀請連結"}</button></div><p>請直接傳給指定家人；不要貼在公開群組或公開貼文。</p></div>}
+        {inviteUrl && <div className="memory-share-result"><label>傳給家人的專屬連結<input value={inviteUrl} readOnly aria-label="傳給家人的專屬邀請連結" onFocus={(event) => event.currentTarget.select()} /></label><div className="memory-cta-wrap"><button className="memory-secondary" onClick={() => { void copyInvite(); }}>{copied ? "已複製連結" : "複製邀請連結"}</button></div><div className="memory-invite-qr"><img src={inviteQrDataUrl} alt="家人邀請連結 QR Code" /><p>也可讓家人用 LINE 掃描。此 QR Code 與連結同樣只能使用一次。</p></div><p>請直接傳給指定家人；不要貼在公開群組或公開貼文。</p></div>}
       </section>
       <section className="memory-members-card"><h3>家人與邀請</h3><div className="memory-member-list">{members.map((member) => <article className="memory-member-row" key={member.id}><Avatar name={member.displayName} src={member.avatarUrl} small /><div><b>{member.displayName}</b><small>{member.role === "owner" ? "總管理者" : member.role === "admin" ? "共同管理者" : "家人"}{member.isActive ? "・使用中" : "・已停用"}</small></div>{dashboard.membership.role === "owner" && member.id !== dashboard.membership.id && <div className="memory-member-actions"><button disabled={communityBusy} onClick={() => { void updateMember(member.id, { role: member.role === "admin" ? "member" : "admin" }); }}>{member.role === "admin" ? "改為家人" : "設為共同管理者"}</button><button className="memory-danger-link" disabled={communityBusy} onClick={() => { void updateMember(member.id, { isActive: !member.isActive }); }}>{member.isActive ? "停用" : "恢復"}</button></div>}</article>)}</div>
         <div className="memory-invite-list">{invites.filter((invite) => !invite.revokedAt && new Date(invite.expiresAt).getTime() > Date.now() && invite.useCount < invite.maxUses).map((invite) => <article key={invite.id}><span><b>{invite.role === "admin" ? "共同管理者邀請" : "家人邀請"}</b><small>尚可使用 {invite.maxUses - invite.useCount} 次・至 {new Date(invite.expiresAt).toLocaleDateString("zh-TW")}</small></span><button className="memory-danger-link" disabled={communityBusy} onClick={() => { void revokeInvite(invite.id); }}>撤銷</button></article>)}</div>
       </section></div>
       {reports.length > 0 && <section className="memory-reports" aria-label="內容回報與保留紀錄"><h3>內容回報</h3>{reports.map((report) => <article key={report.id}><div><b>{report.targetType === "media" ? "照片或影片" : "留言"}・{report.reporterName}</b><p>{report.reason}</p><small>{report.status === "open" ? "等待處理" : report.status === "hidden" ? "已隱藏（30 天保留）" : report.status === "restored" ? "已恢復顯示" : "已結案"}</small></div><div className="memory-member-actions">{report.status === "open" && <><button onClick={() => { void resolveReport(report.id, "hide"); }}>隱藏內容</button><button onClick={() => { void resolveReport(report.id, "dismiss"); }}>無需處理</button></>}{report.status === "hidden" && <button onClick={() => { void resolveReport(report.id, "restore"); }}>恢復顯示</button>}</div></article>)}</section>}
     </section>}
-    {activeCapsule && <section className="memory-capsule-detail"><div className="memory-section-heading"><div><p className="memory-kicker">{activeCapsule.eraLabel || "回憶膠囊"}</p><h2>{activeCapsule.title}</h2><p>{activeCapsule.introduction || "等待家人放進第一份回憶。"}</p></div><div className="memory-cta-wrap"><button className="memory-primary" disabled={uploading} onClick={() => fileInput.current?.click()}>{uploading ? "上傳中⋯" : "＋ 新增相片／影片"}</button></div></div>
-      <input ref={fileInput} className="memory-file-input" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,video/mp4,video/quicktime" multiple onChange={(event) => { void uploadMedia(event); }} />
+    {activeCapsule && <section id="memory-active-capsule" className="memory-capsule-detail"><div className="memory-section-heading"><div><p className="memory-kicker">{activeCapsule.eraLabel || "回憶膠囊"}</p><h2>{activeCapsule.title}</h2><p>{activeCapsule.introduction || "等待家人放進第一份回憶。"}</p></div></div>
+      <section className="memory-upload-panel" aria-label="新增照片或影片"><div><h3>放進一份新回憶</h3><p>先選照片或影片；系統會一份一份安全上傳，失敗可直接重試。</p></div><div className="memory-upload-actions"><button className="memory-primary" disabled={uploading} onClick={() => photoInput.current?.click()}>{uploading ? "上傳中⋯" : "＋ 新增照片"}</button><button className="memory-secondary" disabled={uploading} onClick={() => videoInput.current?.click()}>＋ 新增影片</button></div></section>
+      <input ref={photoInput} className="memory-file-input" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" multiple onChange={uploadMedia} />
+      <input ref={videoInput} className="memory-file-input" type="file" accept="video/mp4,video/quicktime" multiple onChange={uploadMedia} />
       {progress && <p className="memory-upload-status" aria-live="polite">{progress}</p>}
+      {uploadQueue.length > 0 && <section className="memory-upload-queue" aria-label="媒體上傳進度"><h3>上傳進度</h3>{uploadQueue.map((item) => <article key={item.id}><div><b>{item.file.name}</b><small>{item.status === "queued" || item.status === "preparing" ? "正在準備" : item.status === "uploading" ? item.error || `正在上傳 ${item.progress}%` : item.status === "complete" ? "已加入家族膠囊" : `尚未成功：${item.error}`}</small></div>{item.status === "uploading" && <span className="memory-upload-meter" aria-label={`上傳 ${item.progress}%`}><i style={{ width: `${item.progress}%` }} /></span>}{item.status === "failed" && <button className="memory-secondary" disabled={uploading} onClick={() => { void retryUpload(item.id); }}>重試這一份</button>}</article>)}</section>}
       <section className="memory-text-memory"><h3>寫下一段文字回憶</h3><p>直接以你的 LINE 暱稱留下心裡的話；若是替長輩代傳，可填上長輩稱呼。</p><textarea value={memoryDraft.body} maxLength={1200} onChange={(event) => setMemoryDraft({ ...memoryDraft, body: event.target.value })} placeholder="例如：那天大家笑得好開心⋯" /><input value={memoryDraft.displayAs} maxLength={80} onChange={(event) => setMemoryDraft({ ...memoryDraft, displayAs: event.target.value })} placeholder="替長輩代傳時，填入長輩稱呼（選填）" /><div className="memory-cta-wrap"><button className="memory-secondary" onClick={() => { void submitComment({ capsuleId: activeCapsule.id }, "memory", "memory"); }}>保存文字回憶</button></div></section>
       {activeCapsule.comments.filter((comment) => comment.kind === "memory").length > 0 && <section className="memory-memory-feed" aria-label="家族文字回憶"><h3>家人留下的話</h3>{activeCapsule.comments.filter((comment) => comment.kind === "memory").map((comment) => <article key={comment.id}><Avatar name={comment.authorName} src={comment.authorAvatar} small /><div><b>{comment.displayAs ? `${comment.displayAs}（由 ${comment.authorName} 代傳）` : comment.authorName}</b><p>{comment.body}</p><small>{new Date(comment.createdAt).toLocaleString("zh-TW")}</small></div>{(comment.authorMemberId === dashboard.membership.id || ["owner", "admin"].includes(dashboard.membership.role)) && <button className="memory-danger-link" onClick={() => { void deleteComment(comment.id); }}>移除</button>}</article>)}</section>}
-      {visibleMedia.length ? <div className="memory-media-grid">{visibleMedia.map((item) => <article className="memory-media-card" key={item.id}>{item.mimeType.startsWith("video/") ? <><video controls playsInline preload="metadata" src={item.url} aria-label={item.title || item.originalFilename}>你的瀏覽器無法直接播放這支影片。</video><div className="memory-video-fallback"><a className="memory-secondary" href={item.downloadUrl} download={item.originalFilename}>播放不相容？下載原始影片</a></div></> : <img src={item.url} alt={item.title || item.description || item.originalFilename} />}<div><p>{item.title || item.originalFilename}</p>{item.description && <p className="memory-media-description">{item.description}</p>}{item.capturedAt && <small className="memory-captured-at">拍攝日期 {item.capturedAt}</small>}<span><Avatar name={item.authorName} src={item.authorAvatar} small />{item.authorName}・{new Date(item.createdAt).toLocaleDateString("zh-TW")}</span><div className="memory-media-actions"><button className={item.heartedByMe ? "hearted" : ""} onClick={() => { void toggleHeart(item); }}>{item.heartedByMe ? "♥ 已喜歡" : "♡ 喜歡"}{item.heartCount ? ` ${item.heartCount}` : ""}</button><button onClick={() => { void reportContent("media", item.id); }}>回報</button>{(item.authorMemberId === dashboard.membership.id || ["owner", "admin"].includes(dashboard.membership.role)) && <><button onClick={() => openMediaEditor(item)}>編輯</button><button className="memory-danger-link" onClick={() => { void deleteMedia(item); }}>移除</button></>}</div>{mediaEditorId === item.id && mediaDrafts[item.id] && <section className="memory-media-editor"><label>標題<input value={mediaDrafts[item.id].title} onChange={(event) => setMediaDrafts((drafts) => ({ ...drafts, [item.id]: { ...drafts[item.id], title: event.target.value } }))} /></label><label>拍攝日期<input type="date" value={mediaDrafts[item.id].capturedAt} onChange={(event) => setMediaDrafts((drafts) => ({ ...drafts, [item.id]: { ...drafts[item.id], capturedAt: event.target.value } }))} /></label><label>回憶描述<textarea value={mediaDrafts[item.id].description} onChange={(event) => setMediaDrafts((drafts) => ({ ...drafts, [item.id]: { ...drafts[item.id], description: event.target.value } }))} /></label><div className="memory-editor-actions"><button className="memory-secondary" onClick={() => setMediaEditorId(null)}>取消</button><button className="memory-primary" onClick={() => { void saveMedia(item.id); }}>儲存內容</button></div></section>}<section className="memory-comments"><h3>留言{item.comments.length ? ` ${item.comments.length}` : ""}</h3>{item.comments.map((comment) => <article key={comment.id}><Avatar name={comment.authorName} src={comment.authorAvatar} small /><div><b>{comment.displayAs ? `${comment.displayAs}（由 ${comment.authorName} 代傳）` : comment.authorName}</b><p>{comment.body}</p></div><button onClick={() => { void reportContent("comment", comment.id); }}>回報</button>{(comment.authorMemberId === dashboard.membership.id || ["owner", "admin"].includes(dashboard.membership.role)) && <button className="memory-danger-link" onClick={() => { void deleteComment(comment.id); }}>移除</button>}</article>)}<textarea value={commentDrafts[item.id]?.body || ""} maxLength={1200} onChange={(event) => setCommentDrafts((drafts) => ({ ...drafts, [item.id]: { body: event.target.value, displayAs: drafts[item.id]?.displayAs || "" } }))} placeholder="留下想說的話" /><div className="memory-cta-wrap"><button className="memory-secondary" onClick={() => { void submitComment({ mediaId: item.id }, "comment", item.id); }}>送出留言</button></div></section></div></article>)}</div> : <div className="memory-empty memory-empty-compact"><p className="memory-empty-mark">◌</p><h3>第一份回憶，從這裡開始</h3><p>選擇相片或影片後會立即顯示在家族膠囊，管理者可在之後協助整理。</p><div className="memory-cta-wrap"><button className="memory-secondary" onClick={() => fileInput.current?.click()}>選擇相片／影片</button></div></div>}
+      {visibleMedia.length ? <div className="memory-media-grid">{visibleMedia.map((item) => <article className="memory-media-card" key={item.id}>{item.mimeType.startsWith("video/") ? <><video controls playsInline preload="metadata" src={item.url} aria-label={item.title || item.originalFilename}>你的瀏覽器無法直接播放這支影片。</video><div className="memory-video-fallback"><a className="memory-secondary" href={item.downloadUrl} download={item.originalFilename}>播放不相容？下載原始影片</a></div></> : <img src={item.url} alt={item.title || item.description || item.originalFilename} />}<div><p>{item.title || item.originalFilename}</p>{item.description && <p className="memory-media-description">{item.description}</p>}{item.capturedAt && <small className="memory-captured-at">拍攝日期 {item.capturedAt}</small>}<span><Avatar name={item.authorName} src={item.authorAvatar} small />{item.authorName}・{new Date(item.createdAt).toLocaleDateString("zh-TW")}</span><div className="memory-media-actions"><button className={item.heartedByMe ? "hearted" : ""} onClick={() => { void toggleHeart(item); }}>{item.heartedByMe ? "♥ 已喜歡" : "♡ 喜歡"}{item.heartCount ? ` ${item.heartCount}` : ""}</button><button onClick={() => { void reportContent("media", item.id); }}>回報</button>{(item.authorMemberId === dashboard.membership.id || ["owner", "admin"].includes(dashboard.membership.role)) && <><button onClick={() => openMediaEditor(item)}>編輯</button><button className="memory-danger-link" onClick={() => { void deleteMedia(item); }}>移除</button></>}</div>{mediaEditorId === item.id && mediaDrafts[item.id] && <section className="memory-media-editor"><label>標題<input value={mediaDrafts[item.id].title} onChange={(event) => setMediaDrafts((drafts) => ({ ...drafts, [item.id]: { ...drafts[item.id], title: event.target.value } }))} /></label><label>拍攝日期<input type="date" value={mediaDrafts[item.id].capturedAt} onChange={(event) => setMediaDrafts((drafts) => ({ ...drafts, [item.id]: { ...drafts[item.id], capturedAt: event.target.value } }))} /></label><label>回憶描述<textarea value={mediaDrafts[item.id].description} onChange={(event) => setMediaDrafts((drafts) => ({ ...drafts, [item.id]: { ...drafts[item.id], description: event.target.value } }))} /></label><div className="memory-editor-actions"><button className="memory-secondary" onClick={() => setMediaEditorId(null)}>取消</button><button className="memory-primary" onClick={() => { void saveMedia(item.id); }}>儲存內容</button></div></section>}<section className="memory-comments"><h3>留言{item.comments.length ? ` ${item.comments.length}` : ""}</h3>{item.comments.map((comment) => <article key={comment.id}><Avatar name={comment.authorName} src={comment.authorAvatar} small /><div><b>{comment.displayAs ? `${comment.displayAs}（由 ${comment.authorName} 代傳）` : comment.authorName}</b><p>{comment.body}</p></div><button onClick={() => { void reportContent("comment", comment.id); }}>回報</button>{(comment.authorMemberId === dashboard.membership.id || ["owner", "admin"].includes(dashboard.membership.role)) && <button className="memory-danger-link" onClick={() => { void deleteComment(comment.id); }}>移除</button>}</article>)}<textarea value={commentDrafts[item.id]?.body || ""} maxLength={1200} onChange={(event) => setCommentDrafts((drafts) => ({ ...drafts, [item.id]: { body: event.target.value, displayAs: drafts[item.id]?.displayAs || "" } }))} placeholder="留下想說的話" /><div className="memory-cta-wrap"><button className="memory-secondary" onClick={() => { void submitComment({ mediaId: item.id }, "comment", item.id); }}>送出留言</button></div></section></div></article>)}</div> : <div className="memory-empty memory-empty-compact"><p className="memory-empty-mark">◌</p><h3>第一份回憶，從這裡開始</h3><p>先選照片或影片，成功後會立即顯示在家族膠囊。</p><div className="memory-upload-actions"><button className="memory-primary" onClick={() => photoInput.current?.click()}>選擇照片</button><button className="memory-secondary" onClick={() => videoInput.current?.click()}>選擇影片</button></div></div>}
     </section>}
   </main>;
 }

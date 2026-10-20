@@ -203,7 +203,10 @@ test("memory capsule media, interaction and curation remain family-scoped with c
   assert.match(page, /複製邀請連結/);
   assert.match(page, /memory-community/);
   assert.match(families, /陳水金家族皇宴/);
-  assert.match(page, /＋ 新增相片／影片/);
+  assert.match(page, /＋ 新增照片/);
+  assert.match(page, /＋ 新增影片/);
+  assert.match(page, /媒體上傳進度/);
+  assert.match(page, /重試這一份/);
   assert.match(page, /video\/mp4,video\/quicktime/);
   assert.match(page, /<video controls playsInline/);
   assert.match(page, /播放不相容？下載原始影片/);
@@ -234,6 +237,8 @@ test("memory capsule media, interaction and curation remain family-scoped with c
   assert.match(styles, /\.memory-section-heading \.memory-primary \{ width:100%; \}/);
   assert.match(styles, /\.memory-editor-actions \{ display:flex; justify-content:center/);
   assert.match(styles, /\.memory-text-memory/);
+  assert.match(styles, /\.memory-upload-actions \{ display:flex; justify-content:center; align-items:center/);
+  assert.match(styles, /\.memory-upload-actions \.memory-primary,\.memory-upload-actions \.memory-secondary \{ width:100%; \}/);
   assert.match(capsules, /requireFamilyRole\(request, familyId, MANAGERS\)/);
   assert.match(capsules, /verifiedCover/);
   assert.match(comments, /eq\(memoryMedia\.familyId, familyId\)/);
