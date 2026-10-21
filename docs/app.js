@@ -1023,6 +1023,7 @@ function removeManagerReturnLink(eventId) {
 function openCreatorNextSteps(event, managerAuth, issuedManagerUrl = "") {
   activeModalClose = closeModal;
   const shareUrl = event.shareUrl;
+  const lineUrl = lineShareUrl(event, shareUrl);
   const notificationGroups = Array.isArray(event.notificationGroups) ? event.notificationGroups : [];
   const groupNames = notificationGroups.map((group) => group.groupName).filter(Boolean).join("、");
   const privateManagerUrl = issuedManagerUrl || (managerAuth.type === "token" ? managerUrl(event.id, managerAuth.value) : "");
@@ -1036,7 +1037,7 @@ function openCreatorNextSteps(event, managerAuth, issuedManagerUrl = "") {
       ${notificationGroups.length ? `<div class="line-status connected"><strong>已自動沿用通知群組：${esc(groupNames)}</strong><p>同一組建立者名稱與管理碼的新活動會自動使用這些群組。需要不同群組時，再點選「另選通知群組」。</p></div>` : ""}
       ${privateManagerUrl ? `<div class="line-status warning"><strong>請保存管理連結</strong><p>這個連結可修改、取消或永久刪除活動，也可管理 LINE 小幫手；請勿分享給參加者。可選擇只儲存在目前這台裝置。</p><label>管理連結<input id="created-manager-url" value="${esc(privateManagerUrl)}" readonly></label><div class="inline-actions creator-manager-actions"><button class="secondary" id="copy-manager-link">複製管理連結</button><button class="secondary" id="save-manager-return">儲存在這台裝置</button></div></div>` : ""}
       <p class="form-error" id="form-error" role="alert" hidden></p>
-      <div class="form-actions creator-next-actions"><button class="secondary" id="copy-created-share">複製分享連結</button><button class="primary" id="publish-created-event">${notificationGroups.length ? "發布到已綁定群組" : "選群組並發布"}</button>${notificationGroups.length ? '<button class="secondary" id="choose-different-line-group">另選通知群組</button>' : '<button class="secondary" id="start-line-binding">設定 LINE 小幫手</button>'}</div>
+      <div class="form-actions creator-next-actions"><a class="line-share-button creator-line-share" href="${esc(lineUrl)}" target="_blank" rel="noopener noreferrer">分享到 LINE</a><button class="secondary" id="copy-created-share">複製分享連結</button><button class="primary" id="publish-created-event">${notificationGroups.length ? "發布到已綁定群組" : "選群組並發布"}</button>${notificationGroups.length ? '<button class="secondary" id="choose-different-line-group">另選通知群組</button>' : '<button class="secondary" id="start-line-binding">設定 LINE 小幫手</button>'}</div>
     </section></div>`;
   document.querySelector("#copy-created-share").addEventListener("click", async () => {
     await navigator.clipboard.writeText(shareUrl);

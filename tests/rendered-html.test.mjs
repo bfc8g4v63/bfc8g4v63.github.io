@@ -686,6 +686,8 @@ test("creators can manage activities with an independent management link without
   assert.match(client, /managerAuthFromLink/);
   assert.match(client, /設定 LINE 小幫手/);
   assert.match(client, /class="form-actions creator-next-actions"/);
+  assert.match(client, /class="line-share-button creator-line-share"/);
+  assert.match(client, /分享到 LINE/);
   assert.match(client, /請保存管理連結/);
   assert.match(client, /管理我的活動/);
   assert.match(client, /type="text" name="editCode" data-secret[\s\S]*autocomplete="off"/);
@@ -815,7 +817,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.160/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.161/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -844,9 +846,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.160/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.160/);
-  assert.match(worker, /good-days-github-v160/);
+  assert.match(page, /\/app\.js\?v=1\.2\.161/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.161/);
+  assert.match(worker, /good-days-github-v161/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -1398,12 +1400,12 @@ test("the guide uses scan-friendly cards and separates group notices from manage
 
 test("creator next-step actions stay aligned across desktop and mobile layouts", async () => {
   const styles = await readFile(new URL("../docs/styles.css", import.meta.url), "utf8");
-  assert.match(styles, /\.creator-next-actions \{ display:grid; grid-template-columns:repeat\(3,minmax\(0,1fr\)\); align-items:stretch; width:100%; gap:12px; margin-top:20px; \}/);
-  assert.match(styles, /\.creator-next-actions>button \{ display:inline-flex; align-items:center; justify-content:center; width:100%; min-height:58px/);
+  assert.match(styles, /\.creator-next-actions \{ display:grid; grid-template-columns:repeat\(4,minmax\(0,1fr\)\); align-items:stretch; width:100%; gap:12px; margin-top:20px; \}/);
+  assert.match(styles, /\.creator-next-actions>button,\.creator-next-actions>\.line-share-button \{ display:inline-flex; align-items:center; justify-content:center; width:100%; min-height:58px/);
   assert.match(styles, /\.creator-manager-actions \{ display:grid; grid-template-columns:repeat\(2,minmax\(0,1fr\)\); width:100%; margin-top:12px; \}/);
   assert.match(styles, /\.creator-existing-group-actions \{ display:grid; grid-template-columns:repeat\(2,minmax\(0,1fr\)\); gap:12px; \}/);
   assert.match(styles, /\.creator-next-actions,\.creator-manager-actions,\.creator-existing-group-actions,.notification-action-row \{ grid-template-columns:1fr; \}/);
-  assert.match(styles, /\.creator-next-actions>button,\.creator-manager-actions>button,\.creator-existing-group-actions>button,.notification-action-row>button \{ min-height:58px; \}/);
+  assert.match(styles, /\.creator-next-actions>button,\.creator-next-actions>\.line-share-button,\.creator-manager-actions>button,\.creator-existing-group-actions>button,.notification-action-row>button \{ min-height:58px; \}/);
 });
 
 test("contact details keep matching field heights and preserve the international-phone guidance", async () => {
