@@ -2270,9 +2270,15 @@ function qrDataUrl(url) {
   return qr.createDataURL(8, 4);
 }
 
+function lineShareUrl(event, url) {
+  const summary = `${event.title || "活動邀請"}\n${formatShortDate(event.eventDate)} ${event.startTime}｜${event.location || ""}`;
+  return `https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(url)}&text=${encodeURIComponent(summary)}`;
+}
+
 function openSharePanel(event, returnTo = null) {
   const url = event.shareUrl;
   const qr = qrDataUrl(url);
+  const lineUrl = lineShareUrl(event, url);
   activeModalClose = returnTo || closeModal;
   modalRoot.innerHTML = `
     <div class="modal-backdrop">
@@ -2281,7 +2287,7 @@ function openSharePanel(event, returnTo = null) {
         <p class="eyebrow">專屬活動連結</p><h2 id="share-title">${esc(event.title || "分享活動")}</h2>
         <p>此活動有自己的頁面。${event.accessMode === "private" ? "開啟後還需要輸入參加碼。" : "把連結或 QR Code 分享給家人即可。"}</p>
         <label>分享連結<input id="share-url" value="${esc(url)}" readonly></label>
-        <div class="inline-actions"><button class="primary" id="copy-share">複製連結</button><button class="secondary" id="native-share">分享…</button><button class="secondary" id="share-back">${returnTo ? "返回管理後台" : "關閉"}</button></div>
+        <div class="share-actions"><a class="line-share-button" href="${esc(lineUrl)}" target="_blank" rel="noopener noreferrer">分享到 LINE</a><button class="primary" id="copy-share">複製連結</button><button class="secondary" id="native-share">更多分享</button><button class="secondary" id="share-back">${returnTo ? "返回管理後台" : "關閉"}</button></div>
         ${qr ? `<figure class="qr-card"><img src="${qr}" alt="活動 QR Code"><figcaption>讓家人用手機相機掃描開啟活動</figcaption><a class="secondary download-qr" href="${qr}" download="${esc(event.title || "活動")}-QR-Code.png">下載 QR Code</a></figure>` : ""}
       </section>
     </div>`;
