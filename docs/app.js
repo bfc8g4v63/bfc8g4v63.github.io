@@ -2292,7 +2292,7 @@ function qrDataUrl(url) {
 
 function lineShareUrl(event, url) {
   const summary = `${event.title || "活動邀請"}\n${formatShortDate(event.eventDate)} ${event.startTime}｜${event.location || ""}`;
-  return `https://social-plugins.line.me/lineit/share?url=${encodeURIComponent(url)}&text=${encodeURIComponent(summary)}`;
+  return `https://line.me/R/share?text=${encodeURIComponent(`${summary}\n${url}`)}`;
 }
 
 function openSharePanel(event, returnTo = null) {

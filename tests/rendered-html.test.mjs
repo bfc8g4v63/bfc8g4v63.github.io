@@ -817,7 +817,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.161/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.162/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -846,9 +846,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.161/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.161/);
-  assert.match(worker, /good-days-github-v161/);
+  assert.match(page, /\/app\.js\?v=1\.2\.162/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.162/);
+  assert.match(worker, /good-days-github-v162/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -1545,7 +1545,8 @@ test("site operator overview is separately protected and activity creation has s
   assert.match(styles, /\.event-actions \{ display:grid; grid-template-columns:1fr; \}/);
   assert.match(styles, /\.rsvp-success-actions \.primary,\.rsvp-success-actions \.secondary \{ display:inline-flex; align-items:center; justify-content:center;/);
   assert.match(client, /function lineShareUrl/);
-  assert.match(client, /social-plugins\.line\.me\/lineit\/share/);
+  assert.match(client, /https:\/\/line\.me\/R\/share\?text=/);
+  assert.doesNotMatch(client, /social-plugins\.line\.me\/lineit\/share/);
   assert.match(client, /分享到 LINE/);
   assert.match(styles, /\.share-actions \{ display:grid; grid-template-columns:repeat\(4,minmax\(0,1fr\)\);/);
   assert.match(styles, /\.share-actions \{ grid-template-columns:1fr; \}/);
