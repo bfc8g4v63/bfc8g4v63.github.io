@@ -8,6 +8,7 @@ const noticeBox = document.querySelector("#notice");
 const modalRoot = document.querySelector("#modal-root");
 let activeModalClose = null;
 let recoveryStatusRefreshTimer = null;
+let operatorSortState = { key: "operational", direction: "asc" };
 
 function managerAuthFromLink() {
   const eventId = new URLSearchParams(location.search).get("manage") || "";
@@ -442,6 +443,45 @@ function operationalStatusLabel(status) {
   return ({ upcoming: "尚未開始", in_progress: "進行中", completed: "已結束", cancelled: "已取消" })[status] || "未知";
 }
 
+function schedulerHealthLabel(status) {
+  return ({ healthy: "正常運作", stale: "需要留意", unknown: "尚未回報" })[status] || "尚未回報";
+}
+
+function formatOperatorTimestamp(value) {
+  const timestamp = Date.parse(value || "");
+  if (!Number.isFinite(timestamp)) return "尚未有成功紀錄";
+  return new Intl.DateTimeFormat("zh-TW", { dateStyle: "short", timeStyle: "short", hour12: false }).format(new Date(timestamp));
+}
+
+function operatorActivityTimestamp(activity, key) {
+  if (key === "created") {
+    const timestamp = Date.parse(activity.createdAt || "");
+    return Number.isFinite(timestamp) ? timestamp : 0;
+  }
+  const time = key === "end" ? activity.endTime || activity.startTime : activity.startTime;
+  const timestamp = Date.parse(`${activity.eventDate || ""}T${time || "00:00"}:00`);
+  return Number.isFinite(timestamp) ? timestamp : 0;
+}
+
+function sortOperatorActivities(activities) {
+  const key = ["operational", "start", "end", "created"].includes(operatorSortState.key) ? operatorSortState.key : "operational";
+  const direction = operatorSortState.direction === "desc" ? -1 : 1;
+  const priority = { in_progress: 0, upcoming: 1, completed: 2, cancelled: 3 };
+  return [...activities].sort((left, right) => {
+    if (key === "operational") {
+      const statusDifference = (priority[left.operationalStatus] ?? 4) - (priority[right.operationalStatus] ?? 4);
+      if (statusDifference) return statusDifference * direction;
+      const leftTime = operatorActivityTimestamp(left, "start");
+      const rightTime = operatorActivityTimestamp(right, "start");
+      const timeDifference = left.operationalStatus === "upcoming" ? leftTime - rightTime : rightTime - leftTime;
+      return timeDifference * direction;
+    }
+    const timeDifference = operatorActivityTimestamp(left, key) - operatorActivityTimestamp(right, key);
+    if (timeDifference) return timeDifference * direction;
+    return String(left.title || "").localeCompare(String(right.title || ""), "zh-Hant") * direction;
+  });
+}
+
 async function requestSiteOperator(code) {
   return requestJson("/site-admin", { code });
 }
@@ -452,7 +492,14 @@ async function changeSiteOperatorCode(currentCode, nextCode, confirmCode) {
 
 function renderOperatorDashboard(data, code) {
   const summary = data.summary || {};
-  const rows = (data.activities || []).map((activity) => {
+  const health = data.health || {};
+  const healthStatus = ["healthy", "stale", "unknown"].includes(health.status) ? health.status : "unknown";
+  const healthCopy = healthStatus === "healthy"
+    ? "五分鐘排程已正常回報。"
+    : healthStatus === "stale"
+      ? "超過 20 分鐘未收到成功回報，請查看 GitHub Actions 的提醒工作。"
+      : "尚未收到排程成功回報；部署後的下一輪排程會建立第一筆紀錄。";
+  const rows = sortOperatorActivities(data.activities || []).map((activity) => {
     const rsvp = activity.rsvpSummary || {};
     const reminders = activity.reminder
       ? [activity.reminder.sevenDays && "7天前", activity.reminder.oneDay && "1天前", activity.reminder.twoHours && "2小時前"].filter(Boolean).join("、") || "均關閉"
@@ -464,7 +511,15 @@ function renderOperatorDashboard(data, code) {
     </article>`;
   }).join("") || '<p class="empty-cell">目前沒有活動。</p>';
   activeModalClose = closeModal;
-  modalRoot.innerHTML = `<div class="modal-backdrop admin-backdrop"><section class="modal admin-modal operator-modal" role="dialog" aria-modal="true" aria-labelledby="operator-dashboard-title"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">全站營運</p><h2 id="operator-dashboard-title">活動總覽</h2><p class="form-hint">活動到預計結束時間會自動成為已結束。排序以現在為主軸：進行中 → 即將開始（近到遠）→ 已結束／已取消（近到遠）。</p><div class="operator-stats"><div><strong>${Number(summary.total || 0)}</strong><span>全部活動</span></div><div><strong>${Number(summary.inProgress || 0)}</strong><span>進行中</span></div><div><strong>${Number(summary.upcoming || 0)}</strong><span>尚未開始</span></div><div><strong>${Number(summary.completed || 0)}</strong><span>已結束</span></div><div><strong>${Number(summary.cancelled || 0)}</strong><span>已取消</span></div></div><div class="operator-toolbar"><button class="secondary" id="operator-refresh">重新整理</button><button class="secondary" id="operator-change-code">變更管理碼</button><button class="secondary" id="operator-lock">鎖定後台</button></div><section class="operator-activities">${rows}</section></section></div>`;
+  modalRoot.innerHTML = `<div class="modal-backdrop admin-backdrop"><section class="modal admin-modal operator-modal" role="dialog" aria-modal="true" aria-labelledby="operator-dashboard-title"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">全站營運</p><h2 id="operator-dashboard-title">活動總覽</h2><p class="form-hint">活動到預計結束時間會自動成為已結束。可依不同時間欄位切換升冪或降冪；預設保留進行中優先的營運排序。</p><section class="operator-health ${healthStatus}" aria-label="排程健康" role="status"><div><strong>排程健康：${schedulerHealthLabel(healthStatus)}</strong><small>${healthCopy}</small></div><dl><div><dt>最後成功</dt><dd>${esc(formatOperatorTimestamp(health.lastSuccessAt))}</dd></div><div><dt>本輪檢查</dt><dd>${Number(health.checkedEvents || 0)} 場</dd></div><div><dt>自動結束</dt><dd>${Number(health.closedEvents || 0)} 場</dd></div><div><dt>提醒發送</dt><dd>${Number(health.sentReminders || 0)} 則</dd></div></dl></section><div class="operator-stats"><div><strong>${Number(summary.total || 0)}</strong><span>全部活動</span></div><div><strong>${Number(summary.inProgress || 0)}</strong><span>進行中</span></div><div><strong>${Number(summary.upcoming || 0)}</strong><span>尚未開始</span></div><div><strong>${Number(summary.completed || 0)}</strong><span>已結束</span></div><div><strong>${Number(summary.cancelled || 0)}</strong><span>已取消</span></div></div><section class="operator-sort" aria-label="活動排序"><label for="operator-sort-key">排序依據<select id="operator-sort-key"><option value="operational"${operatorSortState.key === "operational" ? " selected" : ""}>營運狀態（目前優先）</option><option value="start"${operatorSortState.key === "start" ? " selected" : ""}>活動開始時間</option><option value="end"${operatorSortState.key === "end" ? " selected" : ""}>預計結束時間</option><option value="created"${operatorSortState.key === "created" ? " selected" : ""}>建立時間</option></select></label><div class="operator-sort-direction" role="group" aria-label="排序方向"><button class="secondary" type="button" data-operator-sort-direction="asc" aria-pressed="${operatorSortState.direction === "asc"}">升冪</button><button class="secondary" type="button" data-operator-sort-direction="desc" aria-pressed="${operatorSortState.direction === "desc"}">降冪</button></div></section><div class="operator-toolbar"><button class="secondary" id="operator-refresh">重新整理</button><button class="secondary" id="operator-change-code">變更管理碼</button><button class="secondary" id="operator-lock">鎖定後台</button></div><section class="operator-activities">${rows}</section></section></div>`;
+  document.querySelector("#operator-sort-key")?.addEventListener("change", (changeEvent) => {
+    operatorSortState.key = changeEvent.currentTarget.value;
+    renderOperatorDashboard(data, code);
+  });
+  document.querySelectorAll("[data-operator-sort-direction]").forEach((button) => button.addEventListener("click", () => {
+    operatorSortState.direction = button.dataset.operatorSortDirection === "desc" ? "desc" : "asc";
+    renderOperatorDashboard(data, code);
+  }));
   document.querySelector("#operator-refresh")?.addEventListener("click", async () => {
     try { renderOperatorDashboard(await requestSiteOperator(code), code); }
     catch (error) { showNotice(error.message || "無法重新整理總覽"); }

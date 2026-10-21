@@ -815,7 +815,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.154/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.156/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -844,9 +844,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.154/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.154/);
-  assert.match(worker, /good-days-github-v154/);
+  assert.match(page, /\/app\.js\?v=1\.2\.156/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.156/);
+  assert.match(worker, /good-days-github-v156/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -1452,6 +1452,16 @@ test("site operator overview is separately protected and activity creation has s
   assert.match(client, /function openSiteOperator/);
   assert.match(client, /name="website"/);
   assert.match(client, /function renderOperatorDashboard/);
+  assert.match(client, /function sortOperatorActivities/);
+  assert.match(client, /operatorSortState = \{ key: "operational", direction: "asc" \}/);
+  assert.match(client, /data-operator-sort-direction="asc"/);
+  assert.match(client, /活動開始時間/);
+  assert.match(client, /預計結束時間/);
+  assert.match(client, /建立時間/);
+  assert.match(client, /operator-sort-key/);
+  assert.match(styles, /\.operator-sort-direction button \{ display:inline-flex; align-items:center; justify-content:center;/);
+  assert.match(styles, /\.operator-sort \{ align-items:stretch; flex-direction:column; \}/);
+  assert.match(styles, /\.operator-sort-direction \{ display:grid; grid-template-columns:repeat\(2,minmax\(0,1fr\)\); \}/);
   assert.match(client, /function changeSiteOperatorCode/);
   assert.match(client, /function openSiteOperatorCodeChange/);
   assert.match(client, /變更管理碼/);
