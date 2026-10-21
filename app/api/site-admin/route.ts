@@ -1,8 +1,8 @@
-import { eq, inArray } from "drizzle-orm";
+import { desc, eq, inArray } from "drizzle-orm";
 import { env } from "cloudflare:workers";
 import { getDb } from "../../../db";
 import { ensureSchema } from "../../../db/init";
-import { activityLineGroups, events, lineBindings, lineManagerTargets, lineReminderSettings, rsvps, schedulerHealth, siteOperatorCredentials } from "../../../db/schema";
+import { activityLineGroups, events, lineBindings, lineManagerTargets, lineReminderSettings, rsvps, schedulerHealth, schedulerRuns, siteOperatorCredentials } from "../../../db/schema";
 import { clean, hashCredential, verifyCredential } from "../admin/auth";
 import { json, preflight } from "../cors";
 import { rateLimit } from "../rate-limit";
@@ -91,7 +91,13 @@ export async function POST(request: Request) {
     const suppliedCode = clean(body.code, 160);
     if (!savedCredential && !configuredCode) return json(request, { error: "營運管理尚未完成設定" }, 503);
     if (!await verifyOperatorCode(suppliedCode, savedCredential?.codeHash, configuredCode)) return json(request, { error: "營運管理碼不正確" }, 403);
-    const [schedulerRun] = await db.select().from(schedulerHealth).where(eq(schedulerHealth.key, "line-reminders")).limit(1);
+    const [[schedulerRun], recentSchedulerRuns] = await Promise.all([
+      db.select().from(schedulerHealth).where(eq(schedulerHealth.key, "line-reminders")).limit(1),
+      db.select({ runAt: schedulerRuns.runAt, status: schedulerRuns.status, stage: schedulerRuns.stage,
+        checkedEvents: schedulerRuns.checkedEvents, closedEvents: schedulerRuns.closedEvents,
+        sentReminders: schedulerRuns.sentReminders, purgedRecords: schedulerRuns.purgedRecords,
+      }).from(schedulerRuns).where(eq(schedulerRuns.key, "line-reminders")).orderBy(desc(schedulerRuns.runAt)).limit(12),
+    ]);
     const health = schedulerHealthSummary(schedulerRun);
     const eventRows = await db.select({
       id: events.id, title: events.title, eventDate: events.eventDate, startTime: events.startTime, endTime: events.endTime,
@@ -101,7 +107,10 @@ export async function POST(request: Request) {
       accessMode: events.accessMode, attendanceVisibility: events.attendanceVisibility,
       cancelledAt: events.cancelledAt, createdAt: events.createdAt, updatedAt: events.updatedAt,
     }).from(events);
-    if (!eventRows.length) return json(request, { summary: { total: 0, upcoming: 0, inProgress: 0, completed: 0, cancelled: 0 }, health, activities: [] });
+    if (!eventRows.length) return json(request, {
+      summary: { total: 0, upcoming: 0, inProgress: 0, completed: 0, cancelled: 0 },
+      history: { total: 0, completed: 0, cancelled: 0, attendingPeople: 0 }, health, schedulerRuns: recentSchedulerRuns, activities: [],
+    });
 
     const eventIds = eventRows.map((event) => event.id);
     const [rsvpRows, primaryBindings, activityGroups, reminderRows, managerRows] = await Promise.all([
@@ -145,7 +154,14 @@ export async function POST(request: Request) {
         managerTargetCount: managerCount.get(event.id) || 0,
       };
     }).sort(operatorActivitySort);
-    return json(request, { summary, health, activities });
+    const historicalActivities = activities.filter((activity) => activity.operationalStatus === "completed" || activity.operationalStatus === "cancelled");
+    const history = {
+      total: historicalActivities.length,
+      completed: summary.completed,
+      cancelled: summary.cancelled,
+      attendingPeople: historicalActivities.reduce((total, activity) => total + activity.rsvpSummary.attendingPeople, 0),
+    };
+    return json(request, { summary, history, health, schedulerRuns: recentSchedulerRuns, activities });
   } catch (error) {
     return json(request, { error: error instanceof Error ? error.message : "無法讀取全站活動總覽" }, 500);
   }

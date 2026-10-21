@@ -210,6 +210,18 @@ export function ensureSchema() {
         sent_reminders INTEGER NOT NULL DEFAULT 0,
         purged_records INTEGER NOT NULL DEFAULT 0
       )`),
+      database.prepare(`CREATE TABLE IF NOT EXISTS scheduler_runs (
+        id TEXT PRIMARY KEY NOT NULL,
+        key TEXT NOT NULL,
+        run_at TEXT NOT NULL,
+        status TEXT NOT NULL,
+        stage TEXT NOT NULL DEFAULT 'completed',
+        checked_events INTEGER NOT NULL DEFAULT 0,
+        closed_events INTEGER NOT NULL DEFAULT 0,
+        sent_reminders INTEGER NOT NULL DEFAULT 0,
+        purged_records INTEGER NOT NULL DEFAULT 0
+      )`),
+      database.prepare("CREATE INDEX IF NOT EXISTS scheduler_runs_key_run_at ON scheduler_runs (key, run_at DESC)"),
       database.prepare(`CREATE TABLE IF NOT EXISTS api_rate_limits (
         key TEXT PRIMARY KEY NOT NULL,
         count INTEGER NOT NULL,

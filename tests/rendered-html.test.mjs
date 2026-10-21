@@ -815,7 +815,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.156/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.157/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -844,9 +844,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.156/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.156/);
-  assert.match(worker, /good-days-github-v156/);
+  assert.match(page, /\/app\.js\?v=1\.2\.157/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.157/);
+  assert.match(worker, /good-days-github-v157/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -1440,7 +1440,11 @@ test("site operator overview is separately protected and activity creation has s
   assert.match(operatorRoute, /schedulerHealthSummary/);
   assert.match(operatorRoute, /SCHEDULER_STALE_AFTER_MS = 20 \* 60 \* 1000/);
   assert.match(operatorRoute, /from\(schedulerHealth\)\.where\(eq\(schedulerHealth\.key, "line-reminders"\)\)/);
-  assert.match(operatorRoute, /health, activities/);
+  assert.match(operatorRoute, /schedulerRuns\.key, "line-reminders"/);
+  assert.match(operatorRoute, /schedulerRuns: recentSchedulerRuns/);
+  assert.match(operatorRoute, /history: \{ total: 0, completed: 0, cancelled: 0, attendingPeople: 0 \}/);
+  assert.match(operatorRoute, /const historicalActivities = activities\.filter/);
+  assert.match(operatorRoute, /history, health, schedulerRuns: recentSchedulerRuns, activities/);
   assert.match(operatorRoute, /in_progress: 0, upcoming: 1, completed: 2, cancelled: 3/);
   assert.match(operatorRoute, /left\.operationalStatus === "upcoming" \? leftTime - rightTime : rightTime - leftTime/);
   assert.match(operatorRoute, /lineGroupNames/);
@@ -1482,21 +1486,41 @@ test("site operator overview is separately protected and activity creation has s
   assert.match(rsvpRoute, /closeElapsedEvents/);
   assert.match(reminderRunner, /import \{ closeElapsedEvents \} from "\.\.\/\.\.\/\.\.\/\.\.\/lib\/event-lifecycle"/);
   assert.match(reminderRunner, /const closed = await closeElapsedEvents\(\)/);
-  assert.match(reminderRunner, /closed: closed\.size/);
+  assert.match(reminderRunner, /closedEvents = closed\.size/);
   assert.match(reminderRunner, /db\.insert\(schedulerHealth\)\.values/);
-  assert.match(reminderRunner, /sentReminders: sent\.length/);
+  assert.match(reminderRunner, /db\.insert\(schedulerRuns\)\.values/);
+  assert.match(reminderRunner, /status: "failed", stage: runStage/);
+  assert.match(reminderRunner, /runStage = "sending_reminders"/);
+  assert.match(reminderRunner, /run_at < \$\{auditExpiry\}/);
+  assert.match(reminderRunner, /sentReminders = sent\.length/);
   assert.match(reminderRunner, /onConflictDoUpdate/);
   assert.match(reminderWorkflow, /cron: "\*\/5 \* \* \* \*"/);
   assert.match(schema, /export const schedulerHealth = sqliteTable\("scheduler_health"/);
   assert.match(init, /CREATE TABLE IF NOT EXISTS scheduler_health/);
+  assert.match(schema, /export const schedulerRuns = sqliteTable\("scheduler_runs"/);
+  assert.match(init, /CREATE TABLE IF NOT EXISTS scheduler_runs/);
+  assert.match(init, /scheduler_runs_key_run_at/);
   assert.match(client, /name="nextCode" type="text"[\s\S]*?autocomplete="off" data-secret/);
   assert.match(client, /function schedulerHealthLabel/);
   assert.match(client, /function formatOperatorTimestamp/);
   assert.match(client, /operator-health \$\{healthStatus\}/);
+  assert.match(client, /function filterOperatorActivities/);
+  assert.match(client, /operatorFilterState = \{ status: "all", query: "", from: "", to: "" \}/);
+  assert.match(client, /data-operator-status/);
+  assert.match(client, /活動／建立者搜尋/);
+  assert.match(client, /operator-date-from/);
+  assert.match(client, /operator-date-to/);
+  assert.match(client, /operator-history/);
+  assert.match(client, /排程與通知稽核/);
+  assert.match(client, /function schedulerStageLabel/);
+  assert.match(client, /不保存外部錯誤原文或活動個資/);
   assert.match(client, /超過 20 分鐘未收到成功回報/);
   assert.match(styles, /\.operator-stats/);
   assert.match(styles, /\.operator-health \{ display:grid; grid-template-columns:minmax\(0,1fr\) minmax\(420px,1\.4fr\)/);
   assert.match(styles, /\.operator-health \{ grid-template-columns:1fr; \}/);
+  assert.match(styles, /\.operator-filter-status button,\.operator-filter-reset \{ display:inline-flex; align-items:center; justify-content:center;/);
+  assert.match(styles, /\.operator-filter-status \{ display:grid; grid-template-columns:repeat\(2,minmax\(0,1fr\)\); \}/);
+  assert.match(styles, /\.operator-audit-row \{ grid-template-columns:1fr; \}/);
   assert.match(styles, /\.bot-trap/);
 });
 

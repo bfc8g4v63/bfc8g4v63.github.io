@@ -233,6 +233,20 @@ export const schedulerHealth = sqliteTable("scheduler_health", {
   purgedRecords: integer("purged_records").notNull().default(0),
 });
 
+// A bounded, aggregate-only audit trail for trusted scheduled work. It holds
+// no activity title, attendee, LINE group, delivery content, or credential.
+export const schedulerRuns = sqliteTable("scheduler_runs", {
+  id: text("id").primaryKey(),
+  key: text("key").notNull(),
+  runAt: text("run_at").notNull(),
+  status: text("status").notNull(),
+  stage: text("stage").notNull().default("completed"),
+  checkedEvents: integer("checked_events").notNull().default(0),
+  closedEvents: integer("closed_events").notNull().default(0),
+  sentReminders: integer("sent_reminders").notNull().default(0),
+  purgedRecords: integer("purged_records").notNull().default(0),
+});
+
 export const siteVisitWindows = sqliteTable("site_visit_windows", {
   fingerprint: text("fingerprint").primaryKey(),
   expiresAt: integer("expires_at").notNull(),
