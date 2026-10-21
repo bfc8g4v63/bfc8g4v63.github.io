@@ -1023,7 +1023,6 @@ function removeManagerReturnLink(eventId) {
 function openCreatorNextSteps(event, managerAuth, issuedManagerUrl = "") {
   activeModalClose = closeModal;
   const shareUrl = event.shareUrl;
-  const lineUrl = lineShareUrl(event, shareUrl);
   const notificationGroups = Array.isArray(event.notificationGroups) ? event.notificationGroups : [];
   const groupNames = notificationGroups.map((group) => group.groupName).filter(Boolean).join("、");
   const privateManagerUrl = issuedManagerUrl || (managerAuth.type === "token" ? managerUrl(event.id, managerAuth.value) : "");
@@ -1037,8 +1036,9 @@ function openCreatorNextSteps(event, managerAuth, issuedManagerUrl = "") {
       ${notificationGroups.length ? `<div class="line-status connected"><strong>已自動沿用通知群組：${esc(groupNames)}</strong><p>同一組建立者名稱與管理碼的新活動會自動使用這些群組。需要不同群組時，再點選「另選通知群組」。</p></div>` : ""}
       ${privateManagerUrl ? `<div class="line-status warning"><strong>請保存管理連結</strong><p>這個連結可修改、取消或永久刪除活動，也可管理 LINE 小幫手；請勿分享給參加者。可選擇只儲存在目前這台裝置。</p><label>管理連結<input id="created-manager-url" value="${esc(privateManagerUrl)}" readonly></label><div class="inline-actions creator-manager-actions"><button class="secondary" id="copy-manager-link">複製管理連結</button><button class="secondary" id="save-manager-return">儲存在這台裝置</button></div></div>` : ""}
       <p class="form-error" id="form-error" role="alert" hidden></p>
-      <div class="form-actions creator-next-actions"><a class="line-share-button creator-line-share" href="${esc(lineUrl)}" target="_blank" rel="noopener noreferrer">分享到 LINE</a><button class="secondary" id="copy-created-share">複製分享連結</button><button class="primary" id="publish-created-event">${notificationGroups.length ? "發布到已綁定群組" : "選群組並發布"}</button>${notificationGroups.length ? '<button class="secondary" id="choose-different-line-group">另選通知群組</button>' : '<button class="secondary" id="start-line-binding">設定 LINE 小幫手</button>'}</div>
+      <div class="form-actions creator-next-actions"><button type="button" class="line-share-button creator-line-share" data-line-share>分享到 LINE</button><button class="secondary" id="copy-created-share">複製分享連結</button><button class="primary" id="publish-created-event">${notificationGroups.length ? "發布到已綁定群組" : "選群組並發布"}</button>${notificationGroups.length ? '<button class="secondary" id="choose-different-line-group">另選通知群組</button>' : '<button class="secondary" id="start-line-binding">設定 LINE 小幫手</button>'}</div>
     </section></div>`;
+  bindLineShareControls(event, shareUrl);
   document.querySelector("#copy-created-share").addEventListener("click", async () => {
     await navigator.clipboard.writeText(shareUrl);
     showNotice("活動分享連結已複製");
@@ -2290,15 +2290,43 @@ function qrDataUrl(url) {
   return qr.createDataURL(8, 4);
 }
 
+function lineShareText(event, url) {
+  return `${event.title || "活動邀請"}\n${formatShortDate(event.eventDate)} ${event.startTime}｜${event.location || ""}\n${url}`;
+}
+
 function lineShareUrl(event, url) {
-  const summary = `${event.title || "活動邀請"}\n${formatShortDate(event.eventDate)} ${event.startTime}｜${event.location || ""}`;
-  return `https://line.me/R/share?text=${encodeURIComponent(`${summary}\n${url}`)}`;
+  return `https://line.me/R/share?text=${encodeURIComponent(lineShareText(event, url))}`;
+}
+
+function isMobileLineShareDevice() {
+  if (navigator.userAgentData?.mobile) return true;
+  return /Android|iPhone|iPad|iPod|IEMobile|Opera Mini/i.test(navigator.userAgent || "") || (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent || ""));
+}
+
+function bindLineShareControls(event, url) {
+  const mobile = isMobileLineShareDevice();
+  document.querySelectorAll("[data-line-share]").forEach((button) => {
+    button.textContent = mobile ? "分享到 LINE" : "複製 LINE 分享內容";
+    button.title = mobile ? "開啟 LINE 選擇分享對象" : "複製活動資訊與連結，貼到 LINE 電腦版聊天";
+    button.setAttribute("aria-label", button.title);
+    button.addEventListener("click", async () => {
+      if (mobile) {
+        window.location.assign(lineShareUrl(event, url));
+        return;
+      }
+      try {
+        await navigator.clipboard.writeText(lineShareText(event, url));
+        showNotice("LINE 分享內容已複製，請貼到 LINE 電腦版聊天");
+      } catch {
+        showNotice("無法自動複製，請改用「複製連結」後貼到 LINE 電腦版");
+      }
+    });
+  });
 }
 
 function openSharePanel(event, returnTo = null) {
   const url = event.shareUrl;
   const qr = qrDataUrl(url);
-  const lineUrl = lineShareUrl(event, url);
   activeModalClose = returnTo || closeModal;
   modalRoot.innerHTML = `
     <div class="modal-backdrop">
@@ -2307,10 +2335,11 @@ function openSharePanel(event, returnTo = null) {
         <p class="eyebrow">專屬活動連結</p><h2 id="share-title">${esc(event.title || "分享活動")}</h2>
         <p>此活動有自己的頁面。${event.accessMode === "private" ? "開啟後還需要輸入參加碼。" : "把連結或 QR Code 分享給家人即可。"}</p>
         <label>分享連結<input id="share-url" value="${esc(url)}" readonly></label>
-        <div class="share-actions"><a class="line-share-button" href="${esc(lineUrl)}" target="_blank" rel="noopener noreferrer">分享到 LINE</a><button class="primary" id="copy-share">複製連結</button><button class="secondary" id="native-share">更多分享</button><button class="secondary" id="share-back">${returnTo ? "返回管理後台" : "關閉"}</button></div>
+        <div class="share-actions"><button type="button" class="line-share-button" data-line-share>分享到 LINE</button><button class="primary" id="copy-share">複製連結</button><button class="secondary" id="native-share">更多分享</button><button class="secondary" id="share-back">${returnTo ? "返回管理後台" : "關閉"}</button></div>
         ${qr ? `<figure class="qr-card"><img src="${qr}" alt="活動 QR Code"><figcaption>讓家人用手機相機掃描開啟活動</figcaption><a class="secondary download-qr" href="${qr}" download="${esc(event.title || "活動")}-QR-Code.png">下載 QR Code</a></figure>` : ""}
       </section>
     </div>`;
+  bindLineShareControls(event, url);
   document.querySelector("#copy-share").addEventListener("click", async () => {
     await navigator.clipboard.writeText(url);
     showNotice("活動專屬連結已複製");
