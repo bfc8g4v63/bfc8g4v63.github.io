@@ -52,7 +52,7 @@ export async function GET(request: Request, context: { params: Promise<{ familyI
       // New uploads place a WebP preview here. Existing media gracefully falls
       // back to its original file in the browser if this optional object is absent.
       thumbnailUrl: await signedR2Url("GET", `families/${familyId}/media/${row.id}/thumb.webp`, { expiresIn: 300 }),
-      downloadUrl: row.mimeType.startsWith("video/") ? await signedR2Url("GET", row.objectKey, { expiresIn: 300, responseContentDisposition: downloadDisposition(row.originalFilename) }) : "",
+      downloadUrl: await signedR2Url("GET", row.objectKey, { expiresIn: 300, responseContentDisposition: downloadDisposition(row.originalFilename) }),
       comments: commentsByMedia.get(row.id) || [],
       heartCount: heartsByMedia.get(row.id)?.count || 0, heartedByMe: heartsByMedia.get(row.id)?.mine || false,
     })));

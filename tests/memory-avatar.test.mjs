@@ -47,9 +47,12 @@ test("media previews are generated privately and optional previews never block o
 });
 
 test("photo galleries never show browser broken-image chrome and viewer controls stay aligned", async () => {
-  const [page, styles] = await Promise.all([
+  const [page, styles, dashboard, registration, worker] = await Promise.all([
     readFile(new URL("../app/memory-capsule/MemoryCapsuleApp.tsx", import.meta.url), "utf8"),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/memory/families/[familyId]/dashboard/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/RegisterSW.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../public/sw.js", import.meta.url), "utf8"),
   ]);
   assert.match(page, /照片預覽暫不可用/);
   assert.match(page, /onTouchStart=/);
@@ -63,4 +66,9 @@ test("photo galleries never show browser broken-image chrome and viewer controls
   assert.match(styles, /\.memory-photo-viewer-close,\.memory-photo-viewer-arrow \{[^}]*display:grid; place-items:center/);
   assert.match(styles, /\.memory-photo-viewer-unavailable a \{[^}]*display:grid; place-items:center/);
   assert.match(styles, /@media \(max-width:680px\).*?\.memory-photo-viewer \{[^}]*padding:12px/s);
+  assert.match(dashboard, /downloadUrl: await signedR2Url\("GET", row\.objectKey/);
+  assert.match(registration, /updateViaCache: "none"/);
+  assert.match(worker, /const CACHE = "good-days-v2"/);
+  assert.match(worker, /self\.skipWaiting\(\)/);
+  assert.match(worker, /caches\.delete\(key\)/);
 });
