@@ -55,6 +55,9 @@ test("photo galleries never show browser broken-image chrome and viewer controls
     readFile(new URL("../public/sw.js", import.meta.url), "utf8"),
   ]);
   assert.match(page, /照片預覽暫不可用/);
+  assert.match(page, /function MediaVideoPreview/);
+  assert.match(page, /onError=\{\(\) => setPosterFailed\(true\)\}/);
+  assert.match(page, /<MediaVideoPreview item=\{item\} \/>/);
   assert.match(page, /onTouchStart=/);
   assert.match(page, /onTouchEnd=/);
   assert.match(page, /event\.key === "ArrowLeft"/);
@@ -66,6 +69,8 @@ test("photo galleries never show browser broken-image chrome and viewer controls
   assert.match(styles, /\.memory-photo-viewer-close,\.memory-photo-viewer-arrow \{[^}]*display:grid; place-items:center/);
   assert.match(styles, /\.memory-photo-viewer-unavailable a \{[^}]*display:grid; place-items:center/);
   assert.match(styles, /@media \(max-width:680px\).*?\.memory-photo-viewer \{[^}]*padding:12px/s);
+  assert.match(styles, /\.memory-media-grid \{[^}]*display:grid; grid-template-columns:minmax\(0,760px\); justify-content:center/);
+  assert.match(styles, /\.memory-comments \{[^}]*display:grid/);
   assert.match(dashboard, /downloadUrl: await signedR2Url\("GET", row\.objectKey/);
   assert.match(registration, /updateViaCache: "none"/);
   assert.match(worker, /const CACHE = "good-days-v2"/);
