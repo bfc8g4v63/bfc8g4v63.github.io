@@ -219,8 +219,9 @@ function hasValidEndTime(startTime, endTime) {
   return /^([01]\d|2[0-3]):[0-5]\d$/.test(endTime || "") && endTime > startTime;
 }
 
-function timePicker(value = "", label = "時間") {
+function timePicker(value = "", label = "時間", targetName = "startTime", hint = "") {
   const selected = timeParts(value);
+  const wheelPrefix = targetName === "startTime" ? "time" : `${targetName}Wheel`;
   const options = {
     period: [["am", "上午"], ["pm", "下午"]],
     hour: Array.from({ length: 12 }, (_, index) => [String(index + 1), `${index + 1}時`]),
@@ -230,23 +231,23 @@ function timePicker(value = "", label = "時間") {
     const current = options[name].find(([option]) => option === selected[name]);
     if (name !== "period") {
       const unit = name === "hour" ? "時" : "分";
-      return `<div class="time-wheel time-wheel-editable" data-time-wheel="${name}" aria-label="${placeholder}；可直接輸入、滑鼠滾輪或上下滑動調整">
+      return `<div class="time-wheel time-wheel-editable" data-time-wheel="${name}" data-time-target="${wheelPrefix}" data-time-value="${targetName}" aria-label="${placeholder}；可直接輸入、滑鼠滾輪或上下滑動調整">
         <button type="button" class="time-wheel-arrow" data-time-step="-1" aria-label="減少 1 ${unit}">⌃</button>
-        <span class="time-wheel-input-wrap"><input type="tel" class="time-wheel-input" data-time-input="${name}" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="2" aria-label="${unit === "分" ? "分鐘，可手動輸入 00 到 59" : "小時，可手動輸入 1 到 12；輸入 13 到 23 會自動轉為下午"}" placeholder="--" value="${esc(selected[name])}"><span class="time-wheel-unit" aria-hidden="true">${unit}</span></span>
+        <span class="time-wheel-input-wrap"><input type="tel" class="time-wheel-input" data-time-input="${name}" data-time-target="${wheelPrefix}" data-time-value="${targetName}" inputmode="numeric" pattern="[0-9]*" autocomplete="off" maxlength="2" aria-label="${unit === "分" ? "分鐘，可手動輸入 00 到 59" : "小時，可手動輸入 1 到 12；輸入 13 到 23 會自動轉為下午"}" placeholder="--" value="${esc(selected[name])}"><span class="time-wheel-unit" aria-hidden="true">${unit}</span></span>
         <button type="button" class="time-wheel-arrow" data-time-step="1" aria-label="增加 1 ${unit}">⌄</button>
-      </div><input type="hidden" name="time${name[0].toUpperCase()}${name.slice(1)}" value="${esc(selected[name])}">`;
+      </div><input type="hidden" name="${wheelPrefix}${name[0].toUpperCase()}${name.slice(1)}" value="${esc(selected[name])}">`;
     }
-    return `<button type="button" class="time-wheel" data-time-wheel="${name}" aria-label="${placeholder}；可點按、滑鼠滾輪或上下滑動調整">
+    return `<button type="button" class="time-wheel" data-time-wheel="${name}" data-time-target="${wheelPrefix}" data-time-value="${targetName}" aria-label="${placeholder}；可點按、滑鼠滾輪或上下滑動調整">
       <span class="time-wheel-arrow" aria-hidden="true">⌃</span><span class="time-wheel-value">${current ? current[1] : placeholder}</span><span class="time-wheel-arrow" aria-hidden="true">⌄</span>
-    </button><input type="hidden" name="time${name[0].toUpperCase()}${name.slice(1)}" value="${esc(selected[name])}">`;
+    </button><input type="hidden" name="${wheelPrefix}${name[0].toUpperCase()}${name.slice(1)}" value="${esc(selected[name])}">`;
   };
   return `<div class="time-picker" role="group" aria-label="${esc(label)}">
     <span class="time-picker-label">${esc(label)}</span>
-    <span class="time-picker-required">必填</span>
+    <span class="time-picker-required">必填${hint ? `；${esc(hint)}` : ""}</span>
     ${wheel("period", "午別")}
     ${wheel("hour", "時")}
     ${wheel("minute", "分")}
-    <input type="hidden" name="startTime" value="${esc(value)}">
+    <input type="hidden" name="${targetName}" value="${esc(value)}">
   </div>`;
 }
 
@@ -256,34 +257,49 @@ const timeWheelOptions = {
   minute: Array.from({ length: 60 }, (_, index) => [String(index).padStart(2, "0"), `${String(index).padStart(2, "0")} 分`]),
 };
 
-function updateTimeWheel(form, name, direction) {
+function wheelFieldName(wheelPrefix, name) {
+  return `${wheelPrefix}${name[0].toUpperCase()}${name.slice(1)}`;
+}
+
+function selectedTime(form, wheelPrefix = "time") {
+  const period = form.elements[wheelFieldName(wheelPrefix, "period")].value;
+  const hour = Number(form.elements[wheelFieldName(wheelPrefix, "hour")].value);
+  const minute = Number(form.elements[wheelFieldName(wheelPrefix, "minute")].value);
+  if (!period || !Number.isInteger(hour) || hour < 1 || hour > 12 || !Number.isInteger(minute) || minute < 0 || minute > 59) return "";
+  const hour24 = period === "pm" ? (hour % 12) + 12 : hour === 12 ? 0 : hour;
+  return `${String(hour24).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+function updateTimeWheel(form, name, direction, wheelPrefix = "time", targetName = "startTime") {
   const options = timeWheelOptions[name];
-  const input = form.elements[`time${name[0].toUpperCase()}${name.slice(1)}`];
+  const input = form.elements[wheelFieldName(wheelPrefix, name)];
   const previousValue = input.value;
   const current = options.findIndex(([value]) => value === input.value);
   const next = current < 0 ? (direction > 0 ? 0 : options.length - 1) : (current + direction + options.length) % options.length;
   input.value = options[next][0];
-  const control = form.querySelector(`[data-time-wheel="${name}"]`);
+  const control = form.querySelector(`[data-time-wheel="${name}"][data-time-target="${wheelPrefix}"]`);
   const editable = control.querySelector(".time-wheel-input");
   if (editable) editable.value = options[next][0];
   else control.querySelector(".time-wheel-value").textContent = options[next][1];
   if (name === "hour" && previousValue !== "12" && options[next][0] === "12") {
-    const periodInput = form.elements.timePeriod;
+    const periodInput = form.elements[wheelFieldName(wheelPrefix, "period")];
     const nextPeriod = periodInput.value === "am" ? "pm" : periodInput.value === "pm" ? "am" : "";
     if (nextPeriod) {
       periodInput.value = nextPeriod;
-      const periodControl = form.querySelector('[data-time-wheel="period"]');
+      const periodControl = form.querySelector(`[data-time-wheel="period"][data-time-target="${wheelPrefix}"]`);
       periodControl.querySelector(".time-wheel-value").textContent = nextPeriod === "pm" ? "下午" : "上午";
       periodControl.classList.add("is-selected");
     }
   }
   control.classList.add("is-selected");
-  form.elements.startTime.value = selectedStartTime(form);
+  form.elements[targetName].value = selectedTime(form, wheelPrefix);
 }
 
 function updateEditableTimeInput(form, input, normalize = false) {
   const name = input.dataset.timeInput;
-  const hidden = form.elements[`time${name[0].toUpperCase()}${name.slice(1)}`];
+  const wheelPrefix = input.dataset.timeTarget || "time";
+  const targetName = input.dataset.timeValue || "startTime";
+  const hidden = form.elements[wheelFieldName(wheelPrefix, name)];
   const digits = input.value.replace(/\D/g, "").slice(0, 2);
   if (input.value !== digits) input.value = digits;
   const number = Number(digits);
@@ -292,42 +308,44 @@ function updateEditableTimeInput(form, input, normalize = false) {
     const convertedHour = number === 0 ? 12 : number - 12;
     hidden.value = String(convertedHour);
     input.value = String(convertedHour);
-    form.elements.timePeriod.value = period;
-    const periodControl = form.querySelector('[data-time-wheel="period"]');
+    form.elements[wheelFieldName(wheelPrefix, "period")].value = period;
+    const periodControl = form.querySelector(`[data-time-wheel="period"][data-time-target="${wheelPrefix}"]`);
     periodControl.querySelector(".time-wheel-value").textContent = period === "pm" ? "下午" : "上午";
     periodControl.classList.add("is-selected");
-    form.querySelector(`[data-time-wheel="${name}"]`).classList.add("is-selected");
-    form.elements.startTime.value = selectedStartTime(form);
+    form.querySelector(`[data-time-wheel="${name}"][data-time-target="${wheelPrefix}"]`).classList.add("is-selected");
+    form.elements[targetName].value = selectedTime(form, wheelPrefix);
     return;
   }
   const normalized = name === "minute" ? String(number).padStart(2, "0") : String(number);
   const valid = digits !== "" && Number.isInteger(number) && timeWheelOptions[name].some(([value]) => value === normalized);
   hidden.value = valid ? normalized : "";
   if (normalize && valid) input.value = normalized;
-  form.querySelector(`[data-time-wheel="${name}"]`).classList.toggle("is-selected", valid);
-  form.elements.startTime.value = selectedStartTime(form);
+  form.querySelector(`[data-time-wheel="${name}"][data-time-target="${wheelPrefix}"]`).classList.toggle("is-selected", valid);
+  form.elements[targetName].value = selectedTime(form, wheelPrefix);
 }
 
 function enableTimeWheels(form) {
   form.querySelectorAll("[data-time-wheel]").forEach((control) => {
     const name = control.dataset.timeWheel;
+    const wheelPrefix = control.dataset.timeTarget || "time";
+    const targetName = control.dataset.timeValue || "startTime";
     let touchStartY = null;
     let lastTouch = 0;
     control.addEventListener("click", (event) => {
       const step = event.target.closest("[data-time-step]");
-      if (step) return updateTimeWheel(form, name, Number(step.dataset.timeStep));
+      if (step) return updateTimeWheel(form, name, Number(step.dataset.timeStep), wheelPrefix, targetName);
       if (event.target.closest(".time-wheel-input")) return;
-      if (Date.now() - lastTouch > 500) updateTimeWheel(form, name, 1);
+      if (Date.now() - lastTouch > 500) updateTimeWheel(form, name, 1, wheelPrefix, targetName);
     });
     control.addEventListener("wheel", (event) => {
       event.preventDefault();
-      if (event.deltaY) updateTimeWheel(form, name, event.deltaY > 0 ? 1 : -1);
+      if (event.deltaY) updateTimeWheel(form, name, event.deltaY > 0 ? 1 : -1, wheelPrefix, targetName);
     }, { passive: false });
     control.addEventListener("touchstart", (event) => { touchStartY = event.changedTouches[0]?.clientY ?? null; }, { passive: true });
     control.addEventListener("touchend", (event) => {
       const endY = event.changedTouches[0]?.clientY;
       if (touchStartY !== null && typeof endY === "number" && Math.abs(endY - touchStartY) > 18) {
-        updateTimeWheel(form, name, endY < touchStartY ? 1 : -1);
+        updateTimeWheel(form, name, endY < touchStartY ? 1 : -1, wheelPrefix, targetName);
         lastTouch = Date.now();
       }
       touchStartY = null;
@@ -342,7 +360,7 @@ function enableTimeWheels(form) {
       editable.addEventListener("keydown", (event) => {
         if (event.key !== "ArrowUp" && event.key !== "ArrowDown") return;
         event.preventDefault();
-        updateTimeWheel(form, name, event.key === "ArrowUp" ? -1 : 1);
+        updateTimeWheel(form, name, event.key === "ArrowUp" ? -1 : 1, wheelPrefix, targetName);
       });
     }
   });
@@ -423,12 +441,7 @@ function enableDateWheels(form) {
 }
 
 function selectedStartTime(form) {
-  const period = form.elements.timePeriod.value;
-  const hour = Number(form.elements.timeHour.value);
-  const minute = Number(form.elements.timeMinute.value);
-  if (!period || !Number.isInteger(hour) || hour < 1 || hour > 12 || !Number.isInteger(minute) || minute < 0 || minute > 59) return "";
-  const hour24 = period === "pm" ? (hour % 12) + 12 : hour === 12 ? 0 : hour;
-  return `${String(hour24).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+  return selectedTime(form, "time");
 }
 
 async function requestJson(path, body, method = "POST") {
@@ -635,7 +648,7 @@ function openEventForm(event, managerAuth = null, returnTo = null) {
             ${field('日期 <span>必填；點選年、月、日後可用滑鼠滾輪調整</span>', "eventDate", event?.eventDate || localToday(), 'required type="date" data-date-wheel aria-label="日期；點選年、月、日後可用滑鼠滾輪調整"')}
             ${timePicker(event?.startTime)}
           </div>
-          <label>預計結束時間 <span>必填；到此時間會自動結束（同日且須晚於開始）</span><input name="endTime" type="time" required value="${esc(event?.endTime || defaultEndTime(event?.startTime || "12:00"))}"></label>
+          ${timePicker(event?.endTime || defaultEndTime(event?.startTime || "12:00"), "預計結束時間", "endTime", "到此時間會自動結束；同日且須晚於開始，可用滑鼠滾輪調整")}
           <div class="location-lookup"><label>地點 <span>必填；填場館、店名或集合點</span><input name="location" value="${esc(event?.location)}" required type="text" autocomplete="off" autocapitalize="sentences" autocorrect="off" spellcheck="false" inputmode="text" aria-autocomplete="list" aria-controls="location-suggestions" aria-expanded="false" data-form-type="other" data-1p-ignore="true" data-lpignore="true" placeholder="例如：101、中壢 SOGO"></label><small class="location-lookup-hint">輸入至少 2 個字，停一下就會顯示地址建議；點選即可帶入。</small><div id="location-suggestions" class="location-suggestions" role="listbox" aria-live="polite" hidden></div></div>
           ${field('地址 <span>建議填寫；提供 Google 地圖導航</span>', "eventAddress", event?.address, 'type="text" autocomplete="off" autocapitalize="sentences" autocorrect="off" spellcheck="false" inputmode="text" aria-autocomplete="none" data-form-type="other" data-1p-ignore="true" data-lpignore="true" placeholder="例如：臺北市信義區西村里市府路45號"')}
           <label>行前資訊卡 <span>選填；例如集合點、停車、裝備與注意事項</span><textarea name="description" rows="3" placeholder="例如：18:40 在入口集合；請自備球拍與飲水。">${esc(event?.description)}</textarea></label>
@@ -821,6 +834,9 @@ function openEventForm(event, managerAuth = null, returnTo = null) {
     delete body.timePeriod;
     delete body.timeHour;
     delete body.timeMinute;
+    delete body.endTimeWheelPeriod;
+    delete body.endTimeWheelHour;
+    delete body.endTimeWheelMinute;
     body.capacity = body.capacity ? Number(body.capacity) : null;
     body.feePerPerson = body.feeMode === "paid" ? Number(body.feePerPerson || 0) : 0;
     delete body.feeMode;
@@ -1917,7 +1933,7 @@ async function refreshAdminDashboard(eventId, managerAuth, returnTo = null) {
 
 function openCloneEvent(event, managerAuth) {
   activeModalClose = closeModal;
-  modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="clone-event-title"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">重複活動</p><h2 id="clone-event-title">複製成新活動</h2><p>會帶入活動設定、通知群組、提醒與安排區；不會複製報名名單、安排結果或已發送通知。</p><form id="clone-event-form"><label>活動名稱<input name="title" maxlength="80" value="${esc(`${event.title}（複製）`)}" required></label><div class="form-row"><label>新日期 <span>點選年、月、日後可用滑鼠滾輪調整</span><input name="eventDate" type="date" data-date-wheel aria-label="新日期；點選年、月、日後可用滑鼠滾輪調整" value="${esc(event.eventDate)}" required></label>${timePicker(event.startTime, "新開始時間")}</div><label>預計結束時間<input name="endTime" type="time" required value="${esc(event.endTime || defaultEndTime(event.startTime))}"></label><p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button type="submit" class="primary">建立複製活動</button></div></form></section></div>`;
+  modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal compact-modal" role="dialog" aria-modal="true" aria-labelledby="clone-event-title"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">重複活動</p><h2 id="clone-event-title">複製成新活動</h2><p>會帶入活動設定、通知群組、提醒與安排區；不會複製報名名單、安排結果或已發送通知。</p><form id="clone-event-form"><label>活動名稱<input name="title" maxlength="80" value="${esc(`${event.title}（複製）`)}" required></label><div class="form-row"><label>新日期 <span>點選年、月、日後可用滑鼠滾輪調整</span><input name="eventDate" type="date" data-date-wheel aria-label="新日期；點選年、月、日後可用滑鼠滾輪調整" value="${esc(event.eventDate)}" required></label>${timePicker(event.startTime, "新開始時間")}</div>${timePicker(event.endTime || defaultEndTime(event.startTime), "預計結束時間", "endTime", "同日且須晚於開始；可用滑鼠滾輪調整")}<p class="form-error" hidden></p><div class="form-actions"><button type="button" class="secondary" data-close>返回</button><button type="submit" class="primary">建立複製活動</button></div></form></section></div>`;
   const form = document.querySelector("#clone-event-form");
   enableTimeWheels(form);
   enableDateWheels(form);
@@ -1929,11 +1945,14 @@ function openCloneEvent(event, managerAuth) {
     try {
       const values = Object.fromEntries(new FormData(form));
       values.startTime = selectedStartTime(form);
-      values.endTime = form.elements.endTime.value;
+      values.endTime = selectedTime(form, "endTimeWheel");
       if (!values.startTime || !hasValidEndTime(values.startTime, values.endTime)) throw new Error("請填寫晚於開始時間的結束時間。");
       delete values.timePeriod;
       delete values.timeHour;
       delete values.timeMinute;
+      delete values.endTimeWheelPeriod;
+      delete values.endTimeWheelHour;
+      delete values.endTimeWheelMinute;
       const result = await requestJson("/admin/event", { action: "clone_event", ...values, ...managerPayload(event.id, managerAuth) });
       const fresh = await requestJson("/admin/event", managerPayload(result.id, managerAuth));
       openAdminDashboard(fresh, managerAuth);

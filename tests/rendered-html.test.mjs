@@ -815,7 +815,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.159/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.160/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -844,9 +844,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.159/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.159/);
-  assert.match(worker, /good-days-github-v159/);
+  assert.match(page, /\/app\.js\?v=1\.2\.160/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.160/);
+  assert.match(worker, /good-days-github-v160/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -870,7 +870,7 @@ test("activity date and time controls support direct editing, desktop wheel and 
     readFile(new URL("../docs/styles.css", import.meta.url), "utf8"),
   ]);
   assert.match(client, /class="time-wheel" data-time-wheel=/);
-  assert.match(client, /type="tel" class="time-wheel-input" data-time-input="\$\{name\}" inputmode="numeric"/);
+  assert.match(client, /type="tel" class="time-wheel-input" data-time-input="\$\{name\}" data-time-target="\$\{wheelPrefix\}" data-time-value="\$\{targetName\}" inputmode="numeric"/);
   assert.match(client, /placeholder="--" value="\$\{esc\(selected\[name\]\)\}"/);
   assert.match(client, /class="time-wheel-unit"/);
   assert.match(client, /function updateEditableTimeInput/);
@@ -1298,7 +1298,8 @@ test("completed activities keep their history while repeat activities start clea
   assert.match(adminRoute, /活動已結束，不能再新增報名/);
   assert.match(client, /複製為新活動/);
   assert.match(client, /timePicker\(event\.startTime, "新開始時間"\)/);
-  assert.match(client, /name="endTime" type="time" required/);
+  assert.match(client, /timePicker\(event\.endTime \|\| defaultEndTime\(event\.startTime\), "預計結束時間", "endTime"/);
+  assert.match(client, /data-time-target="\$\{wheelPrefix\}"/);
   assert.match(client, /name="eventDate" type="date" data-date-wheel/);
   assert.match(client, /enableTimeWheels\(form\);[\s\S]*enableDateWheels\(form\);/);
   assert.match(client, /結束活動/);
@@ -1476,10 +1477,10 @@ test("site operator overview is separately protected and activity creation has s
   assert.match(client, /function openSiteOperatorCodeChange/);
   assert.match(client, /變更管理碼/);
   assert.match(client, /活動到預計結束時間會自動成為已結束/);
-  assert.match(client, /name="endTime" type="time" required/);
+  assert.match(client, /function selectedTime\(form, wheelPrefix = "time"\)/);
   assert.match(client, /function hasValidEndTime/);
   assert.match(client, /預計結束時間必須晚於同日的開始時間/);
-  assert.match(client, /timePicker\(event\.startTime, "新開始時間"\)[\s\S]*?name="endTime" type="time" required/);
+  assert.match(client, /timePicker\(event\.startTime, "新開始時間"\)[\s\S]*?timePicker\(event\.endTime \|\| defaultEndTime\(event\.startTime\), "預計結束時間", "endTime"/);
   assert.match(client, /in_progress: "進行中"/);
   assert.match(schema, /endTime: text\("end_time"\)/);
   assert.match(init, /ALTER TABLE events ADD COLUMN end_time/);
@@ -1571,14 +1572,14 @@ test("activity creation and cloning preserve the frontend-to-API time contract",
   assert.match(client, /"creatorName", event\?\.creatorName, 'required type="text"/);
   assert.match(client, /"eventDate", event\?\.eventDate \|\| localToday\(\), 'required type="date"/);
   assert.match(client, /\$\{timePicker\(event\?\.startTime\)\}/);
-  assert.match(client, /name="endTime" type="time" required/);
+  assert.match(client, /timePicker\(event\?\.endTime \|\| defaultEndTime\(event\?\.startTime \|\| "12:00"\), "預計結束時間", "endTime"/);
   assert.match(client, /name="location"[\s\S]*?required type="text"/);
   assert.match(client, /name="editCode" data-secret required minlength="6"/);
   assert.match(client, /body\.startTime = selectedStartTime\(form\)/);
   assert.match(client, /if \(!hasValidEndTime\(body\.startTime, body\.endTime\)\)/);
   assert.match(eventsRoute, /validEventSchedule\(eventDate, startTime, endTime\)/);
 
-  assert.match(client, /<form id="clone-event-form">[\s\S]*?name="eventDate" type="date"[\s\S]*?timePicker\(event\.startTime, "新開始時間"\)[\s\S]*?name="endTime" type="time" required/);
+  assert.match(client, /<form id="clone-event-form">[\s\S]*?name="eventDate" type="date"[\s\S]*?timePicker\(event\.startTime, "新開始時間"\)[\s\S]*?timePicker\(event\.endTime \|\| defaultEndTime\(event\.startTime\), "預計結束時間", "endTime"/);
   assert.match(client, /values\.startTime = selectedStartTime\(form\)/);
   assert.match(client, /hasValidEndTime\(values\.startTime, values\.endTime\)/);
   assert.match(adminEventRoute, /action === "clone_event"[\s\S]*?validEventSchedule\(eventDate, startTime, endTime\)/);
