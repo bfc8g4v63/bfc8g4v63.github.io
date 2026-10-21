@@ -32,10 +32,14 @@ function Avatar({ name, src, small = false }: { name: string; src?: string; smal
   return <span className={`${avatarClass} memory-avatar-fallback`} aria-label={name}>{name.trim().slice(0, 1) || "家"}</span>;
 }
 
-function MediaPhoto({ item }: { item: Media }) {
-  const [thumbnailFailed, setThumbnailFailed] = useState(false);
-  useEffect(() => { setThumbnailFailed(false); }, [item.thumbnailUrl]);
-  return <img src={thumbnailFailed ? item.url : item.thumbnailUrl} alt={item.title || item.description || item.originalFilename} loading="lazy" onError={() => setThumbnailFailed(true)} />;
+function MediaPhoto({ item, onOpen }: { item: Media; onOpen?: () => void }) {
+  const [source, setSource] = useState<"thumbnail" | "original" | "unavailable">(() => item.thumbnailUrl ? "thumbnail" : item.url ? "original" : "unavailable");
+  useEffect(() => { setSource(item.thumbnailUrl ? "thumbnail" : item.url ? "original" : "unavailable"); }, [item.thumbnailUrl, item.url]);
+  const label = item.title || item.description || item.originalFilename;
+  const unavailable = <span className="memory-photo-unavailable" role="img" aria-label={`${label}：照片預覽暫不可用`}><i aria-hidden="true">▧</i><b>照片預覽暫不可用</b><small>開啟相簿後可查看原始檔</small></span>;
+  if (source === "unavailable") return onOpen ? <button className="memory-photo-preview" type="button" onClick={onOpen} aria-label={`開啟原圖：${label}`}>{unavailable}</button> : unavailable;
+  const image = <img src={source === "thumbnail" ? item.thumbnailUrl : item.url} alt={label} loading="lazy" onError={() => setSource((current) => current === "thumbnail" && item.url ? "original" : "unavailable")} />;
+  return onOpen ? <button className="memory-photo-preview" type="button" onClick={onOpen} aria-label={`開啟原圖：${label}`}>{image}</button> : image;
 }
 
 function formatStorage(bytes: number) {
@@ -129,10 +133,16 @@ export function MemoryCapsuleApp() {
   const [commentDrafts, setCommentDrafts] = useState<Record<string, { body: string; displayAs: string }>>({});
   const [memoryDraft, setMemoryDraft] = useState({ body: "", displayAs: "" });
   const [quotaGb, setQuotaGb] = useState("20");
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null);
+  const [viewerImageFailed, setViewerImageFailed] = useState(false);
   const photoInput = useRef<HTMLInputElement>(null);
   const videoInput = useRef<HTMLInputElement>(null);
+  const viewerTouchStart = useRef<{ x: number; y: number } | null>(null);
 
   const activeCapsule = useMemo(() => dashboard?.capsules.find((capsule) => capsule.id === selectedCapsuleId) || dashboard?.capsules[0], [dashboard, selectedCapsuleId]);
+  const galleryPhotos = useMemo(() => (dashboard?.media || []).filter((item) => item.capsuleId === activeCapsule?.id && item.mimeType.startsWith("image/")), [dashboard?.media, activeCapsule?.id]);
+  const viewerPhoto = viewerIndex === null ? null : galleryPhotos[viewerIndex] || null;
+  useEffect(() => { setViewerImageFailed(false); }, [viewerPhoto?.id]);
   const inviteQrDataUrl = useMemo(() => {
     if (!inviteUrl) return "";
     const code = qrcode(0, "M");
@@ -148,6 +158,26 @@ export function MemoryCapsuleApp() {
     }
     return [...groups.entries()].sort(([left], [right]) => right.localeCompare(left, "zh-TW"));
   }, [dashboard?.capsules]);
+
+  const moveViewer = (offset: number) => setViewerIndex((current) => {
+    if (current === null || !galleryPhotos.length) return null;
+    return (current + offset + galleryPhotos.length) % galleryPhotos.length;
+  });
+  const openViewer = (mediaId: string) => {
+    const index = galleryPhotos.findIndex((item) => item.id === mediaId);
+    if (index >= 0) setViewerIndex(index);
+  };
+  useEffect(() => {
+    if (viewerIndex === null) return;
+    if (!viewerPhoto) { setViewerIndex(null); return; }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setViewerIndex(null);
+      if (event.key === "ArrowLeft") moveViewer(-1);
+      if (event.key === "ArrowRight") moveViewer(1);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [viewerIndex, viewerPhoto, galleryPhotos.length]);
 
   const loadCommunity = async (familyId: string) => {
     const [nextInvites, nextMembers, nextReports] = await Promise.all([
@@ -461,7 +491,21 @@ export function MemoryCapsuleApp() {
       {uploadQueue.length > 0 && <section className="memory-upload-queue" aria-label="媒體上傳進度"><h3>上傳進度</h3>{uploadQueue.map((item) => <article key={item.id}><div><b>{item.file.name}</b><small>{item.status === "queued" || item.status === "preparing" ? "正在準備" : item.status === "uploading" ? item.error || `正在上傳 ${item.progress}%` : item.status === "complete" ? "已加入家族膠囊" : `尚未成功：${item.error}`}</small></div>{item.status === "uploading" && <span className="memory-upload-meter" aria-label={`上傳 ${item.progress}%`}><i style={{ width: `${item.progress}%` }} /></span>}{item.status === "failed" && <button className="memory-secondary" disabled={uploading} onClick={() => { void retryUpload(item.id); }}>重試這一份</button>}</article>)}</section>}
       <section className="memory-text-memory"><h3>寫下一段文字回憶</h3><p>直接以你的 LINE 暱稱留下心裡的話；若是替長輩代傳，可填上長輩稱呼。</p><textarea value={memoryDraft.body} maxLength={1200} onChange={(event) => setMemoryDraft({ ...memoryDraft, body: event.target.value })} placeholder="例如：那天大家笑得好開心⋯" /><input value={memoryDraft.displayAs} maxLength={80} onChange={(event) => setMemoryDraft({ ...memoryDraft, displayAs: event.target.value })} placeholder="替長輩代傳時，填入長輩稱呼（選填）" /><div className="memory-cta-wrap"><button className="memory-secondary" onClick={() => { void submitComment({ capsuleId: activeCapsule.id }, "memory", "memory"); }}>保存文字回憶</button></div></section>
       {activeCapsule.comments.filter((comment) => comment.kind === "memory").length > 0 && <section className="memory-memory-feed" aria-label="家族文字回憶"><h3>家人留下的話</h3>{activeCapsule.comments.filter((comment) => comment.kind === "memory").map((comment) => <article key={comment.id}><Avatar name={comment.authorName} src={comment.authorAvatar} small /><div><b>{comment.displayAs ? `${comment.displayAs}（由 ${comment.authorName} 代傳）` : comment.authorName}</b><p>{comment.body}</p><small>{new Date(comment.createdAt).toLocaleString("zh-TW")}</small></div>{(comment.authorMemberId === dashboard.membership.id || ["owner", "admin"].includes(dashboard.membership.role)) && <button className="memory-danger-link" onClick={() => { void deleteComment(comment.id); }}>移除</button>}</article>)}</section>}
-      {visibleMedia.length ? <div className="memory-media-grid">{visibleMedia.map((item) => <article className="memory-media-card" key={item.id}>{item.mimeType.startsWith("video/") ? <><video controls playsInline preload="metadata" poster={item.thumbnailUrl || undefined} src={item.url} aria-label={item.title || item.originalFilename}>你的瀏覽器無法直接播放這支影片。</video><div className="memory-video-fallback"><a className="memory-secondary" href={item.downloadUrl} download={item.originalFilename}>播放不相容？下載原始影片</a></div></> : <MediaPhoto item={item} />}<div><p>{item.title || item.originalFilename}</p>{item.description && <p className="memory-media-description">{item.description}</p>}{item.capturedAt && <small className="memory-captured-at">拍攝日期 {item.capturedAt}</small>}<span><Avatar name={item.authorName} src={item.authorAvatar} small />{item.authorName}・{new Date(item.createdAt).toLocaleDateString("zh-TW")}</span><div className="memory-media-actions"><button className={item.heartedByMe ? "hearted" : ""} onClick={() => { void toggleHeart(item); }}>{item.heartedByMe ? "♥ 已喜歡" : "♡ 喜歡"}{item.heartCount ? ` ${item.heartCount}` : ""}</button><button onClick={() => { void reportContent("media", item.id); }}>回報</button>{(item.authorMemberId === dashboard.membership.id || ["owner", "admin"].includes(dashboard.membership.role)) && <><button onClick={() => openMediaEditor(item)}>編輯</button><button className="memory-danger-link" onClick={() => { void deleteMedia(item); }}>移除</button></>}</div>{mediaEditorId === item.id && mediaDrafts[item.id] && <section className="memory-media-editor"><label>標題<input value={mediaDrafts[item.id].title} onChange={(event) => setMediaDrafts((drafts) => ({ ...drafts, [item.id]: { ...drafts[item.id], title: event.target.value } }))} /></label><label>拍攝日期<input type="date" value={mediaDrafts[item.id].capturedAt} onChange={(event) => setMediaDrafts((drafts) => ({ ...drafts, [item.id]: { ...drafts[item.id], capturedAt: event.target.value } }))} /></label><label>回憶描述<textarea value={mediaDrafts[item.id].description} onChange={(event) => setMediaDrafts((drafts) => ({ ...drafts, [item.id]: { ...drafts[item.id], description: event.target.value } }))} /></label><div className="memory-editor-actions"><button className="memory-secondary" onClick={() => setMediaEditorId(null)}>取消</button><button className="memory-primary" onClick={() => { void saveMedia(item.id); }}>儲存內容</button></div></section>}<section className="memory-comments"><h3>留言{item.comments.length ? ` ${item.comments.length}` : ""}</h3>{item.comments.map((comment) => <article key={comment.id}><Avatar name={comment.authorName} src={comment.authorAvatar} small /><div><b>{comment.displayAs ? `${comment.displayAs}（由 ${comment.authorName} 代傳）` : comment.authorName}</b><p>{comment.body}</p></div><button onClick={() => { void reportContent("comment", comment.id); }}>回報</button>{(comment.authorMemberId === dashboard.membership.id || ["owner", "admin"].includes(dashboard.membership.role)) && <button className="memory-danger-link" onClick={() => { void deleteComment(comment.id); }}>移除</button>}</article>)}<textarea value={commentDrafts[item.id]?.body || ""} maxLength={1200} onChange={(event) => setCommentDrafts((drafts) => ({ ...drafts, [item.id]: { body: event.target.value, displayAs: drafts[item.id]?.displayAs || "" } }))} placeholder="留下想說的話" /><div className="memory-cta-wrap"><button className="memory-secondary" onClick={() => { void submitComment({ mediaId: item.id }, "comment", item.id); }}>送出留言</button></div></section></div></article>)}</div> : <div className="memory-empty memory-empty-compact"><p className="memory-empty-mark">◌</p><h3>第一份回憶，從這裡開始</h3><p>先選照片或影片，成功後會立即顯示在家族膠囊。</p><div className="memory-upload-actions"><button className="memory-primary" onClick={() => photoInput.current?.click()}>選擇照片</button><button className="memory-secondary" onClick={() => videoInput.current?.click()}>選擇影片</button></div></div>}
+      {visibleMedia.length ? <div className="memory-media-grid">{visibleMedia.map((item) => <article className="memory-media-card" key={item.id}>
+        {item.mimeType.startsWith("video/") ? <><video controls playsInline preload="metadata" poster={item.thumbnailUrl || undefined} src={item.url} aria-label={item.title || item.originalFilename}>你的瀏覽器無法直接播放這支影片。</video><div className="memory-video-fallback"><a className="memory-secondary" href={item.downloadUrl} download={item.originalFilename}>播放不相容？下載原始影片</a></div></> : <MediaPhoto item={item} onOpen={() => openViewer(item.id)} />}
+        <div><p>{item.title || item.originalFilename}</p>{item.description && <p className="memory-media-description">{item.description}</p>}{item.capturedAt && <small className="memory-captured-at">拍攝日期 {item.capturedAt}</small>}<span><Avatar name={item.authorName} src={item.authorAvatar} small />{item.authorName}・{new Date(item.createdAt).toLocaleDateString("zh-TW")}</span>
+          <div className="memory-media-actions"><button className={item.heartedByMe ? "hearted" : ""} onClick={() => { void toggleHeart(item); }}>{item.heartedByMe ? "♥ 已喜歡" : "♡ 喜歡"}{item.heartCount ? ` ${item.heartCount}` : ""}</button><button onClick={() => { void reportContent("media", item.id); }}>回報</button>{(item.authorMemberId === dashboard.membership.id || ["owner", "admin"].includes(dashboard.membership.role)) && <><button onClick={() => openMediaEditor(item)}>編輯</button><button className="memory-danger-link" onClick={() => { void deleteMedia(item); }}>移除</button></>}</div>
+          {mediaEditorId === item.id && mediaDrafts[item.id] && <section className="memory-media-editor"><label>標題<input value={mediaDrafts[item.id].title} onChange={(event) => setMediaDrafts((drafts) => ({ ...drafts, [item.id]: { ...drafts[item.id], title: event.target.value } }))} /></label><label>拍攝日期<input type="date" value={mediaDrafts[item.id].capturedAt} onChange={(event) => setMediaDrafts((drafts) => ({ ...drafts, [item.id]: { ...drafts[item.id], capturedAt: event.target.value } }))} /></label><label>回憶描述<textarea value={mediaDrafts[item.id].description} onChange={(event) => setMediaDrafts((drafts) => ({ ...drafts, [item.id]: { ...drafts[item.id], description: event.target.value } }))} /></label><div className="memory-editor-actions"><button className="memory-secondary" onClick={() => setMediaEditorId(null)}>取消</button><button className="memory-primary" onClick={() => { void saveMedia(item.id); }}>儲存內容</button></div></section>}
+          <section className="memory-comments"><h3>留言{item.comments.length ? ` ${item.comments.length}` : ""}</h3>{item.comments.map((comment) => <article key={comment.id}><Avatar name={comment.authorName} src={comment.authorAvatar} small /><div><b>{comment.displayAs ? `${comment.displayAs}（由 ${comment.authorName} 代傳）` : comment.authorName}</b><p>{comment.body}</p></div><button onClick={() => { void reportContent("comment", comment.id); }}>回報</button>{(comment.authorMemberId === dashboard.membership.id || ["owner", "admin"].includes(dashboard.membership.role)) && <button className="memory-danger-link" onClick={() => { void deleteComment(comment.id); }}>移除</button>}</article>)}<textarea value={commentDrafts[item.id]?.body || ""} maxLength={1200} onChange={(event) => setCommentDrafts((drafts) => ({ ...drafts, [item.id]: { body: event.target.value, displayAs: drafts[item.id]?.displayAs || "" } }))} placeholder="留下想說的話" /><div className="memory-cta-wrap"><button className="memory-secondary" onClick={() => { void submitComment({ mediaId: item.id }, "comment", item.id); }}>送出留言</button></div></section>
+        </div></article>)}</div> : <div className="memory-empty memory-empty-compact"><p className="memory-empty-mark">◌</p><h3>第一份回憶，從這裡開始</h3><p>先選照片或影片，成功後會立即顯示在家族膠囊。</p><div className="memory-upload-actions"><button className="memory-primary" onClick={() => photoInput.current?.click()}>選擇照片</button><button className="memory-secondary" onClick={() => videoInput.current?.click()}>選擇影片</button></div></div>}
+    </section>}
+    {viewerPhoto && <section className="memory-photo-viewer" role="dialog" aria-modal="true" aria-label={`查看原圖：${viewerPhoto.title || viewerPhoto.originalFilename}`} onClick={(event) => { if (event.target === event.currentTarget) setViewerIndex(null); }}>
+      <div className="memory-photo-viewer-stage" onTouchStart={(event) => { const touch = event.touches[0]; viewerTouchStart.current = touch ? { x: touch.clientX, y: touch.clientY } : null; }} onTouchEnd={(event) => { const start = viewerTouchStart.current; const touch = event.changedTouches[0]; viewerTouchStart.current = null; if (!start || !touch) return; const deltaX = touch.clientX - start.x; const deltaY = touch.clientY - start.y; if (Math.abs(deltaX) > 48 && Math.abs(deltaX) > Math.abs(deltaY)) moveViewer(deltaX > 0 ? -1 : 1); }}>
+        <button className="memory-photo-viewer-close" type="button" onClick={() => setViewerIndex(null)} aria-label="關閉原圖">×</button>
+        {galleryPhotos.length > 1 && <button className="memory-photo-viewer-arrow previous" type="button" onClick={() => moveViewer(-1)} aria-label="上一張照片">‹</button>}
+        <figure>{viewerImageFailed ? <div className="memory-photo-viewer-unavailable"><i aria-hidden="true">▧</i><b>這台裝置無法預覽原圖</b><a href={viewerPhoto.downloadUrl} download={viewerPhoto.originalFilename}>下載原始照片</a></div> : <img src={viewerPhoto.url} alt={viewerPhoto.title || viewerPhoto.description || viewerPhoto.originalFilename} onError={() => setViewerImageFailed(true)} />}<figcaption>{viewerPhoto.title || viewerPhoto.originalFilename}<small>{viewerIndex! + 1} / {galleryPhotos.length}・左右滑動或按方向鍵換照片</small></figcaption></figure>
+        {galleryPhotos.length > 1 && <button className="memory-photo-viewer-arrow next" type="button" onClick={() => moveViewer(1)} aria-label="下一張照片">›</button>}
+      </div>
     </section>}
   </main>;
 }

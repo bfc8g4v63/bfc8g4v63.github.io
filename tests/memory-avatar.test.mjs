@@ -41,5 +41,26 @@ test("media previews are generated privately and optional previews never block o
   assert.match(page, /await fetch\(prepared\.thumbnailUploadUrl/);
   assert.match(page, /\.catch\(\(\) => undefined\)/);
   assert.match(page, /poster=\{item\.thumbnailUrl \|\| undefined\}/);
-  assert.match(page, /thumbnailFailed \? item\.url : item\.thumbnailUrl/);
+  assert.match(page, /\[source, setSource\] = useState<"thumbnail" \| "original" \| "unavailable">/);
+  assert.match(page, /current === "thumbnail" && item\.url \? "original" : "unavailable"/);
+  assert.match(page, /memory-photo-unavailable/);
+});
+
+test("photo galleries never show browser broken-image chrome and viewer controls stay aligned", async () => {
+  const [page, styles] = await Promise.all([
+    readFile(new URL("../app/memory-capsule/MemoryCapsuleApp.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+  ]);
+  assert.match(page, /照片預覽暫不可用/);
+  assert.match(page, /onTouchStart=/);
+  assert.match(page, /onTouchEnd=/);
+  assert.match(page, /event\.key === "ArrowLeft"/);
+  assert.match(page, /event\.key === "ArrowRight"/);
+  assert.match(page, /memory-photo-viewer-arrow/);
+  assert.match(page, /viewerImageFailed/);
+  assert.match(page, /這台裝置無法預覽原圖/);
+  assert.match(page, /onOpen=\{\(\) => openViewer\(item\.id\)\}/);
+  assert.match(styles, /\.memory-photo-viewer-close,\.memory-photo-viewer-arrow \{[^}]*display:grid; place-items:center/);
+  assert.match(styles, /\.memory-photo-viewer-unavailable a \{[^}]*display:grid; place-items:center/);
+  assert.match(styles, /@media \(max-width:680px\).*?\.memory-photo-viewer \{[^}]*padding:12px/s);
 });
