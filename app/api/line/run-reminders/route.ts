@@ -2,7 +2,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { ensureSchema } from "../../../../db/init";
 import { getDb } from "../../../../db";
 import {
-  activityLineGroups, events, lineBindings, lineReminderDeliveries, lineReminderSettings, rsvps,
+  activityLineGroups, events, lineBindings, lineReminderDeliveries, lineReminderSettings, rsvps, schedulerHealth,
 } from "../../../../db/schema";
 import { eventCard, lineConfig, pushMessages } from "../lib";
 import { eventNotificationGroups } from "../groups";
@@ -104,7 +104,18 @@ export async function POST(request: Request) {
         sent.push({ eventId: event.id, reminder: rule.key });
       }
     }
-    return Response.json({ ok: true, checked: rows.length, sent, purged: expired.length, closed: closed.size });
+    const completedAt = new Date().toISOString();
+    await db.insert(schedulerHealth).values({
+      key: "line-reminders", lastSuccessAt: completedAt, checkedEvents: rows.length,
+      closedEvents: closed.size, sentReminders: sent.length, purgedRecords: expired.length,
+    }).onConflictDoUpdate({
+      target: schedulerHealth.key,
+      set: {
+        lastSuccessAt: completedAt, checkedEvents: rows.length,
+        closedEvents: closed.size, sentReminders: sent.length, purgedRecords: expired.length,
+      },
+    });
+    return Response.json({ ok: true, checked: rows.length, sent, purged: expired.length, closed: closed.size, completedAt });
   } catch (error) {
     return Response.json({ error: error instanceof Error ? error.message : "提醒排程失敗" }, { status: 500 });
   }

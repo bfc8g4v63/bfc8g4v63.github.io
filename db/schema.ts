@@ -222,6 +222,17 @@ export const siteOperatorCredentials = sqliteTable("site_operator_credentials", 
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
+// Aggregate-only status for trusted scheduled work. This never records
+// activity details, attendees, groups, or message content.
+export const schedulerHealth = sqliteTable("scheduler_health", {
+  key: text("key").primaryKey(),
+  lastSuccessAt: text("last_success_at").notNull().default(""),
+  checkedEvents: integer("checked_events").notNull().default(0),
+  closedEvents: integer("closed_events").notNull().default(0),
+  sentReminders: integer("sent_reminders").notNull().default(0),
+  purgedRecords: integer("purged_records").notNull().default(0),
+});
+
 export const siteVisitWindows = sqliteTable("site_visit_windows", {
   fingerprint: text("fingerprint").primaryKey(),
   expiresAt: integer("expires_at").notNull(),

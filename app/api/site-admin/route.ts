@@ -2,13 +2,14 @@ import { eq, inArray } from "drizzle-orm";
 import { env } from "cloudflare:workers";
 import { getDb } from "../../../db";
 import { ensureSchema } from "../../../db/init";
-import { activityLineGroups, events, lineBindings, lineManagerTargets, lineReminderSettings, rsvps, siteOperatorCredentials } from "../../../db/schema";
+import { activityLineGroups, events, lineBindings, lineManagerTargets, lineReminderSettings, rsvps, schedulerHealth, siteOperatorCredentials } from "../../../db/schema";
 import { clean, hashCredential, verifyCredential } from "../admin/auth";
 import { json, preflight } from "../cors";
 import { rateLimit } from "../rate-limit";
 import { closeElapsedEvents, eventTimestamp } from "../../../lib/event-lifecycle";
 
 type OperatorBindings = { SITE_OPERATOR_CODE?: string };
+const SCHEDULER_STALE_AFTER_MS = 20 * 60 * 1000;
 
 export function OPTIONS(request: Request) {
   return preflight(request);
@@ -41,6 +42,20 @@ function operatorActivitySort(left: { operationalStatus: string; eventDate: stri
 async function verifyOperatorCode(code: string, storedHash: string | undefined, configuredCode: string) {
   if (storedHash) return verifyCredential(code, storedHash);
   return Boolean(configuredCode) && constantTimeEqual(code, configuredCode);
+}
+
+function schedulerHealthSummary(row: typeof schedulerHealth.$inferSelect | undefined, now = Date.now()) {
+  const lastSuccessAt = row?.lastSuccessAt || "";
+  const timestamp = Date.parse(lastSuccessAt);
+  const ageMs = Number.isFinite(timestamp) ? Math.max(0, now - timestamp) : null;
+  return {
+    status: ageMs === null ? "unknown" : ageMs > SCHEDULER_STALE_AFTER_MS ? "stale" : "healthy",
+    lastSuccessAt: Number.isFinite(timestamp) ? lastSuccessAt : "",
+    checkedEvents: row?.checkedEvents || 0,
+    closedEvents: row?.closedEvents || 0,
+    sentReminders: row?.sentReminders || 0,
+    purgedRecords: row?.purgedRecords || 0,
+  };
 }
 
 export async function POST(request: Request) {
@@ -76,6 +91,8 @@ export async function POST(request: Request) {
     const suppliedCode = clean(body.code, 160);
     if (!savedCredential && !configuredCode) return json(request, { error: "營運管理尚未完成設定" }, 503);
     if (!await verifyOperatorCode(suppliedCode, savedCredential?.codeHash, configuredCode)) return json(request, { error: "營運管理碼不正確" }, 403);
+    const [schedulerRun] = await db.select().from(schedulerHealth).where(eq(schedulerHealth.key, "line-reminders")).limit(1);
+    const health = schedulerHealthSummary(schedulerRun);
     const eventRows = await db.select({
       id: events.id, title: events.title, eventDate: events.eventDate, startTime: events.startTime, endTime: events.endTime,
       location: events.location, address: events.address, description: events.description,
@@ -84,7 +101,7 @@ export async function POST(request: Request) {
       accessMode: events.accessMode, attendanceVisibility: events.attendanceVisibility,
       cancelledAt: events.cancelledAt, createdAt: events.createdAt, updatedAt: events.updatedAt,
     }).from(events);
-    if (!eventRows.length) return json(request, { summary: { total: 0, upcoming: 0, inProgress: 0, completed: 0, cancelled: 0 }, activities: [] });
+    if (!eventRows.length) return json(request, { summary: { total: 0, upcoming: 0, inProgress: 0, completed: 0, cancelled: 0 }, health, activities: [] });
 
     const eventIds = eventRows.map((event) => event.id);
     const [rsvpRows, primaryBindings, activityGroups, reminderRows, managerRows] = await Promise.all([
@@ -128,7 +145,7 @@ export async function POST(request: Request) {
         managerTargetCount: managerCount.get(event.id) || 0,
       };
     }).sort(operatorActivitySort);
-    return json(request, { summary, activities });
+    return json(request, { summary, health, activities });
   } catch (error) {
     return json(request, { error: error instanceof Error ? error.message : "無法讀取全站活動總覽" }, 500);
   }

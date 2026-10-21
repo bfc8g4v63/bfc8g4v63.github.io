@@ -202,6 +202,14 @@ export function ensureSchema() {
         code_hash TEXT NOT NULL,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       )`),
+      database.prepare(`CREATE TABLE IF NOT EXISTS scheduler_health (
+        key TEXT PRIMARY KEY NOT NULL,
+        last_success_at TEXT NOT NULL DEFAULT '',
+        checked_events INTEGER NOT NULL DEFAULT 0,
+        closed_events INTEGER NOT NULL DEFAULT 0,
+        sent_reminders INTEGER NOT NULL DEFAULT 0,
+        purged_records INTEGER NOT NULL DEFAULT 0
+      )`),
       database.prepare(`CREATE TABLE IF NOT EXISTS api_rate_limits (
         key TEXT PRIMARY KEY NOT NULL,
         count INTEGER NOT NULL,
