@@ -815,7 +815,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.157/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.158/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -844,9 +844,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.157/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.157/);
-  assert.match(worker, /good-days-github-v157/);
+  assert.match(page, /\/app\.js\?v=1\.2\.158/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.158/);
+  assert.match(worker, /good-days-github-v158/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
@@ -1414,7 +1414,7 @@ test("contact details keep matching field heights and preserve the international
 });
 
 test("site operator overview is separately protected and activity creation has server-side anti-abuse guards", async () => {
-  const [operatorRoute, eventsRoute, client, page, styles, schema, init, lifecycle, accessRoute, rsvpRoute, reminderRunner, reminderWorkflow] = await Promise.all([
+  const [operatorRoute, eventsRoute, client, page, styles, schema, init, lifecycle, accessRoute, rsvpRoute, reminderRunner, reminderWorkflow, eventClient] = await Promise.all([
     readFile(new URL("../app/api/site-admin/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/events/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../docs/app.js", import.meta.url), "utf8"),
@@ -1427,6 +1427,7 @@ test("site operator overview is separately protected and activity creation has s
     readFile(new URL("../app/api/rsvps/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/line/run-reminders/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../.github/workflows/line-reminders.yml", import.meta.url), "utf8"),
+    readFile(new URL("../docs/e/app.js", import.meta.url), "utf8"),
   ]);
   assert.match(operatorRoute, /SITE_OPERATOR_CODE/);
   assert.match(operatorRoute, /constantTimeEqual/);
@@ -1435,6 +1436,11 @@ test("site operator overview is separately protected and activity creation has s
   assert.match(operatorRoute, /verifyOperatorCode/);
   assert.match(operatorRoute, /action === "change_code"/);
   assert.match(operatorRoute, /rateLimit\(request, "site-operator", 5, 15 \* 60 \* 1000\)/);
+  assert.match(operatorRoute, /rateLimit\(request, "site-operator-code-change", 2, 24 \* 60 \* 60 \* 1000\)/);
+  assert.match(operatorRoute, /const OPERATOR_AUDIT_RETENTION_MS = 30 \* 24 \* 60 \* 60 \* 1000/);
+  assert.match(operatorRoute, /function recordOperatorAudit/);
+  assert.match(operatorRoute, /recordOperatorAudit\(db, "dashboard_opened"\)/);
+  assert.match(operatorRoute, /recordOperatorAudit\(db, "code_changed"\)/);
   assert.match(operatorRoute, /in_progress/);
   assert.match(operatorRoute, /function operatorActivitySort/);
   assert.match(operatorRoute, /schedulerHealthSummary/);
@@ -1444,7 +1450,7 @@ test("site operator overview is separately protected and activity creation has s
   assert.match(operatorRoute, /schedulerRuns: recentSchedulerRuns/);
   assert.match(operatorRoute, /history: \{ total: 0, completed: 0, cancelled: 0, attendingPeople: 0 \}/);
   assert.match(operatorRoute, /const historicalActivities = activities\.filter/);
-  assert.match(operatorRoute, /history, health, schedulerRuns: recentSchedulerRuns, activities/);
+  assert.match(operatorRoute, /history, health, schedulerRuns: recentSchedulerRuns, operatorAudits: recentOperatorAudits, activities/);
   assert.match(operatorRoute, /in_progress: 0, upcoming: 1, completed: 2, cancelled: 3/);
   assert.match(operatorRoute, /left\.operationalStatus === "upcoming" \? leftTime - rightTime : rightTime - leftTime/);
   assert.match(operatorRoute, /lineGroupNames/);
@@ -1500,6 +1506,9 @@ test("site operator overview is separately protected and activity creation has s
   assert.match(schema, /export const schedulerRuns = sqliteTable\("scheduler_runs"/);
   assert.match(init, /CREATE TABLE IF NOT EXISTS scheduler_runs/);
   assert.match(init, /scheduler_runs_key_run_at/);
+  assert.match(schema, /export const siteOperatorAuditLogs = sqliteTable\("site_operator_audit_logs"/);
+  assert.match(init, /CREATE TABLE IF NOT EXISTS site_operator_audit_logs/);
+  assert.match(init, /site_operator_audit_logs_occurred_at/);
   assert.match(client, /name="nextCode" type="text"[\s\S]*?autocomplete="off" data-secret/);
   assert.match(client, /function schedulerHealthLabel/);
   assert.match(client, /function formatOperatorTimestamp/);
@@ -1512,6 +1521,9 @@ test("site operator overview is separately protected and activity creation has s
   assert.match(client, /operator-date-to/);
   assert.match(client, /operator-history/);
   assert.match(client, /排程與通知稽核/);
+  assert.match(client, /function operatorAuditLabel/);
+  assert.match(client, /營運安全/);
+  assert.match(client, /不保存管理碼、IP 位址、裝置資訊或個資/);
   assert.match(client, /function schedulerStageLabel/);
   assert.match(client, /不保存外部錯誤原文或活動個資/);
   assert.match(client, /超過 20 分鐘未收到成功回報/);
@@ -1521,6 +1533,14 @@ test("site operator overview is separately protected and activity creation has s
   assert.match(styles, /\.operator-filter-status button,\.operator-filter-reset \{ display:inline-flex; align-items:center; justify-content:center;/);
   assert.match(styles, /\.operator-filter-status \{ display:grid; grid-template-columns:repeat\(2,minmax\(0,1fr\)\); \}/);
   assert.match(styles, /\.operator-audit-row \{ grid-template-columns:1fr; \}/);
+  assert.match(styles, /\.operator-security li \{ align-items:flex-start; flex-direction:column; \}/);
+  assert.match(eventClient, /function downloadCalendar/);
+  assert.match(eventClient, /TZID=Asia\/Taipei/);
+  assert.match(eventClient, /加入行事曆/);
+  assert.match(eventClient, /function showRsvpSaved/);
+  assert.match(styles, /\.event-actions \{ display:flex; flex-wrap:wrap; justify-content:center;/);
+  assert.match(styles, /\.event-actions \{ display:grid; grid-template-columns:1fr; \}/);
+  assert.match(styles, /\.rsvp-success-actions \.primary,\.rsvp-success-actions \.secondary \{ display:inline-flex; align-items:center; justify-content:center;/);
   assert.match(styles, /\.bot-trap/);
 });
 

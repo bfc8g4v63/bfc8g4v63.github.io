@@ -1,8 +1,8 @@
-import { desc, eq, inArray } from "drizzle-orm";
+import { desc, eq, inArray, sql } from "drizzle-orm";
 import { env } from "cloudflare:workers";
 import { getDb } from "../../../db";
 import { ensureSchema } from "../../../db/init";
-import { activityLineGroups, events, lineBindings, lineManagerTargets, lineReminderSettings, rsvps, schedulerHealth, schedulerRuns, siteOperatorCredentials } from "../../../db/schema";
+import { activityLineGroups, events, lineBindings, lineManagerTargets, lineReminderSettings, rsvps, schedulerHealth, schedulerRuns, siteOperatorAuditLogs, siteOperatorCredentials } from "../../../db/schema";
 import { clean, hashCredential, verifyCredential } from "../admin/auth";
 import { json, preflight } from "../cors";
 import { rateLimit } from "../rate-limit";
@@ -10,6 +10,7 @@ import { closeElapsedEvents, eventTimestamp } from "../../../lib/event-lifecycle
 
 type OperatorBindings = { SITE_OPERATOR_CODE?: string };
 const SCHEDULER_STALE_AFTER_MS = 20 * 60 * 1000;
+const OPERATOR_AUDIT_RETENTION_MS = 30 * 24 * 60 * 60 * 1000;
 
 export function OPTIONS(request: Request) {
   return preflight(request);
@@ -58,6 +59,17 @@ function schedulerHealthSummary(row: typeof schedulerHealth.$inferSelect | undef
   };
 }
 
+async function recordOperatorAudit(db: ReturnType<typeof getDb>, action: "dashboard_opened" | "code_changed") {
+  // Security history should never make an authenticated management action fail.
+  // Keep it deliberately anonymous and bounded even during an extended outage.
+  try {
+    const occurredAt = new Date().toISOString();
+    await db.insert(siteOperatorAuditLogs).values({ id: crypto.randomUUID(), action, occurredAt });
+    const expiresAt = new Date(Date.now() - OPERATOR_AUDIT_RETENTION_MS).toISOString();
+    await db.delete(siteOperatorAuditLogs).where(sql`occurred_at < ${expiresAt}`);
+  } catch {}
+}
+
 export async function POST(request: Request) {
   try {
     const limit = await rateLimit(request, "site-operator", 5, 15 * 60 * 1000);
@@ -73,6 +85,8 @@ export async function POST(request: Request) {
     if (action && action !== "change_code") return json(request, { error: "不支援的營運管理操作" }, 400);
 
     if (action === "change_code") {
+      const changeLimit = await rateLimit(request, "site-operator-code-change", 2, 24 * 60 * 60 * 1000);
+      if (!changeLimit.allowed) return json(request, { error: `營運管理碼今天可變更的次數已達上限，請 ${changeLimit.retryAfterSeconds} 秒後再試` }, 429);
       const currentCode = clean(body.currentCode, 160);
       const nextCode = clean(body.nextCode, 160);
       const confirmCode = clean(body.confirmCode, 160);
@@ -85,18 +99,22 @@ export async function POST(request: Request) {
       const nextCodeHash = await hashCredential(nextCode);
       await db.insert(siteOperatorCredentials).values({ key: "primary", codeHash: nextCodeHash, updatedAt: now })
         .onConflictDoUpdate({ target: siteOperatorCredentials.key, set: { codeHash: nextCodeHash, updatedAt: now } });
+      await recordOperatorAudit(db, "code_changed");
       return json(request, { ok: true, message: "營運管理碼已更新" });
     }
 
     const suppliedCode = clean(body.code, 160);
     if (!savedCredential && !configuredCode) return json(request, { error: "營運管理尚未完成設定" }, 503);
     if (!await verifyOperatorCode(suppliedCode, savedCredential?.codeHash, configuredCode)) return json(request, { error: "營運管理碼不正確" }, 403);
-    const [[schedulerRun], recentSchedulerRuns] = await Promise.all([
+    await recordOperatorAudit(db, "dashboard_opened");
+    const [[schedulerRun], recentSchedulerRuns, recentOperatorAudits] = await Promise.all([
       db.select().from(schedulerHealth).where(eq(schedulerHealth.key, "line-reminders")).limit(1),
       db.select({ runAt: schedulerRuns.runAt, status: schedulerRuns.status, stage: schedulerRuns.stage,
         checkedEvents: schedulerRuns.checkedEvents, closedEvents: schedulerRuns.closedEvents,
         sentReminders: schedulerRuns.sentReminders, purgedRecords: schedulerRuns.purgedRecords,
       }).from(schedulerRuns).where(eq(schedulerRuns.key, "line-reminders")).orderBy(desc(schedulerRuns.runAt)).limit(12),
+      db.select({ action: siteOperatorAuditLogs.action, occurredAt: siteOperatorAuditLogs.occurredAt })
+        .from(siteOperatorAuditLogs).orderBy(desc(siteOperatorAuditLogs.occurredAt)).limit(12),
     ]);
     const health = schedulerHealthSummary(schedulerRun);
     const eventRows = await db.select({
@@ -109,7 +127,7 @@ export async function POST(request: Request) {
     }).from(events);
     if (!eventRows.length) return json(request, {
       summary: { total: 0, upcoming: 0, inProgress: 0, completed: 0, cancelled: 0 },
-      history: { total: 0, completed: 0, cancelled: 0, attendingPeople: 0 }, health, schedulerRuns: recentSchedulerRuns, activities: [],
+      history: { total: 0, completed: 0, cancelled: 0, attendingPeople: 0 }, health, schedulerRuns: recentSchedulerRuns, operatorAudits: recentOperatorAudits, activities: [],
     });
 
     const eventIds = eventRows.map((event) => event.id);
@@ -161,7 +179,7 @@ export async function POST(request: Request) {
       cancelled: summary.cancelled,
       attendingPeople: historicalActivities.reduce((total, activity) => total + activity.rsvpSummary.attendingPeople, 0),
     };
-    return json(request, { summary, history, health, schedulerRuns: recentSchedulerRuns, activities });
+    return json(request, { summary, history, health, schedulerRuns: recentSchedulerRuns, operatorAudits: recentOperatorAudits, activities });
   } catch (error) {
     return json(request, { error: error instanceof Error ? error.message : "無法讀取全站活動總覽" }, 500);
   }

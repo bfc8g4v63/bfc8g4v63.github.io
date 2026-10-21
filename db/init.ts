@@ -202,6 +202,12 @@ export function ensureSchema() {
         code_hash TEXT NOT NULL,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
       )`),
+      database.prepare(`CREATE TABLE IF NOT EXISTS site_operator_audit_logs (
+        id TEXT PRIMARY KEY NOT NULL,
+        action TEXT NOT NULL,
+        occurred_at TEXT NOT NULL
+      )`),
+      database.prepare("CREATE INDEX IF NOT EXISTS site_operator_audit_logs_occurred_at ON site_operator_audit_logs (occurred_at DESC)"),
       database.prepare(`CREATE TABLE IF NOT EXISTS scheduler_health (
         key TEXT PRIMARY KEY NOT NULL,
         last_success_at TEXT NOT NULL DEFAULT '',

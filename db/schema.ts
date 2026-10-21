@@ -222,6 +222,14 @@ export const siteOperatorCredentials = sqliteTable("site_operator_credentials", 
   updatedAt: text("updated_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 });
 
+// This is intentionally a small, anonymous security trace: it never records
+// the supplied code, client IP, user agent, event content, or any person.
+export const siteOperatorAuditLogs = sqliteTable("site_operator_audit_logs", {
+  id: text("id").primaryKey(),
+  action: text("action").notNull(),
+  occurredAt: text("occurred_at").notNull(),
+}, (table) => [index("site_operator_audit_logs_occurred_at").on(table.occurredAt)]);
+
 // Aggregate-only status for trusted scheduled work. This never records
 // activity details, attendees, groups, or message content.
 export const schedulerHealth = sqliteTable("scheduler_health", {

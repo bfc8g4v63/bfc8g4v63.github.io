@@ -55,6 +55,32 @@ function googleMapsUrl(event) {
   return query ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}` : "";
 }
 
+function icsEscape(value) {
+  return String(value || "").replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
+}
+
+function calendarLocalTime(date, time) {
+  return `${String(date || "").replaceAll("-", "")}T${String(time || "00:00").replace(":", "")}00`;
+}
+
+function downloadCalendar(event) {
+  if (!event?.eventDate || !event?.startTime) return;
+  const place = [event.location, event.address].filter(Boolean).join("｜");
+  const content = [
+    "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//好日子//活動邀請//zh-TW", "CALSCALE:GREGORIAN",
+    "BEGIN:VEVENT", `UID:good-days-${calendarLocalTime(event.eventDate, event.startTime)}@bfc8g4v63.github.io`,
+    `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "")}`,
+    `DTSTART;TZID=Asia/Taipei:${calendarLocalTime(event.eventDate, event.startTime)}`,
+    `DTEND;TZID=Asia/Taipei:${calendarLocalTime(event.eventDate, event.endTime || event.startTime)}`,
+    `SUMMARY:${icsEscape(event.title)}`, `LOCATION:${icsEscape(place)}`,
+    event.description ? `DESCRIPTION:${icsEscape(event.description)}` : "", "END:VEVENT", "END:VCALENDAR", "",
+  ].filter(Boolean).join("\r\n");
+  const link = document.createElement("a");
+  const url = URL.createObjectURL(new Blob([content], { type: "text/calendar;charset=utf-8" }));
+  link.href = url; link.download = "好日子活動.ics"; link.click();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+}
+
 async function post(path, body, method = "POST", timeoutMs = 10_000) {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), timeoutMs);
@@ -124,7 +150,7 @@ function renderEvent(event) {
       <p class="eyebrow">${event.accessMode === "public" ? "公開活動" : "活動邀請"}</p>
       <h1>${esc(event.title)}</h1>
       <p class="invitation-meta">日期｜${esc(formatShortDate(event.eventDate))}<br>時間｜${esc(event.startTime)}${event.endTime ? `－${esc(event.endTime)}` : ""}<br>地點｜${esc(event.location)}${event.address ? `<br>地址｜${esc(event.address)}` : ""}</p>
-      ${mapUrl ? `<a class="secondary event-map-link" href="${esc(mapUrl)}" target="_blank" rel="noopener noreferrer">在 Google 地圖開啟</a>` : ""}
+      <div class="event-actions">${mapUrl ? `<a class="secondary event-map-link" href="${esc(mapUrl)}" target="_blank" rel="noopener noreferrer">在 Google 地圖開啟</a>` : ""}${!isClosed ? '<button class="secondary event-calendar-link" type="button" id="event-calendar">加入行事曆</button>' : ""}</div>
       ${event.description ? `<section class="pretrip-card"><strong>行前資訊</strong><p>${esc(event.description)}</p></section>` : ""}
       <p class="attendance"><strong>${people} 人參加</strong>${event.capacity ? `<span>／上限 ${event.capacity} 人</span>` : ""}</p>
       ${event.feePerPerson > 0 ? `<p class="fee-note">活動費用：每人 ${formatMoney(event.feePerPerson)}</p>` : ""}
@@ -135,6 +161,7 @@ function renderEvent(event) {
       <button class="text-link manage-link" id="manager">管理這場活動</button>
     </article>`;
   document.querySelector("#rsvp")?.addEventListener("click", openRsvp);
+  document.querySelector("#event-calendar")?.addEventListener("click", () => downloadCalendar(event));
   document.querySelector("#manager").addEventListener("click", openManagerLogin);
 }
 
@@ -157,6 +184,18 @@ async function loadEvent() {
 }
 
 function closeModal() { modalRoot.innerHTML = ""; }
+
+function showRsvpSaved(name, response) {
+  const state = response === "attending" ? "已報名" : response === "waitlisted" ? "已加入候補" : "已儲存不參加";
+  const detail = response === "attending"
+    ? "活動資訊已保留在這個頁面，也可下載行事曆檔案加入常用行事曆。"
+    : response === "waitlisted"
+      ? "候補不會計入名額；有空位時由活動管理者安排遞補。"
+      : "之後可在同一支裝置輸入相同姓名修改回覆。";
+  modalRoot.innerHTML = `<div class="modal-backdrop"><section class="modal compact-modal rsvp-success-modal" role="dialog" aria-modal="true" aria-labelledby="rsvp-success-title"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">回覆已儲存</p><h2 id="rsvp-success-title">${esc(name)}，${state}</h2><p>${esc(detail)}</p><div class="form-actions rsvp-success-actions">${response === "attending" ? '<button class="secondary" type="button" id="success-calendar">加入行事曆</button>' : ""}<button class="primary" type="button" data-close>完成</button></div></section></div>`;
+  document.querySelector("#success-calendar")?.addEventListener("click", () => downloadCalendar(currentEvent));
+  modalRoot.querySelectorAll("[data-close]").forEach((button) => button.addEventListener("click", closeModal));
+}
 
 function openRsvp() {
   const isFull = Boolean(currentEvent.capacity && (currentEvent.summary?.attendingPeople || 0) >= currentEvent.capacity);
@@ -202,7 +241,8 @@ function openRsvp() {
         }
         else if (key) localStorage.removeItem(key);
       } catch {}
-      closeModal(); await loadEvent();
+      await loadEvent();
+      showRsvpSaved(name, String(body.response || ""));
     }
     catch (error) { const box = form.querySelector(".form-error"); box.textContent = error.message; box.hidden = false; }
   });
