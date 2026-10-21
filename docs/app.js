@@ -442,16 +442,6 @@ function operationalStatusLabel(status) {
   return ({ upcoming: "尚未開始", in_progress: "進行中", completed: "已結束", cancelled: "已取消" })[status] || "未知";
 }
 
-function schedulerHealthLabel(status) {
-  return ({ healthy: "正常運作", stale: "需要留意", unknown: "尚未回報" })[status] || "尚未回報";
-}
-
-function formatOperatorTimestamp(value) {
-  const timestamp = Date.parse(value || "");
-  if (!Number.isFinite(timestamp)) return "尚未有成功紀錄";
-  return new Intl.DateTimeFormat("zh-TW", { dateStyle: "short", timeStyle: "short", hour12: false }).format(new Date(timestamp));
-}
-
 async function requestSiteOperator(code) {
   return requestJson("/site-admin", { code });
 }
@@ -462,13 +452,6 @@ async function changeSiteOperatorCode(currentCode, nextCode, confirmCode) {
 
 function renderOperatorDashboard(data, code) {
   const summary = data.summary || {};
-  const health = data.health || {};
-  const healthStatus = ["healthy", "stale", "unknown"].includes(health.status) ? health.status : "unknown";
-  const healthCopy = healthStatus === "healthy"
-    ? "五分鐘排程已正常回報。"
-    : healthStatus === "stale"
-      ? "超過 20 分鐘未收到成功回報，請查看 GitHub Actions 的提醒工作。"
-      : "尚未收到排程成功回報；部署後的下一輪排程會建立第一筆紀錄。";
   const rows = (data.activities || []).map((activity) => {
     const rsvp = activity.rsvpSummary || {};
     const reminders = activity.reminder
@@ -481,7 +464,7 @@ function renderOperatorDashboard(data, code) {
     </article>`;
   }).join("") || '<p class="empty-cell">目前沒有活動。</p>';
   activeModalClose = closeModal;
-  modalRoot.innerHTML = `<div class="modal-backdrop admin-backdrop"><section class="modal admin-modal operator-modal" role="dialog" aria-modal="true" aria-labelledby="operator-dashboard-title"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">全站營運</p><h2 id="operator-dashboard-title">活動總覽</h2><p class="form-hint">活動到預計結束時間會自動成為已結束。排序以現在為主軸：進行中 → 即將開始（近到遠）→ 已結束／已取消（近到遠）。</p><section class="operator-health ${healthStatus}" aria-label="排程健康" role="status"><div><strong>排程健康：${schedulerHealthLabel(healthStatus)}</strong><small>${healthCopy}</small></div><dl><div><dt>最後成功</dt><dd>${esc(formatOperatorTimestamp(health.lastSuccessAt))}</dd></div><div><dt>本輪檢查</dt><dd>${Number(health.checkedEvents || 0)} 場</dd></div><div><dt>自動結束</dt><dd>${Number(health.closedEvents || 0)} 場</dd></div><div><dt>提醒發送</dt><dd>${Number(health.sentReminders || 0)} 則</dd></div></dl></section><div class="operator-stats"><div><strong>${Number(summary.total || 0)}</strong><span>全部活動</span></div><div><strong>${Number(summary.inProgress || 0)}</strong><span>進行中</span></div><div><strong>${Number(summary.upcoming || 0)}</strong><span>尚未開始</span></div><div><strong>${Number(summary.completed || 0)}</strong><span>已結束</span></div><div><strong>${Number(summary.cancelled || 0)}</strong><span>已取消</span></div></div><div class="operator-toolbar"><button class="secondary" id="operator-refresh">重新整理</button><button class="secondary" id="operator-change-code">變更管理碼</button><button class="secondary" id="operator-lock">鎖定後台</button></div><section class="operator-activities">${rows}</section></section></div>`;
+  modalRoot.innerHTML = `<div class="modal-backdrop admin-backdrop"><section class="modal admin-modal operator-modal" role="dialog" aria-modal="true" aria-labelledby="operator-dashboard-title"><button class="modal-close" data-close aria-label="關閉">×</button><p class="eyebrow">全站營運</p><h2 id="operator-dashboard-title">活動總覽</h2><p class="form-hint">活動到預計結束時間會自動成為已結束。排序以現在為主軸：進行中 → 即將開始（近到遠）→ 已結束／已取消（近到遠）。</p><div class="operator-stats"><div><strong>${Number(summary.total || 0)}</strong><span>全部活動</span></div><div><strong>${Number(summary.inProgress || 0)}</strong><span>進行中</span></div><div><strong>${Number(summary.upcoming || 0)}</strong><span>尚未開始</span></div><div><strong>${Number(summary.completed || 0)}</strong><span>已結束</span></div><div><strong>${Number(summary.cancelled || 0)}</strong><span>已取消</span></div></div><div class="operator-toolbar"><button class="secondary" id="operator-refresh">重新整理</button><button class="secondary" id="operator-change-code">變更管理碼</button><button class="secondary" id="operator-lock">鎖定後台</button></div><section class="operator-activities">${rows}</section></section></div>`;
   document.querySelector("#operator-refresh")?.addEventListener("click", async () => {
     try { renderOperatorDashboard(await requestSiteOperator(code), code); }
     catch (error) { showNotice(error.message || "無法重新整理總覽"); }
