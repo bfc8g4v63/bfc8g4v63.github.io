@@ -673,6 +673,25 @@ test("LINE roster command accepts both 啟動 and 啓動", () => {
   assert.equal(normalizeLineCommand("安排!測試"), "安排測試");
 });
 
+test("LINE roster and normal command results use bounded Flex cards with a text fallback", async () => {
+  const [lineLib, webhook, guide] = await Promise.all([
+    readFile(new URL("../app/api/line/lib.ts", import.meta.url), "utf8"),
+    readFile(new URL("../app/api/line/webhook/route.ts", import.meta.url), "utf8"),
+    readFile(new URL("../docs/line-bot-guide.html", import.meta.url), "utf8"),
+  ]);
+  assert.match(lineLib, /export function rsvpSummaryCard/);
+  assert.match(lineLib, /const visible = rsvps\.slice\(0, 8\)/);
+  assert.match(lineLib, /查看活動與完整資訊/);
+  assert.match(lineLib, /export function lineStatusCard/);
+  assert.match(webhook, /async function replyCardWithTextFallback/);
+  assert.match(webhook, /rsvpSummaryCard\(targetEvent, registrations, includeDiet, includeNote\)/);
+  assert.match(webhook, /title: "好日子小幫手已加入"/);
+  assert.match(webhook, /title: "通知群組綁定成功"/);
+  assert.match(webhook, /title: "近期活動尚未建立安排"/);
+  assert.match(webhook, /lineStatusCard\(\{/);
+  assert.match(guide, /名單摘要圖卡/);
+});
+
 test("bound LINE groups can show a privacy-safe current activity arrangement image", async () => {
   const [webhook, lineLib, imageRoute, client, guide] = await Promise.all([
     readFile(new URL("../app/api/line/webhook/route.ts", import.meta.url), "utf8"),
@@ -868,7 +887,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.170/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.171/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -897,9 +916,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.170/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.170/);
-  assert.match(worker, /good-days-github-v170/);
+  assert.match(page, /\/app\.js\?v=1\.2\.171/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.171/);
+  assert.match(worker, /good-days-github-v171/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 

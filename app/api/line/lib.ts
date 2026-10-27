@@ -154,6 +154,111 @@ export function rsvpSummaryMessage(eventTitle: string, rsvps: RsvpSummaryItem[],
   return lines.join("\n\n");
 }
 
+/**
+ * Keep the group-facing roster readable at a glance.  The text summary above
+ * remains the fallback because LINE can reject a Flex payload, while this card
+ * deliberately limits visible registrations so a long list never overflows a
+ * bubble.
+ */
+export function rsvpSummaryCard(
+  event: ActivityLinkEvent,
+  rsvps: RsvpSummaryItem[],
+  includeDiet = false,
+  includeNote = false,
+): LineReplyMessage {
+  const people = rsvps.reduce((sum, rsvp) => sum + rsvp.partySize, 0);
+  const visible = rsvps.slice(0, 8);
+  const remaining = rsvps.length - visible.length;
+  const detail = (value: string, maximum: number) => value.trim().slice(0, maximum) || "—";
+  const shareUrl = eventShareUrl(event.shareCode, event.shareToken);
+  return {
+    type: "flex",
+    altText: `【報名名單】${event.title}｜共 ${people} 人、${rsvps.length} 筆報名`.slice(0, 400),
+    contents: {
+      type: "bubble",
+      size: "mega",
+      header: {
+        type: "box", layout: "vertical", backgroundColor: "#F3EDFF", paddingAll: "16px",
+        contents: [
+          { type: "text", text: "報名名單 · 原神啟動", color: "#6A4A95", size: "sm", weight: "bold" },
+          { type: "text", text: event.title.slice(0, 40), color: "#382052", size: "xl", weight: "bold", wrap: true, margin: "sm" },
+          { type: "text", text: `${lineDateLabel(event.eventDate)}｜${event.startTime}`, color: "#6A4A95", size: "sm", wrap: true, margin: "sm" },
+        ],
+      },
+      body: {
+        type: "box", layout: "vertical", spacing: "sm", paddingAll: "16px",
+        contents: [
+          {
+            type: "box", layout: "vertical", backgroundColor: "#F8F5FC", cornerRadius: "10px", paddingAll: "10px",
+            contents: [{ type: "text", text: `共 ${people} 人 · ${rsvps.length} 筆報名`, color: "#4E386E", weight: "bold", wrap: true }],
+          },
+          ...(visible.length ? visible.flatMap((rsvp, index) => {
+            const details = [
+              includeDiet ? `飲食：${detail(rsvp.diet, 80)}` : "",
+              includeNote ? `備註：${detail(rsvp.note, 100)}` : "",
+            ].filter(Boolean).join(" · ");
+            return [{
+              type: "box", layout: "vertical", backgroundColor: "#FCFAFE", cornerRadius: "10px", paddingAll: "10px", margin: "sm",
+              contents: [
+                { type: "text", text: `${index + 1}. ${detail(rsvp.name, 60)}｜${rsvp.partySize} 人`, color: "#382052", weight: "bold", wrap: true },
+                ...(details ? [{ type: "text", text: details, color: "#6A4A95", size: "sm", wrap: true, margin: "sm" }] : []),
+              ],
+            }];
+          }) : [{ type: "text", text: "目前尚無參加者。", color: "#6A4A95", wrap: true, margin: "md" }]),
+          ...(remaining > 0 ? [{ type: "text", text: `另有 ${remaining} 筆報名，請開啟活動查看完整名單。`, color: "#6A4A95", size: "sm", wrap: true, margin: "md" }] : []),
+        ],
+      },
+      footer: {
+        type: "box", layout: "vertical", paddingAll: "12px",
+        contents: [{
+          type: "button", style: "primary", color: "#68469A", height: "sm",
+          action: { type: "uri", label: "查看活動與完整資訊", uri: shareUrl },
+        }],
+      },
+    },
+  };
+}
+
+type LineStatusTone = "success" | "notice" | "warning";
+
+/** A compact, non-interactive response for normal command results in LINE. */
+export function lineStatusCard(input: {
+  eyebrow?: string;
+  title: string;
+  message: string;
+  detail?: string;
+  tone?: LineStatusTone;
+}): LineReplyMessage {
+  const tone = input.tone || "notice";
+  const palette = {
+    success: { background: "#EEF5EF", title: "#153F36", text: "#315C54", label: "#5B786D" },
+    notice: { background: "#EAF4FF", title: "#173A5E", text: "#29485E", label: "#28649D" },
+    warning: { background: "#FFF4D9", title: "#70531C", text: "#725D2A", label: "#A06B17" },
+  }[tone];
+  return {
+    type: "flex",
+    altText: `${input.title}｜${input.message}`.slice(0, 400),
+    contents: {
+      type: "bubble",
+      size: "mega",
+      header: {
+        type: "box", layout: "vertical", backgroundColor: palette.background, paddingAll: "16px",
+        contents: [
+          { type: "text", text: (input.eyebrow || "活動狀態").slice(0, 60), color: palette.label, size: "sm", weight: "bold" },
+          { type: "text", text: input.title.slice(0, 60), color: palette.title, size: "xl", weight: "bold", wrap: true, margin: "sm" },
+        ],
+      },
+      body: {
+        type: "box", layout: "vertical", spacing: "sm", paddingAll: "16px",
+        contents: [
+          { type: "text", text: input.message.slice(0, 900), color: palette.text, wrap: true },
+          ...(input.detail?.trim() ? [{ type: "text", text: input.detail.trim().slice(0, 900), color: palette.label, size: "sm", wrap: true, margin: "md" }] : []),
+        ],
+      },
+    },
+  };
+}
+
 export function managerRsvpCard(input: {
   eventTitle: string;
   change: string;

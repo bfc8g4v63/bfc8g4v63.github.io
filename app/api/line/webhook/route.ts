@@ -3,7 +3,7 @@ import { getRequestExecutionContext } from "vinext/shims/request-context";
 import { getDb } from "../../../../db";
 import { activityLineGroups, events, lineBindCodes, lineBindings, lineCommandLogs, lineGroups, lineManagerBatchBindCodes, lineManagerBindCodes, lineManagerTargets, lineReminderSettings, lineWebhookDeliveries, mealTables, rsvps } from "../../../../db/schema";
 import { normalizeLineCommand } from "../commands";
-import { activityArrangementImageUrl, activityListCard, activityShareMessage, getGroupName, lineConfig, lineDateLabel, managerBindingCard, replyMessages, replyText, rsvpSummaryMessage, verifyLineSignature } from "../lib";
+import { activityArrangementImageUrl, activityListCard, activityShareMessage, getGroupName, lineConfig, lineDateLabel, lineStatusCard, managerBindingCard, replyMessages, replyText, rsvpSummaryCard, rsvpSummaryMessage, type LineReplyMessage, verifyLineSignature } from "../lib";
 import { eventShareUrl } from "../../../../lib/event-share";
 
 type LineEvent = {
@@ -84,7 +84,12 @@ async function replyUpcomingActivities(
   activities: Awaited<ReturnType<typeof upcomingGroupEvents>>,
   instruction = "",
 ) {
-  const messages = [activityListCard(activities), ...(instruction ? [{ type: "text" as const, text: instruction }] : [])];
+  const messages: LineReplyMessage[] = [
+    activityListCard(activities),
+    ...(instruction ? [lineStatusCard({
+      eyebrow: "操作提示", title: "請選擇指定日期", message: instruction, tone: "notice",
+    })] : []),
+  ];
   try {
     await replyMessages(replyToken, messages);
   } catch (error) {
@@ -100,6 +105,25 @@ async function replyUpcomingActivities(
   }
 }
 
+async function replyCardWithTextFallback(replyToken: string, card: LineReplyMessage, fallback: string) {
+  try {
+    await replyMessages(replyToken, [card]);
+  } catch (error) {
+    // Status and roster cards improve readability, but a rejected Flex message
+    // must never make a command appear to have been ignored.
+    console.error("Unable to send LINE response card; using text fallback", error);
+    await replyText(replyToken, fallback);
+  }
+}
+
+async function replyStatus(
+  replyToken: string,
+  input: Parameters<typeof lineStatusCard>[0],
+  fallback: string,
+) {
+  await replyCardWithTextFallback(replyToken, lineStatusCard(input), fallback);
+}
+
 async function replyActivityImmediately(event: LineEvent, chatId: string) {
   // Reply messages do not consume the LINE monthly push-message quota.  Keep
   // this command in the webhook request so a group receives its card even
@@ -109,7 +133,9 @@ async function replyActivityImmediately(event: LineEvent, chatId: string) {
   if (upcoming.length) {
     await replyUpcomingActivities(event.replyToken!, upcoming);
   } else {
-    await replyText(event.replyToken!, "這個群組目前沒有尚未開始的活動。");
+    await replyStatus(event.replyToken!, {
+      eyebrow: "近期活動", title: "目前沒有尚未開始的活動", message: "建立活動並完成群組綁定後，活動會顯示在這裡。", tone: "notice",
+    }, "這個群組目前沒有尚未開始的活動。");
   }
 }
 
@@ -289,7 +315,9 @@ async function processWebhookEvents(lineEvents: LineEvent[], requestUrl: string)
       if (!chatId) continue;
 
       if (event.type === "join") {
-        await replyText(event.replyToken, "好日子機器人已加入。請由活動管理者在網站取得 6 位數綁定碼，再於群組輸入：綁定 123456");
+        await replyStatus(event.replyToken, {
+          eyebrow: "群組設定", title: "好日子小幫手已加入", message: "請由活動管理者在網站取得 6 位數綁定碼，再在這裡輸入「綁定 123456」。", tone: "success",
+        }, "好日子機器人已加入。請由活動管理者在網站取得 6 位數綁定碼，再於群組輸入：綁定 123456");
         continue;
       }
 
@@ -303,7 +331,9 @@ async function processWebhookEvents(lineEvents: LineEvent[], requestUrl: string)
           const targetEvent = date ? upcoming.find((item) => item.eventDate === date) : upcoming.length === 1 ? upcoming[0] : null;
           if (!targetEvent) {
             if (upcoming.length) await replyUpcomingActivities(event.replyToken, upcoming, "要查看名單，請輸入「原神啟動 20260930」。");
-            else await replyText(event.replyToken, "這個群組目前沒有尚未開始的活動。");
+            else await replyStatus(event.replyToken, {
+              eyebrow: "報名名單", title: "目前沒有尚未開始的活動", message: "建立活動並完成群組綁定後，即可用「原神啟動 日期」查看名單。", tone: "notice",
+            }, "這個群組目前沒有尚未開始的活動。");
             continue;
           }
         const [registrations, settingRows] = await Promise.all([
@@ -312,14 +342,25 @@ async function processWebhookEvents(lineEvents: LineEvent[], requestUrl: string)
           getDb().select({ includeDiet: lineReminderSettings.includeDiet, includeNote: lineReminderSettings.includeNote }).from(lineReminderSettings)
             .where(eq(lineReminderSettings.eventId, targetEvent.id)).limit(1),
         ]);
-        await replyText(event.replyToken, rsvpSummaryMessage(targetEvent.title, registrations, Boolean(settingRows[0]?.includeDiet), Boolean(settingRows[0]?.includeNote)));
+        const includeDiet = Boolean(settingRows[0]?.includeDiet);
+        const includeNote = Boolean(settingRows[0]?.includeNote);
+        await replyCardWithTextFallback(
+          event.replyToken,
+          rsvpSummaryCard(targetEvent, registrations, includeDiet, includeNote),
+          rsvpSummaryMessage(targetEvent.title, registrations, includeDiet, includeNote),
+        );
         continue;
       }
       if (command.startsWith("安排")) {
         const date = requestedDate(command, "安排");
         const targetEvents = date ? upcoming.filter((item) => item.eventDate === date) : upcoming;
         if (!targetEvents.length) {
-          await replyText(event.replyToken, date ? "找不到這個日期的近期活動安排。" : "這個群組目前沒有尚未開始的活動安排。");
+          const fallback = date ? "找不到這個日期的近期活動安排。" : "這個群組目前沒有尚未開始的活動安排。";
+          await replyStatus(event.replyToken, {
+            eyebrow: "活動安排", title: date ? "找不到指定日期的活動安排" : "目前沒有尚未開始的活動安排",
+            message: date ? "請先輸入「活動」確認可用日期，再輸入「安排 YYYYMMDD」。" : "建立活動並完成群組綁定後，即可在這裡查看安排。",
+            tone: "notice",
+          }, fallback);
           continue;
         }
         const details = await Promise.all(targetEvents.map(async (targetEvent) => {
@@ -330,7 +371,9 @@ async function processWebhookEvents(lineEvents: LineEvent[], requestUrl: string)
         const sendable = details.filter((item) => item.pages > 0);
         const totalPages = sendable.reduce((sum, item) => sum + item.pages, 0);
         if (!sendable.length) {
-          await replyText(event.replyToken, "近期活動尚未建立安排，請由建立者到活動管理後台設定。");
+          await replyStatus(event.replyToken, {
+            eyebrow: "活動安排", title: "近期活動尚未建立安排", message: "請由建立者到活動管理後台設定安排區與參加者。", tone: "warning",
+          }, "近期活動尚未建立安排，請由建立者到活動管理後台設定。");
           continue;
         }
         if (totalPages > 5) {
@@ -392,7 +435,11 @@ async function processWebhookEvents(lineEvents: LineEvent[], requestUrl: string)
       await db.insert(lineReminderSettings).values({ eventId: bindingCode.eventId })
         .onConflictDoNothing({ target: lineReminderSettings.eventId });
       await db.delete(lineBindCodes).where(eq(lineBindCodes.code, bindingCode.code));
-      await replyText(event.replyToken, `綁定成功：${targetEvent.title}\n預設會在活動前 7 天與 1 天提醒，可回網站管理後台調整。\n\n群組可直接輸入：\n活動：查看近期活動\n原神啟動 日期：查看指定日期名單\n安排 日期：查看指定日期安排圖卡\n\n有多場活動時，先輸入「活動」取得可用日期。`);
+      await replyStatus(event.replyToken, {
+        eyebrow: "群組設定", title: "通知群組綁定成功", message: `已綁定「${targetEvent.title}」。預設會在活動前 7 天與 1 天提醒，可回網站管理後台調整。`,
+        detail: "活動：查看近期活動\n原神啟動 日期：查看指定日期名單\n安排 日期：查看指定日期安排圖卡\n有多場活動時，先輸入「活動」取得可用日期。",
+        tone: "success",
+      }, `綁定成功：${targetEvent.title}\n預設會在活動前 7 天與 1 天提醒，可回網站管理後台調整。\n\n群組可直接輸入：\n活動：查看近期活動\n原神啟動 日期：查看指定日期名單\n安排 日期：查看指定日期安排圖卡\n\n有多場活動時，先輸入「活動」取得可用日期。`);
     }
   } catch (error) {
     console.error("LINE webhook failed", error);
