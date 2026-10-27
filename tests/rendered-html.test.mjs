@@ -817,7 +817,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.164/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.165/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -846,8 +846,8 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.164/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.164/);
+  assert.match(page, /\/app\.js\?v=1\.2\.165/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.165/);
   assert.match(worker, /good-days-github-v163/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
@@ -1355,6 +1355,16 @@ test("admin child panels return to the active dashboard and past reminders are s
   assert.match(client, /openLinePublish\(event, managerAuth, returnToAdmin\)/);
   assert.match(client, /activeModalClose = returnTo \|\| closeModal/);
   assert.match(reminders, /!Number\.isFinite\(eventTime\) \|\| eventTime <= now/);
+});
+
+test("recovered activity cards refresh their titles after returning from management", async () => {
+  const client = await readFile(new URL("../docs/app.js", import.meta.url), "utf8");
+  assert.match(client, /const refreshRecoveredActivities = async \(\) => \{/);
+  assert.match(client, /requestJson\("\/creator-recovery", \{ action: "refresh", creatorName, editCode \}\)/);
+  assert.match(client, /openRecoveredActivities\(data\.activities \|\| \[\], editCode, creatorName\)/);
+  assert.match(client, /openSharePanel\(event, refreshRecoveredActivities\)/);
+  assert.match(client, /openAdminFromCredential\(event\.id, \{ type: "code", value: editCode \}, null, refreshRecoveredActivities\)/);
+  assert.match(client, /never return to the stale recovery snapshot after a saved edit/);
 });
 
 test("management UX keeps advanced choices and operational shortcuts easy to reach", async () => {

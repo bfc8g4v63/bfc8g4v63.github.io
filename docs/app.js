@@ -1194,6 +1194,16 @@ function waitForManagerBindingRefresh(creatorName, editCode, eventIds) {
 function openRecoveredActivities(activities, editCode, creatorName) {
   stopRecoveryStatusRefresh();
   activeModalClose = closeModal;
+  const refreshRecoveredActivities = async () => {
+    try {
+      const data = await requestJson("/creator-recovery", { action: "refresh", creatorName, editCode });
+      openRecoveredActivities(data.activities || [], editCode, creatorName);
+    } catch (error) {
+      // Keep the current management view visible when a refresh cannot finish;
+      // never return to the stale recovery snapshot after a saved edit.
+      showNotice(error.message || "無法重新整理我的活動");
+    }
+  };
   const upcoming = activities.filter(isUpcomingRecoveryActivity);
   const history = activities.filter((event) => !isUpcomingRecoveryActivity(event));
   const activityCard = (event) => `<article class="recovered-activity"><div>${isUpcomingRecoveryActivity(event) ? `<label class="recovery-manager-choice"><input type="checkbox" data-recovery-manager-event="${esc(event.id)}" checked><span>啟用私訊提醒</span></label>` : ""}<strong>${esc(event.title)}</strong><span>${esc(formatDate(event.eventDate))} · ${esc(event.startTime)}${event.status === "cancelled" ? " · 已取消" : event.status === "completed" ? " · 已結束" : ""}</span>${recoveryCapacityLabel(event)}<div data-recovery-status="${esc(event.id)}">${recoveryOperationalStatus(event)}</div></div><div class="inline-actions"><button class="secondary" data-recovery-share="${esc(event.id)}">分享連結／QR</button><button class="primary" data-recovery-manage="${esc(event.id)}">管理活動</button></div></article>`;
@@ -1258,9 +1268,9 @@ function openRecoveredActivities(activities, editCode, creatorName) {
     } finally { button.disabled = false; }
   });
   for (const event of activities) {
-    document.querySelector(`[data-recovery-share="${CSS.escape(event.id)}"]`)?.addEventListener("click", () => openSharePanel(event, () => openRecoveredActivities(activities, editCode, creatorName)));
+    document.querySelector(`[data-recovery-share="${CSS.escape(event.id)}"]`)?.addEventListener("click", () => openSharePanel(event, refreshRecoveredActivities));
     document.querySelector(`[data-recovery-manage="${CSS.escape(event.id)}"]`)?.addEventListener("click", () => {
-      void openAdminFromCredential(event.id, { type: "code", value: editCode }, null, () => openRecoveredActivities(activities, editCode, creatorName));
+      void openAdminFromCredential(event.id, { type: "code", value: editCode }, null, refreshRecoveredActivities);
     });
   }
 }
