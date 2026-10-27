@@ -5,6 +5,7 @@ import { normalizeLineCommand } from "../app/api/line/commands.ts";
 import { locationSearchQueries } from "../lib/location-search.ts";
 import { nationalSportsCentersFor } from "../lib/national-sports-centers.ts";
 import { arrangementNameKey } from "../lib/arrangement.ts";
+import { firstWholePartyTable } from "../lib/meal-auto-fill-rules.ts";
 
 test("legacy host renders the GitHub Pages handoff", async () => {
   const [page, layout] = await Promise.all([
@@ -518,7 +519,7 @@ test("calendar reminders keep a small late-delivery tolerance while the two-hour
 });
 
 test("activity arrangements keep allocation private and validate split family assignments", async () => {
-  const [admin, rsvp, schema, schemaInit, client, styles, migration] = await Promise.all([
+  const [admin, rsvp, schema, schemaInit, client, styles, migration, autoFillMigration, autoFill] = await Promise.all([
     readFile(new URL("../app/api/admin/event/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/rsvps/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../db/schema.ts", import.meta.url), "utf8"),
@@ -526,19 +527,28 @@ test("activity arrangements keep allocation private and validate split family as
     readFile(new URL("../docs/app.js", import.meta.url), "utf8"),
     readFile(new URL("../docs/styles.css", import.meta.url), "utf8"),
     readFile(new URL("../drizzle/0005_neat_harpoon.sql", import.meta.url), "utf8"),
+    readFile(new URL("../drizzle/0021_unusual_monster_badoon.sql", import.meta.url), "utf8"),
+    readFile(new URL("../lib/meal-auto-fill.ts", import.meta.url), "utf8"),
   ]);
   assert.match(schema, /export const mealTables/);
   assert.match(schema, /export const mealAssignments/);
+  assert.match(schema, /autoFillMealSeating/);
   assert.match(schemaInit, /CREATE TABLE IF NOT EXISTS meal_tables/);
   assert.match(schemaInit, /CREATE TABLE IF NOT EXISTS meal_assignments/);
+  assert.match(schemaInit, /auto_fill_meal_seating/);
   assert.match(migration, /CREATE TABLE `meal_tables`/);
   assert.match(migration, /CREATE TABLE `meal_assignments`/);
+  assert.match(autoFillMigration, /ALTER TABLE `events` ADD `auto_fill_meal_seating`/);
   assert.match(admin, /action === "save_meal_seating"/);
   assert.match(admin, /totalForRsvp > \(attending\.get\(rsvpId\) \|\| 0\)/);
   assert.match(admin, /totalForTable > table\.capacity/);
   assert.match(admin, /totalTableCapacity > eventCapacity/);
   assert.match(admin, /mealSeating:/);
+  assert.match(admin, /const autoFillMealSeating = body\.autoFillMealSeating === true/);
   assert.match(rsvp, /db\.delete\(mealAssignments\)/);
+  assert.match(rsvp, /autoFillWholeParty\(eventId, rsvpId, partySize\)/);
+  assert.match(admin, /autoFillWholeParty\(access\.event\.id, rsvpId, partySize!\)/);
+  assert.match(autoFill, /firstWholePartyTable/);
   assert.match(client, /function initMealSeating/);
   assert.match(client, /活動總人數/);
   assert.match(client, /安排區總容量不可超過此人數/);
@@ -551,11 +561,12 @@ test("activity arrangements keep allocation private and validate split family as
   assert.match(client, /桌遊、滑雪等活動/);
   assert.match(client, /同一筆報名超過空位時/);
   assert.match(client, /function autoAssignBySignupOrder/);
-  assert.match(client, /手動安排／自動依報名順序分組/);
+  assert.match(client, /手動安排／自動補入空位/);
+  assert.match(client, /剩 1 位空間時不會把 2 人報名拆開/);
   assert.match(client, /id="meal-auto-arrange"/);
   assert.match(client, /table\.isReserve/);
   assert.match(client, /rsvp\.partySize <= candidate\.capacity/);
-  assert.match(client, /自動依報名順序分組會覆蓋目前尚未儲存的安排/);
+  assert.match(client, /啟用自動補入空位會先依報名順序重建目前安排/);
   assert.match(admin, /orderBy\(asc\(rsvps\.createdAt\)\)/);
   assert.match(client, /function enableTouchPartyDrag/);
   assert.match(client, /touchDropTableAt\(pointerEvent\.clientX, pointerEvent\.clientY\)/);
@@ -573,6 +584,21 @@ test("activity arrangements keep allocation private and validate split family as
   assert.match(styles, /\.meal-auto-arrange-toggle \{ inline-size:100%; min-height:48px/);
   assert.match(styles, /\.arrangement-status\.pending/);
   assert.doesNotMatch(await readFile(new URL("../app/api/events/route.ts", import.meta.url), "utf8"), /mealTables/);
+});
+
+test("automatic fill never splits a party into a smaller remaining space", () => {
+  const tables = [
+    { id: "court-a", capacity: 8, isReserve: false, sortOrder: 0 },
+    { id: "reserve", capacity: 8, isReserve: true, sortOrder: 1 },
+  ];
+  const assignments = [{ tableId: "court-a", people: 7 }];
+  assert.equal(firstWholePartyTable(tables, assignments, 2), undefined);
+
+  const eligible = firstWholePartyTable([
+    ...tables,
+    { id: "court-b", capacity: 2, isReserve: false, sortOrder: 2 },
+  ], assignments, 2);
+  assert.equal(eligible?.id, "court-b");
 });
 
 test("activity arrangements require unique names within an activity", async () => {
@@ -833,7 +859,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.168/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.169/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -862,9 +888,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.168/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.168/);
-  assert.match(worker, /good-days-github-v168/);
+  assert.match(page, /\/app\.js\?v=1\.2\.169/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.169/);
+  assert.match(worker, /good-days-github-v169/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 

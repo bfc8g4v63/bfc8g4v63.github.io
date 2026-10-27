@@ -18,6 +18,7 @@ export const events = sqliteTable("events", {
   status: text("status").notNull().default("active"),
   accessMode: text("access_mode").notNull().default("unlisted"),
   attendanceVisibility: text("attendance_visibility").notNull().default("count"),
+  autoFillMealSeating: integer("auto_fill_meal_seating", { mode: "boolean" }).notNull().default(false),
   shareToken: text("share_token").notNull().default(""),
   shareCode: text("share_code").notNull().default(""),
   participantCodeHash: text("participant_code_hash").notNull().default(""),

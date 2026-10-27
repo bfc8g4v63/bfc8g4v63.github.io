@@ -9,6 +9,7 @@ import { json, preflight } from "../cors";
 import { managerRsvpCard, pushMessages } from "../line/lib";
 import { rateLimit } from "../rate-limit";
 import { closeElapsedEvents } from "../../../lib/event-lifecycle";
+import { autoFillWholeParty } from "../../../lib/meal-auto-fill";
 
 function clean(value: unknown, max = 300) {
   return typeof value === "string" ? value.trim().slice(0, max) : "";
@@ -95,6 +96,7 @@ export async function POST(request: Request) {
     const [event] = await db.select({
       id: events.id, title: events.title, status: events.status, accessMode: events.accessMode,
       attendanceVisibility: events.attendanceVisibility,
+      autoFillMealSeating: events.autoFillMealSeating,
       feePerPerson: events.feePerPerson,
       shareToken: events.shareToken, shareCode: events.shareCode, participantCodeHash: events.participantCodeHash,
     }).from(events).where(eq(events.id, eventId)).limit(1);
@@ -152,6 +154,7 @@ export async function POST(request: Request) {
       viewerTokenHash: attendeeTokenHash || await hashCode(attendeeToken),
       updatedAt: new Date().toISOString(),
     };
+    const rsvpId = existing?.id || crypto.randomUUID();
     if (existing) {
       if (attendanceChanged) {
         await db.delete(mealAssignments).where(eq(mealAssignments.rsvpId, existing.id));
@@ -165,7 +168,10 @@ export async function POST(request: Request) {
       }
       await db.update(rsvps).set(values).where(eq(rsvps.id, existing.id));
     }
-    else await db.insert(rsvps).values({ id: crypto.randomUUID(), ...values });
+    else await db.insert(rsvps).values({ id: rsvpId, ...values });
+    if (event.autoFillMealSeating && response === "attending" && (!existing || attendanceChanged)) {
+      await autoFillWholeParty(eventId, rsvpId, partySize);
+    }
     const shouldNotifyManagers = existing ? attendanceChanged : response !== "not_attending";
     if (shouldNotifyManagers) {
       const change = !existing

@@ -1630,7 +1630,7 @@ function initMealSeating(data, event, managerAuth) {
     assignments: (data.mealSeating?.assignments || []).filter((item) => rsvpById.has(item.rsvpId)),
     selectedRsvpId: "",
     error: "",
-    autoArrange: false,
+    autoArrange: Boolean(data.mealSeating?.autoFill),
     autoArrangeMessage: "",
   };
   const eventCapacity = Number.isInteger(event.capacity) && event.capacity > 0 ? event.capacity : null;
@@ -1660,7 +1660,7 @@ function initMealSeating(data, event, managerAuth) {
     state.selectedRsvpId = "";
     const assignedPeople = assignments.reduce((sum, item) => sum + item.people, 0);
     const unassignedPeople = attending.reduce((sum, item) => sum + item.partySize, 0) - assignedPeople;
-    state.autoArrangeMessage = `已依報名順序安排 ${assignedPeople} 人${unassignedPeople ? `；${unassignedPeople} 人因沒有足夠完整空位而保留未安排` : ""}。`;
+    state.autoArrangeMessage = `已依報名順序安排 ${assignedPeople} 人${unassignedPeople ? `；${unassignedPeople} 人因沒有足夠完整空位而保留未安排` : ""}。儲存後，新的完整報名會自動補入空位。`;
   }
 
   function tableNameErrors() {
@@ -1866,8 +1866,8 @@ function initMealSeating(data, event, managerAuth) {
         <p class="form-hint">${eventCapacity ? `活動人數上限為 ${eventCapacity} 人；所有安排區的容量合計不可超過 ${eventCapacity} 人。` : "重新建立會清除目前尚未儲存的安排；各區也可在下方個別調整人數與備註。"}</p>
       </details>
       <section class="meal-auto-arrange" aria-labelledby="meal-auto-arrange-title">
-        <div class="meal-auto-arrange-copy"><p class="eyebrow">快速起始安排</p><h4 id="meal-auto-arrange-title">手動安排／自動依報名順序分組</h4><p>預設為手動。勾選後會按報名先後，把每一筆完整報名填入非預備區；沒有足夠完整空位的報名會保留未安排，之後仍可自由拖拉調整。</p></div>
-        <label class="meal-auto-arrange-toggle"><input id="meal-auto-arrange" type="checkbox" ${state.autoArrange ? "checked" : ""} ${state.tables.length ? "" : "disabled"}><span>自動依報名順序分組</span></label>
+        <div class="meal-auto-arrange-copy"><p class="eyebrow">快速起始安排</p><h4 id="meal-auto-arrange-title">手動安排／自動補入空位</h4><p>預設為手動。啟用時會先按報名先後安排目前名單；儲存後，未來新報名也會自動補入非預備區。每筆同行者必須完整放得下，剩 1 位空間時不會把 2 人報名拆開。</p></div>
+        <label class="meal-auto-arrange-toggle"><input id="meal-auto-arrange" type="checkbox" ${state.autoArrange ? "checked" : ""} ${state.tables.length ? "" : "disabled"}><span>自動補入完整報名</span></label>
       </section>
       <div class="meal-seating-actions"><button class="secondary" type="button" id="meal-add-table" ${arrangementLimitReached ? "disabled" : ""}>${arrangementLimitReached ? "已達活動總人數" : "＋ 新增安排區"}</button><button class="primary" type="button" id="meal-save" ${nameErrors.size ? "disabled" : ""}>儲存活動安排</button></div>
       ${state.autoArrangeMessage ? `<p class="meal-auto-arrange-message" role="status">${esc(state.autoArrangeMessage)}</p>` : ""}
@@ -1943,11 +1943,11 @@ function initMealSeating(data, event, managerAuth) {
       const input = changeEvent.currentTarget;
       if (!input.checked) {
         state.autoArrange = false;
-        state.autoArrangeMessage = "已切回手動安排；目前結果會保留，可繼續拖拉調整。";
+        state.autoArrangeMessage = "已切回手動安排；目前結果會保留，儲存後的新報名不會自動補入。";
         render();
         return;
       }
-      if (state.assignments.length && !confirm("自動依報名順序分組會覆蓋目前尚未儲存的安排；確定繼續嗎？")) {
+      if (state.assignments.length && !confirm("啟用自動補入空位會先依報名順序重建目前安排；確定繼續嗎？")) {
         input.checked = false;
         return;
       }
@@ -1979,6 +1979,7 @@ function initMealSeating(data, event, managerAuth) {
         const result = await requestJson("/admin/event", {
           action: "save_meal_seating", tables: state.tables.map((table, index) => ({ ...table, sortOrder: index })),
           assignments: state.assignments.map(({ tableId, rsvpId, people }) => ({ tableId, rsvpId, people })),
+          autoFillMealSeating: state.autoArrange,
           ...managerPayload(event.id, managerAuth),
         });
         const fresh = await requestJson("/admin/event", managerPayload(event.id, managerAuth));

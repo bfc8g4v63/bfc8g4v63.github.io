@@ -148,6 +148,13 @@
       "when": 1791969839202,
       "tag": "0020_violet_warbound",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "6",
+      "when": 1793085377243,
+      "tag": "0021_unusual_monster_badoon",
+      "breakpoints": true
     }
   ]
 }

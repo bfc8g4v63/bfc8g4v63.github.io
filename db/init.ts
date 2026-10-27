@@ -26,6 +26,7 @@ export function ensureSchema() {
         status TEXT NOT NULL DEFAULT 'active',
         access_mode TEXT NOT NULL DEFAULT 'unlisted',
         attendance_visibility TEXT NOT NULL DEFAULT 'count',
+        auto_fill_meal_seating INTEGER NOT NULL DEFAULT 0,
         share_token TEXT NOT NULL DEFAULT '',
         share_code TEXT NOT NULL DEFAULT '',
         participant_code_hash TEXT NOT NULL DEFAULT '',
@@ -259,6 +260,9 @@ export function ensureSchema() {
     }
     if (!names.has("attendance_visibility")) {
       await database.prepare("ALTER TABLE events ADD COLUMN attendance_visibility TEXT NOT NULL DEFAULT 'count'").run();
+    }
+    if (!names.has("auto_fill_meal_seating")) {
+      await database.prepare("ALTER TABLE events ADD COLUMN auto_fill_meal_seating INTEGER NOT NULL DEFAULT 0").run();
     }
     if (!names.has("manager_token_hash")) {
       await database.prepare("ALTER TABLE events ADD COLUMN manager_token_hash TEXT NOT NULL DEFAULT ''").run();

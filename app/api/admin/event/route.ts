@@ -12,6 +12,7 @@ import { closeElapsedEvents, validEventSchedule } from "../../../../lib/event-li
 import { arrangementNameKey } from "../../../../lib/arrangement";
 import { eventShareUrl, shortShareCode } from "../../../../lib/event-share";
 import { eventNotificationGroups } from "../../line/groups";
+import { autoFillWholeParty } from "../../../../lib/meal-auto-fill";
 
 export function OPTIONS(request: Request) {
   return preflight(request);
@@ -168,7 +169,7 @@ export async function POST(request: Request) {
         location: access.event.location, address: access.event.address, description: access.event.description,
         creatorName: access.event.creatorName, contactName: access.event.contactName, contactPhone: access.event.contactPhone,
         capacity: access.event.capacity, feePerPerson: access.event.feePerPerson, accessMode: access.event.accessMode,
-        attendanceVisibility: access.event.attendanceVisibility, shareToken, shareCode,
+        attendanceVisibility: access.event.attendanceVisibility, autoFillMealSeating: access.event.autoFillMealSeating, shareToken, shareCode,
         participantCodeHash: access.event.participantCodeHash, editCodeHash: access.event.editCodeHash,
         managerTokenHash: access.event.managerTokenHash,
       });
@@ -190,7 +191,9 @@ export async function POST(request: Request) {
       const rows = await db.select({ id: rsvps.id, partySize: rsvps.partySize, response: rsvps.response })
         .from(rsvps).where(eq(rsvps.eventId, access.event.id));
       await saveMealSeating(body, access.event.id, access.event.capacity, rows);
-      return json(request, { ok: true, message: "餐桌安排已儲存" });
+      const autoFillMealSeating = body.autoFillMealSeating === true;
+      await db.update(events).set({ autoFillMealSeating, updatedAt: new Date().toISOString() }).where(eq(events.id, access.event.id));
+      return json(request, { ok: true, message: autoFillMealSeating ? "活動安排已儲存；新報名將自動補入完整空位" : "活動安排已儲存" });
     }
     if (action === "create_rsvp") {
       if (access.event.status !== "active") return json(request, { error: access.event.status === "completed" ? "活動已結束，不能再新增報名" : "活動已取消，不能再新增報名" }, 400);
@@ -208,8 +211,9 @@ export async function POST(request: Request) {
         eq(rsvps.eventId, access.event.id), eq(rsvps.name, name),
       )).limit(1);
       if (duplicate) return json(request, { error: `「${name}」已有一筆回覆，請改用「修改回覆」` }, 409);
+      const rsvpId = crypto.randomUUID();
       await db.insert(rsvps).values({
-        id: crypto.randomUUID(),
+        id: rsvpId,
         eventId: access.event.id,
         name,
         response,
@@ -223,6 +227,9 @@ export async function POST(request: Request) {
         viewerTokenHash: await hashCode(crypto.randomUUID()),
         updatedAt: new Date().toISOString(),
       });
+      if (access.event.autoFillMealSeating && response === "attending") {
+        await autoFillWholeParty(access.event.id, rsvpId, partySize!);
+      }
       await queueManagerNotification({
         eventId: access.event.id,
         eventTitle: access.event.title,
@@ -278,6 +285,9 @@ export async function POST(request: Request) {
         ...(response !== "attending" ? { shareName: false } : {}),
         updatedAt: new Date().toISOString(),
       }).where(eq(rsvps.id, rsvp.id));
+      if (seatingChanged && access.event.autoFillMealSeating && response === "attending") {
+        await autoFillWholeParty(access.event.id, rsvp.id, nextPartySize);
+      }
       const paymentReset = seatingChanged && response === "attending" && access.event.feePerPerson > 0;
       if (seatingChanged) {
         await queueManagerNotification({
@@ -398,6 +408,7 @@ export async function POST(request: Request) {
         commandLogs,
       },
       mealSeating: {
+        autoFill: Boolean(access.event.autoFillMealSeating),
         tables: mealTableRows.map((table) => ({
           id: table.id, name: table.name, capacity: table.capacity,
           isReserve: Boolean(table.isReserve), note: table.note, sortOrder: table.sortOrder,
