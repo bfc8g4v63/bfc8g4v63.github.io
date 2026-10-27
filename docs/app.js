@@ -1405,7 +1405,7 @@ async function updateRsvpPayment(rsvp, nextPaymentStatus, event, managerAuth) {
   }
 }
 
-function linePanel(line) {
+function linePanel(line, event) {
   if (!line.configured) return `
     <div class="line-status warning"><strong>LINE 機器人程式已完成，等待填入兩個 LINE 憑證</strong>
       <p>請依照 <a href="/line-bot-guide.html" target="_blank">LINE 機器人設定教學</a> 建立官方帳號，完成後即可產生群組綁定碼。</p></div>`;
@@ -1420,7 +1420,8 @@ function linePanel(line) {
     failed: "傳送失敗",
     no_arrangement: "尚未建立安排",
   };
-  const commandCard = groups.length ? `<section class="line-command-card"><strong>群組內可直接輸入</strong><div><code>活動</code><span>查看近期活動、即時人數與報名連結</span></div><div><code>原神啟動 日期</code><span>查看指定日期的報名名單</span></div><div><code>安排 日期</code><span>查看指定日期的安排圖卡</span></div><p>有多場活動時，小幫手會列出每場的日期指令；日期請用 <b>20261007</b> 這類格式。</p></section>` : "";
+  const commandDate = String(event?.eventDate || "").replaceAll("-", "");
+  const commandCard = groups.length ? `<section class="line-command-card"><strong>群組內可直接輸入</strong><div><code>活動</code><span>查看近期活動、即時人數與報名連結</span><button class="secondary" type="button" data-line-command="活動">複製</button></div><div><code>原神啟動 ${esc(commandDate)}</code><span>查看這場活動的名單摘要；第 2 頁可在後方加 <b>2</b></span><button class="secondary" type="button" data-line-command="原神啟動 ${esc(commandDate)}">複製</button></div><div><code>安排 ${esc(commandDate)}</code><span>查看這場活動的安排圖卡</span><button class="secondary" type="button" data-line-command="安排 ${esc(commandDate)}">複製</button></div><p>名單每頁顯示 8 筆；例如輸入 <b>原神啟動 ${esc(commandDate)} 2</b> 查看第 2 頁。有多場活動時，小幫手會列出每場的日期指令。</p></section>` : "";
   const logPanel = binding ? `<section class="line-command-log"><div><strong>小幫手最近紀錄</strong><span>只記錄指令結果，不保存聊天內容</span></div>${commandLogs.length ? `<ul>${commandLogs.map((item) => `<li><time>${esc(formatDateTime(item.createdAt))}</time><b>${esc(item.command)}</b><em class="line-log-${esc(item.outcome)}">${esc(commandLogText[item.outcome] || item.outcome)}</em><small>${esc(item.detail || "—")}</small></li>`).join("")}</ul>` : "<p>目前尚無可顯示的指令紀錄。</p>"}</section>` : "";
   return `
     <section class="manager-alert-panel ${managerTargetCount ? "connected" : ""}">
@@ -2158,7 +2159,7 @@ function openAdminDashboard(data, managerAuth, returnTo = null) {
         </section>
         <section class="admin-section line-section" id="line-notifications">
           <div class="admin-section-title"><div><p class="eyebrow line-eyebrow">LINE 通知中心</p><h3>群組公告與自動提醒</h3></div><a href="/line-bot-guide.html" target="_blank">查看設定教學</a></div>
-          ${linePanel(data.line)}
+          ${linePanel(data.line, event)}
           <p class="form-error" id="line-error" role="alert" hidden></p>
         </section>
       </section>
@@ -2195,6 +2196,20 @@ function openAdminDashboard(data, managerAuth, returnTo = null) {
   document.querySelector("#create-rsvp").addEventListener("click", () => openManagedRsvpEditor(null, event, managerAuth, returnToAdmin));
   document.querySelector("#line-existing")?.addEventListener("click", () => void openLineGroupPicker(event, managerAuth, returnToAdmin));
   document.querySelector("#line-publish")?.addEventListener("click", () => void openLinePublish(event, managerAuth, returnToAdmin));
+  document.querySelectorAll("[data-line-command]").forEach((copyButton) => {
+    copyButton.addEventListener("click", async () => {
+      const command = copyButton.dataset.lineCommand || "";
+      if (!command) return;
+      try {
+        await navigator.clipboard.writeText(command);
+        copyButton.textContent = "已複製";
+        showNotice(`LINE 指令已複製：${command}`);
+        window.setTimeout(() => { copyButton.textContent = "複製"; }, 1800);
+      } catch {
+        showLineError("無法自動複製，請手動複製 LINE 指令");
+      }
+    });
+  });
   initMealSeating(data, event, managerAuth);
   document.querySelectorAll("[data-rsvp-edit]").forEach((button) => {
     button.addEventListener("click", () => {

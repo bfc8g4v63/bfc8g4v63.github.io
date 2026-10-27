@@ -3,7 +3,7 @@ import { getRequestExecutionContext } from "vinext/shims/request-context";
 import { getDb } from "../../../../db";
 import { activityLineGroups, events, lineBindCodes, lineBindings, lineCommandLogs, lineGroups, lineManagerBatchBindCodes, lineManagerBindCodes, lineManagerTargets, lineReminderSettings, lineWebhookDeliveries, mealTables, rsvps } from "../../../../db/schema";
 import { normalizeLineCommand } from "../commands";
-import { activityArrangementImageUrl, activityListCard, activityShareMessage, getGroupName, lineConfig, lineDateLabel, lineStatusCard, managerBindingCard, replyMessages, replyText, rsvpSummaryCard, rsvpSummaryMessage, type LineReplyMessage, verifyLineSignature } from "../lib";
+import { activityArrangementImageUrl, activityListCard, activityShareMessage, getGroupName, lineConfig, lineDateLabel, lineRosterPageSize, lineStatusCard, managerBindingCard, replyMessages, replyText, rsvpSummaryCard, rsvpSummaryMessage, type LineReplyMessage, verifyLineSignature } from "../lib";
 import { eventShareUrl } from "../../../../lib/event-share";
 
 type LineEvent = {
@@ -37,6 +37,23 @@ function eventStartsAt(event: { eventDate: string; startTime: string }) {
 function requestedDate(command: string, prefix: string) {
   const digits = command.slice(prefix.length).replace(/\D/g, "");
   return /^\d{8}$/.test(digits) ? `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}` : "";
+}
+
+function requestedRosterPage(command: string) {
+  const suffix = command.slice("原神啟動".length);
+  if (!suffix) return { date: "", page: 1, valid: true };
+  const dated = suffix.match(/^(\d{8})([1-9]\d{0,2})?$/);
+  if (dated) {
+    return {
+      date: `${dated[1].slice(0, 4)}-${dated[1].slice(4, 6)}-${dated[1].slice(6, 8)}`,
+      page: dated[2] ? Number(dated[2]) : 1,
+      valid: true,
+    };
+  }
+  const singleActivityPage = suffix.match(/^([1-9]\d{0,2})$/);
+  return singleActivityPage
+    ? { date: "", page: Number(singleActivityPage[1]), valid: true }
+    : { date: "", page: 1, valid: false };
 }
 
 async function eventsForManagerBinding(eventIds: string[]) {
@@ -149,7 +166,9 @@ async function pairManagerAlert(event: LineEvent, code: string, replyToken: stri
     db.select().from(lineManagerBatchBindCodes).where(eq(lineManagerBatchBindCodes.code, code)).limit(1),
   ]);
   if ((!bindingCode && !batchBindingCode) || !lineUserId) {
-    await replyText(replyToken, "管理提醒綁定碼無效或已超過 10 分鐘，請回活動管理後台重新取得。");
+    await replyStatus(replyToken, {
+      eyebrow: "管理者提醒", title: "綁定碼無效或已過期", message: "請回活動管理後台重新取得 6 位數綁定碼；管理提醒綁定碼有效 10 分鐘。", tone: "warning",
+    }, "管理提醒綁定碼無效或已超過 10 分鐘，請回活動管理後台重新取得。");
     return;
   }
   let eventIds: string[] = bindingCode ? [bindingCode.eventId] : [];
@@ -166,7 +185,9 @@ async function pairManagerAlert(event: LineEvent, code: string, replyToken: stri
   if (!activeEvents.length || activeEvents.length !== eventIds.length) {
     if (bindingCode) await db.delete(lineManagerBindCodes).where(eq(lineManagerBindCodes.code, bindingCode.code));
     if (batchBindingCode) await db.delete(lineManagerBatchBindCodes).where(eq(lineManagerBatchBindCodes.code, batchBindingCode.code));
-    await replyText(replyToken, "找不到對應的進行中活動，請回網站重新取得綁定碼。");
+    await replyStatus(replyToken, {
+      eyebrow: "管理者提醒", title: "找不到進行中的活動", message: "這組綁定碼可能已使用、已失效，或活動已結束；請回網站重新取得。", tone: "warning",
+    }, "找不到對應的進行中活動，請回網站重新取得綁定碼。");
     return;
   }
   const now = new Date().toISOString();
@@ -284,7 +305,11 @@ async function processWebhookEvents(lineEvents: LineEvent[], requestUrl: string)
         const match = (event.message.text?.trim() || "").match(/^管理綁定\s*(\d{6})$/);
         await pairManagerAlert(event, match![1], event.replyToken).catch(async (error) => {
           console.error("Unable to finish LINE manager binding", error);
-          try { await replyText(event.replyToken!, "管理提醒綁定暫時無法完成，請回網站重新產生綁定碼後再試一次。"); } catch {}
+          try {
+            await replyStatus(event.replyToken!, {
+              eyebrow: "管理者提醒", title: "暫時無法完成綁定", message: "請回網站重新產生綁定碼後再試一次。", tone: "warning",
+            }, "管理提醒綁定暫時無法完成，請回網站重新產生綁定碼後再試一次。");
+          } catch {}
         });
         continue;
       }
@@ -308,7 +333,10 @@ async function processWebhookEvents(lineEvents: LineEvent[], requestUrl: string)
         && event.message?.type === "text"
         && /^管理綁定\s*\d{6}$/.test(event.message.text?.trim() || "")
       ) {
-        await replyText(event.replyToken, "「管理綁定」只能在你與好日子小幫手的一對一私訊使用，這個群組不會啟用管理者私訊提醒。\n\n若要綁定通知群組，請回網站取得群組綁定碼，再在這裡輸入「綁定 123456」。");
+        await replyStatus(event.replyToken, {
+          eyebrow: "管理者提醒", title: "請改在一對一私訊綁定", message: "「管理綁定」只能在你與好日子小幫手的一對一私訊使用，這個群組不會啟用管理者私訊提醒。",
+          detail: "若要綁定通知群組，請回網站取得群組綁定碼，再在這裡輸入「綁定 123456」。", tone: "warning",
+        }, "「管理綁定」只能在你與好日子小幫手的一對一私訊使用，這個群組不會啟用管理者私訊提醒。\n\n若要綁定通知群組，請回網站取得群組綁定碼，再在這裡輸入「綁定 123456」。");
         continue;
       }
 
@@ -327,7 +355,14 @@ async function processWebhookEvents(lineEvents: LineEvent[], requestUrl: string)
       if (command.startsWith("原神啟動") || command.startsWith("安排")) {
         const upcoming = await upcomingGroupEvents(chatId);
         if (command.startsWith("原神啟動")) {
-          const date = requestedDate(command, "原神啟動");
+          const rosterRequest = requestedRosterPage(command);
+          if (!rosterRequest.valid) {
+            await replyStatus(event.replyToken, {
+              eyebrow: "報名名單", title: "名單頁碼格式不正確", message: "請輸入「原神啟動 YYYYMMDD」查看第一頁，或在後方加上頁碼，例如「原神啟動 20261029 2」。", tone: "warning",
+            }, "名單頁碼格式不正確。請輸入「原神啟動 YYYYMMDD」，或加上頁碼，例如「原神啟動 20261029 2」。");
+            continue;
+          }
+          const { date, page } = rosterRequest;
           const targetEvent = date ? upcoming.find((item) => item.eventDate === date) : upcoming.length === 1 ? upcoming[0] : null;
           if (!targetEvent) {
             if (upcoming.length) await replyUpcomingActivities(event.replyToken, upcoming, "要查看名單，請輸入「原神啟動 20260930」。");
@@ -344,10 +379,18 @@ async function processWebhookEvents(lineEvents: LineEvent[], requestUrl: string)
         ]);
         const includeDiet = Boolean(settingRows[0]?.includeDiet);
         const includeNote = Boolean(settingRows[0]?.includeNote);
+        const totalPages = Math.max(1, Math.ceil(registrations.length / lineRosterPageSize));
+        if (page > totalPages) {
+          const dateCommand = targetEvent.eventDate.replaceAll("-", "");
+          await replyStatus(event.replyToken, {
+            eyebrow: "報名名單", title: `名單只有 ${totalPages} 頁`, message: `「${targetEvent.title}」共有 ${registrations.length} 筆報名。請輸入「原神啟動 ${dateCommand} ${totalPages}」查看最後一頁。`, tone: "warning",
+          }, `名單只有 ${totalPages} 頁。請輸入「原神啟動 ${dateCommand} ${totalPages}」查看最後一頁。`);
+          continue;
+        }
         await replyCardWithTextFallback(
           event.replyToken,
-          rsvpSummaryCard(targetEvent, registrations, includeDiet, includeNote),
-          rsvpSummaryMessage(targetEvent.title, registrations, includeDiet, includeNote),
+          rsvpSummaryCard(targetEvent, registrations, includeDiet, includeNote, page),
+          rsvpSummaryMessage(targetEvent.title, registrations, includeDiet, includeNote, page),
         );
         continue;
       }
@@ -407,13 +450,17 @@ async function processWebhookEvents(lineEvents: LineEvent[], requestUrl: string)
       const [bindingCode] = await db.select().from(lineBindCodes)
         .where(eq(lineBindCodes.code, match[1])).limit(1);
       if (!bindingCode || Date.parse(bindingCode.expiresAt) < Date.now()) {
-        await replyText(event.replyToken, "綁定碼無效或已超過 15 分鐘，請回網站重新取得。");
+        await replyStatus(event.replyToken, {
+          eyebrow: "群組設定", title: "綁定碼無效或已過期", message: "請回活動管理後台重新取得 6 位數綁定碼；群組綁定碼有效 15 分鐘。", tone: "warning",
+        }, "綁定碼無效或已超過 15 分鐘，請回網站重新取得。");
         continue;
       }
       const [targetEvent] = await db.select({ title: events.title, eventDate: events.eventDate, startTime: events.startTime, status: events.status }).from(events)
         .where(eq(events.id, bindingCode.eventId)).limit(1);
       if (!targetEvent || targetEvent.status !== "active" || eventStartsAt(targetEvent) <= Date.now()) {
-        await replyText(event.replyToken, "找不到對應活動，請重新取得綁定碼。");
+        await replyStatus(event.replyToken, {
+          eyebrow: "群組設定", title: "找不到可綁定的活動", message: "這組綁定碼可能已使用、已失效，或活動已結束；請回網站重新取得。", tone: "warning",
+        }, "找不到對應活動，請重新取得綁定碼。");
         continue;
       }
 

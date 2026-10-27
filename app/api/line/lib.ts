@@ -113,6 +113,15 @@ type RsvpSummaryItem = {
   note: string;
 };
 
+export const lineRosterPageSize = 8;
+
+function rosterPageInfo(rsvps: RsvpSummaryItem[], requestedPage = 1) {
+  const totalPages = Math.max(1, Math.ceil(rsvps.length / lineRosterPageSize));
+  const page = Math.min(totalPages, Math.max(1, Math.floor(requestedPage) || 1));
+  const start = (page - 1) * lineRosterPageSize;
+  return { page, totalPages, start, visible: rsvps.slice(start, start + lineRosterPageSize) };
+}
+
 type ActivityArrangementTable = {
   id: string;
   name: string;
@@ -133,21 +142,22 @@ type ActivityArrangementRsvp = {
   partySize: number;
 };
 
-export function rsvpSummaryMessage(eventTitle: string, rsvps: RsvpSummaryItem[], includeDiet = false, includeNote = false) {
+export function rsvpSummaryMessage(eventTitle: string, rsvps: RsvpSummaryItem[], includeDiet = false, includeNote = false, requestedPage = 1) {
   const people = rsvps.reduce((sum, rsvp) => sum + rsvp.partySize, 0);
-  const header = `${eventTitle}｜報名人數\n共 ${people} 人・${rsvps.length} 筆報名`;
+  const { page, totalPages, start, visible } = rosterPageInfo(rsvps, requestedPage);
+  const header = `${eventTitle}｜報名人數\n第 ${page} / ${totalPages} 頁・共 ${people} 人・${rsvps.length} 筆報名`;
   if (!rsvps.length) return `${header}\n\n目前尚無參加者。`;
 
   const lines = [header];
-  for (let index = 0; index < rsvps.length; index += 1) {
-    const rsvp = rsvps[index];
+  for (let index = 0; index < visible.length; index += 1) {
+    const rsvp = visible[index];
     const details = [
       includeDiet ? `飲食：${rsvp.diet || "—"}` : "",
       includeNote ? `備註：${rsvp.note || "—"}` : "",
     ].filter(Boolean);
-    const entry = [`${index + 1}. 姓名：${rsvp.name}`, `人數：${rsvp.partySize}`, ...details].join("\n");
+    const entry = [`${start + index + 1}. 姓名：${rsvp.name}`, `人數：${rsvp.partySize}`, ...details].join("\n");
     if (`${lines.join("\n\n")}\n\n${entry}`.length > 4800) {
-      return `${lines.join("\n\n")}\n\n其餘 ${rsvps.length - index} 筆請至活動管理後台查看。`;
+      return `${lines.join("\n\n")}\n\n本頁其餘 ${visible.length - index} 筆請至活動管理後台查看。`;
     }
     lines.push(entry);
   }
@@ -165,9 +175,10 @@ export function rsvpSummaryCard(
   rsvps: RsvpSummaryItem[],
   includeDiet = false,
   includeNote = false,
+  requestedPage = 1,
 ): LineReplyMessage {
   const people = rsvps.reduce((sum, rsvp) => sum + rsvp.partySize, 0);
-  const visible = rsvps.slice(0, 8);
+  const { page, totalPages, start, visible } = rosterPageInfo(rsvps, requestedPage);
   const remaining = rsvps.length - visible.length;
   const detail = (value: string, maximum: number) => value.trim().slice(0, maximum) || "—";
   const shareUrl = eventShareUrl(event.shareCode, event.shareToken);
@@ -182,7 +193,7 @@ export function rsvpSummaryCard(
         contents: [
           { type: "text", text: "報名名單 · 原神啟動", color: "#6A4A95", size: "sm", weight: "bold" },
           { type: "text", text: event.title.slice(0, 40), color: "#382052", size: "xl", weight: "bold", wrap: true, margin: "sm" },
-          { type: "text", text: `${lineDateLabel(event.eventDate)}｜${event.startTime}`, color: "#6A4A95", size: "sm", wrap: true, margin: "sm" },
+          { type: "text", text: `${lineDateLabel(event.eventDate)}｜${event.startTime}｜第 ${page} / ${totalPages} 頁`, color: "#6A4A95", size: "sm", wrap: true, margin: "sm" },
         ],
       },
       body: {
@@ -190,7 +201,7 @@ export function rsvpSummaryCard(
         contents: [
           {
             type: "box", layout: "vertical", backgroundColor: "#F8F5FC", cornerRadius: "10px", paddingAll: "10px",
-            contents: [{ type: "text", text: `共 ${people} 人 · ${rsvps.length} 筆報名`, color: "#4E386E", weight: "bold", wrap: true }],
+            contents: [{ type: "text", text: `第 ${page} / ${totalPages} 頁 · 共 ${people} 人 · ${rsvps.length} 筆報名`, color: "#4E386E", weight: "bold", wrap: true }],
           },
           ...(visible.length ? visible.flatMap((rsvp, index) => {
             const details = [
@@ -200,12 +211,12 @@ export function rsvpSummaryCard(
             return [{
               type: "box", layout: "vertical", backgroundColor: "#FCFAFE", cornerRadius: "10px", paddingAll: "10px", margin: "sm",
               contents: [
-                { type: "text", text: `${index + 1}. ${detail(rsvp.name, 60)}｜${rsvp.partySize} 人`, color: "#382052", weight: "bold", wrap: true },
+                { type: "text", text: `${start + index + 1}. ${detail(rsvp.name, 60)}｜${rsvp.partySize} 人`, color: "#382052", weight: "bold", wrap: true },
                 ...(details ? [{ type: "text", text: details, color: "#6A4A95", size: "sm", wrap: true, margin: "sm" }] : []),
               ],
             }];
           }) : [{ type: "text", text: "目前尚無參加者。", color: "#6A4A95", wrap: true, margin: "md" }]),
-          ...(remaining > 0 ? [{ type: "text", text: `另有 ${remaining} 筆報名，請開啟活動查看完整名單。`, color: "#6A4A95", size: "sm", wrap: true, margin: "md" }] : []),
+          ...(remaining > 0 ? [{ type: "text", text: `本頁外另有 ${remaining} 筆報名；輸入「原神啟動 ${event.eventDate.replaceAll("-", "")} ${page < totalPages ? page + 1 : page - 1}」切換頁面。`, color: "#6A4A95", size: "sm", wrap: true, margin: "md" }] : []),
         ],
       },
       footer: {
