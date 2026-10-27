@@ -817,7 +817,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.163/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.164/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -846,8 +846,8 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.163/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.163/);
+  assert.match(page, /\/app\.js\?v=1\.2\.164/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.164/);
   assert.match(worker, /good-days-github-v163/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
@@ -1239,11 +1239,21 @@ test("managers can send a targeted announcement and reuse the pretrip informatio
   assert.match(adminLine, /action === "send_announcement"/);
   assert.match(adminLine, /includePretripInfo/);
   assert.match(adminLine, /eventNotificationGroups/);
+  assert.match(adminLine, /activityAnnouncementCard\(access\.event, message, pretripInfo\)/);
+  assert.match(adminLine, /activityAnnouncementText\(access\.event, message, pretripInfo\)/);
+  assert.match(adminLine, /Unable to send LINE announcement card; using text fallback/);
   assert.match(client, /發送群組公告/);
   assert.match(client, /function openLineAnnouncement/);
   assert.match(client, /行前資訊卡/);
   assert.match(eventClient, /class="pretrip-card"/);
   assert.match(lineLib, /行前資訊｜/);
+  assert.match(lineLib, /export function activityAnnouncementCard/);
+  assert.match(lineLib, /主辦公告 · 活動資訊更新/);
+  assert.match(lineLib, /backgroundColor: "#EAF4FF"/);
+  assert.match(lineLib, /action: \{ type: "uri", label: "查看活動與最新安排"/);
+  assert.match(lineLib, /footer:[\s\S]*paddingAll: "12px"[\s\S]*type: "button", style: "primary"/);
+  assert.match(lineLib, /export function activityAnnouncementText/);
+  assert.match(lineLib, /announcementText\(message, 1_000\)/);
   assert.match(reminders, /description: events\.description/);
 });
 

@@ -5,7 +5,7 @@ import { getDb } from "../../../../db";
 import { activityLineGroups, events, lineBindCodes, lineBindings, lineGroups, lineManagerBatchBindCodes, lineManagerBindCodes, lineManagerTargets, lineReminderSettings, rsvps } from "../../../../db/schema";
 import { json, preflight } from "../../cors";
 import { clean, hashCredential, requireEventManager, verifyCredential } from "../auth";
-import { activityListCard, eventCard, lineConfig, pushMessages, pushText } from "../../line/lib";
+import { activityAnnouncementCard, activityAnnouncementText, activityListCard, eventCard, lineConfig, pushMessages, pushText } from "../../line/lib";
 import { eventNotificationGroups, type NotificationGroup } from "../../line/groups";
 import { rateLimit } from "../../rate-limit";
 import { eventShareUrl } from "../../../../lib/event-share";
@@ -339,14 +339,18 @@ export async function POST(request: Request) {
       const includePretripInfo = boolean(body.includePretripInfo);
       const pretripInfo = includePretripInfo ? clean(access.event.description, 1000) : "";
       if (!message && !pretripInfo) return json(request, { error: "請輸入公告內容，或選擇附上行前資訊" }, 400);
-      const shareUrl = eventShareUrl(access.event.shareCode, access.event.shareToken);
-      const text = [
-        `【${access.event.title}｜主辦公告】`,
-        message,
-        pretripInfo ? `行前資訊\n${pretripInfo}` : "",
-        `日期：${access.event.eventDate} ${access.event.startTime}\n活動連結：${shareUrl}`,
-      ].filter(Boolean).join("\n\n");
-      await Promise.all(currentGroups.map((group) => pushText(group.groupId, text)));
+      const card = activityAnnouncementCard(access.event, message, pretripInfo);
+      const fallback = activityAnnouncementText(access.event, message, pretripInfo);
+      await Promise.all(currentGroups.map(async (group) => {
+        try {
+          await pushMessages(group.groupId, [card]);
+        } catch (error) {
+          // A per-group text fallback prevents a rejected Flex payload from
+          // dropping an organiser update or duplicating it in other groups.
+          console.error("Unable to send LINE announcement card; using text fallback", error);
+          await pushText(group.groupId, fallback);
+        }
+      }));
       return json(request, { ok: true, groups: currentGroups.length });
     }
 

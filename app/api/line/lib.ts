@@ -266,6 +266,77 @@ export function activityShareMessage(event: {
   return `〖${event.title}〗\n日期：${lineDateLabel(event.eventDate)}\n時間：${event.startTime}\n地點：${event.location}${address}${description}\n\n活動連結\n${event.shareUrl}\n\n請掃描下方 QR Code，或點選連結查看與報名。`;
 }
 
+type ActivityAnnouncementEvent = Pick<ActivityLinkEvent, "title" | "eventDate" | "startTime" | "location" | "address" | "shareCode" | "shareToken">;
+
+function announcementText(value: string, maximum: number) {
+  const normalized = value.trim();
+  return normalized.length > maximum ? `${normalized.slice(0, Math.max(0, maximum - 1))}…` : normalized;
+}
+
+export function activityAnnouncementText(event: ActivityAnnouncementEvent, message: string, pretripInfo = "") {
+  const shareUrl = eventShareUrl(event.shareCode, event.shareToken);
+  return [
+    `【${event.title}｜主辦公告】`,
+    message.trim(),
+    pretripInfo.trim() ? `行前資訊\n${pretripInfo.trim()}` : "",
+    `日期：${lineDateLabel(event.eventDate)} ${event.startTime}\n地點：${event.location}${event.address?.trim() ? `\n地址：${event.address.trim()}` : ""}\n活動連結：${shareUrl}`,
+  ].filter(Boolean).join("\n\n");
+}
+
+// This card is deliberately separate from the green response card: blue marks
+// a read-only organiser update, while the single footer action opens the event.
+export function activityAnnouncementCard(
+  event: ActivityAnnouncementEvent,
+  message: string,
+  pretripInfo = "",
+): LineReplyMessage {
+  const shareUrl = eventShareUrl(event.shareCode, event.shareToken);
+  const announcement = announcementText(message, 1_000);
+  const pretrip = announcementText(pretripInfo, 1_000);
+  const location = announcementText(event.location, 180);
+  const address = announcementText(event.address || "", 180);
+  return {
+    type: "flex",
+    altText: `【主辦公告】${event.title}｜${lineDateLabel(event.eventDate)} ${event.startTime}`.slice(0, 400),
+    contents: {
+      type: "bubble",
+      size: "mega",
+      header: {
+        type: "box", layout: "vertical", backgroundColor: "#EAF4FF", paddingAll: "16px",
+        contents: [
+          { type: "text", text: "主辦公告 · 活動資訊更新", color: "#28649D", size: "sm", weight: "bold" },
+          { type: "text", text: announcementText(event.title, 40), color: "#173A5E", size: "xl", weight: "bold", wrap: true, margin: "sm" },
+        ],
+      },
+      body: {
+        type: "box", layout: "vertical", spacing: "sm", paddingAll: "16px",
+        contents: [
+          ...(announcement ? [
+            { type: "text", text: "公告內容", color: "#5A7288", size: "sm", weight: "bold" },
+            { type: "text", text: announcement, color: "#29485E", wrap: true, margin: "xs" },
+            { type: "separator", margin: "md" },
+          ] : []),
+          { type: "text", text: `日期時間｜${lineDateLabel(event.eventDate)} ${event.startTime}`, color: "#29485E", wrap: true },
+          { type: "text", text: `活動地點｜${location}`, color: "#29485E", wrap: true },
+          ...(address ? [{ type: "text", text: `地址｜${address}`, color: "#5A7288", size: "sm", wrap: true }] : []),
+          ...(pretrip ? [
+            { type: "separator", margin: "md" },
+            { type: "text", text: "行前資訊", color: "#5A7288", size: "sm", weight: "bold", margin: "md" },
+            { type: "text", text: pretrip, color: "#29485E", size: "sm", wrap: true, margin: "xs" },
+          ] : []),
+        ],
+      },
+      footer: {
+        type: "box", layout: "vertical", paddingAll: "12px",
+        contents: [{
+          type: "button", style: "primary", color: "#2F6656", height: "sm",
+          action: { type: "uri", label: "查看活動與最新安排", uri: shareUrl },
+        }],
+      },
+    },
+  };
+}
+
 export async function getGroupName(groupId: string) {
   try {
     const response = await lineRequest(`/v2/bot/group/${encodeURIComponent(groupId)}/summary`, { method: "GET" });
