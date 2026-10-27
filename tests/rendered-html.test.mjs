@@ -550,11 +550,21 @@ test("activity arrangements keep allocation private and validate split family as
   assert.match(client, /scrollIntoView\(\{ behavior: "smooth", block: "start" \}\)/);
   assert.match(client, /桌遊、滑雪等活動/);
   assert.match(client, /同一筆報名超過空位時/);
+  assert.match(client, /function autoAssignBySignupOrder/);
+  assert.match(client, /手動安排／自動依報名順序分組/);
+  assert.match(client, /id="meal-auto-arrange"/);
+  assert.match(client, /table\.isReserve/);
+  assert.match(client, /rsvp\.partySize <= candidate\.capacity/);
+  assert.match(client, /自動依報名順序分組會覆蓋目前尚未儲存的安排/);
+  assert.match(admin, /orderBy\(asc\(rsvps\.createdAt\)\)/);
   assert.match(client, /function enableTouchPartyDrag/);
   assert.match(client, /touchDropTableAt\(pointerEvent\.clientX, pointerEvent\.clientY\)/);
   assert.match(client, /enableTouchPartyDrag\(card, card\.dataset\.seatSelect\)/);
   assert.match(styles, /\.meal-table-grid/);
   assert.match(styles, /\.meal-table-card\.touch-drop-target/);
+  assert.match(styles, /\.meal-auto-arrange-toggle \{[^}]*justify-content:center/);
+  assert.match(styles, /@media \(max-width:780px\) \{ \.meal-auto-arrange \{[^}]*flex-direction:column/);
+  assert.match(styles, /\.meal-auto-arrange-toggle \{ inline-size:100%; min-height:48px/);
   assert.match(styles, /\.arrangement-status\.pending/);
   assert.doesNotMatch(await readFile(new URL("../app/api/events/route.ts", import.meta.url), "utf8"), /mealTables/);
 });
@@ -817,7 +827,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.166/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.167/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -846,9 +856,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.166/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.166/);
-  assert.match(worker, /good-days-github-v163/);
+  assert.match(page, /\/app\.js\?v=1\.2\.167/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.167/);
+  assert.match(worker, /good-days-github-v167/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 

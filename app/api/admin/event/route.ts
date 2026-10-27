@@ -345,7 +345,7 @@ export async function POST(request: Request) {
         id: rsvps.id, name: rsvps.name, response: rsvps.response,
         partySize: rsvps.partySize, diet: rsvps.diet, note: rsvps.note, paymentStatus: rsvps.paymentStatus,
         createdAt: rsvps.createdAt, updatedAt: rsvps.updatedAt,
-      }).from(rsvps).where(eq(rsvps.eventId, access.event.id)),
+      }).from(rsvps).where(eq(rsvps.eventId, access.event.id)).orderBy(asc(rsvps.createdAt)),
       db.select().from(lineBindings).where(eq(lineBindings.eventId, access.event.id)).limit(1),
       eventNotificationGroups(access.event.id),
       db.select().from(lineReminderSettings).where(eq(lineReminderSettings.eventId, access.event.id)).limit(1),
