@@ -1191,17 +1191,30 @@ function waitForManagerBindingRefresh(creatorName, editCode, eventIds) {
   recoveryStatusRefreshTimer = window.setTimeout(refresh, 1200);
 }
 
-function openRecoveredActivities(activities, editCode, creatorName) {
+function openRecoveredActivities(activities, editCode, creatorName, refreshMessage = "") {
   stopRecoveryStatusRefresh();
   activeModalClose = closeModal;
+  let isRefreshingRecovery = false;
   const refreshRecoveredActivities = async () => {
+    if (isRefreshingRecovery) return;
+    isRefreshingRecovery = true;
+    const progress = document.querySelector("#recovery-return-status");
+    if (progress) {
+      progress.textContent = "正在重新整理我的活動…";
+      progress.hidden = false;
+    } else {
+      showNotice("正在重新整理我的活動…");
+    }
     try {
       const data = await requestJson("/creator-recovery", { action: "refresh", creatorName, editCode });
-      openRecoveredActivities(data.activities || [], editCode, creatorName);
+      openRecoveredActivities(data.activities || [], editCode, creatorName, "我的活動已更新");
     } catch (error) {
       // Keep the current management view visible when a refresh cannot finish;
       // never return to the stale recovery snapshot after a saved edit.
-      showNotice(error.message || "無法重新整理我的活動");
+      if (progress) progress.textContent = error.message || "無法重新整理我的活動";
+      else showNotice(error.message || "無法重新整理我的活動");
+    } finally {
+      isRefreshingRecovery = false;
     }
   };
   const upcoming = activities.filter(isUpcomingRecoveryActivity);
@@ -1221,6 +1234,7 @@ function openRecoveredActivities(activities, editCode, creatorName) {
     <div class="modal-backdrop"><section class="modal compact-modal" id="recovered-activities-modal" role="dialog" aria-modal="true" aria-labelledby="recovered-title">
       <button class="modal-close" data-close aria-label="關閉">×</button>
       <p class="eyebrow">已解鎖</p><h2 id="recovered-title">我的活動</h2>
+       ${refreshMessage ? `<p class="form-hint" id="recovery-refresh-status" role="status" aria-live="polite">${esc(refreshMessage)}</p>` : ""}
        ${batchPanel}
        <section class="recovery-current"><h3>尚未開始的活動</h3><div class="recovered-activities">${upcomingCards || '<p class="form-hint">目前沒有尚未開始的活動。</p>'}</div></section>
        ${history.length ? `<details class="recovery-history"><summary>已結束／已取消活動（${history.length}）</summary><div class="recovered-activities">${historyCards}</div></details>` : ""}
@@ -2016,6 +2030,7 @@ function openAdminDashboard(data, managerAuth, returnTo = null) {
         <button class="modal-close" data-close aria-label="關閉">×</button>
         <p class="eyebrow">活動管理後台${event.status === "completed" ? "・已結束" : event.status === "cancelled" ? "・已取消" : ""}</p><h2 id="admin-title">${esc(event.title)}</h2>
         <p class="modal-event-meta">${esc(formatShortDate(event.eventDate))} · ${esc(event.startTime)}<br>地點｜${esc(event.location)}${event.address ? `<br>地址｜${esc(event.address)}` : ""}</p>
+        ${returnTo ? '<p class="form-hint" id="recovery-return-status" role="status" aria-live="polite" hidden></p>' : ""}
         <div class="stats-grid">
           <div><strong>${data.summary.attendingPeople}</strong><span>參加人數</span></div>
           <div><strong>${data.summary.attendingReplies}</strong><span>參加回覆</span></div>
