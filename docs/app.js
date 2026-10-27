@@ -1836,7 +1836,8 @@ function initMealSeating(data, event, managerAuth) {
       const allocationRows = tableAssignments.map((assignment) => {
         const rsvp = rsvpById.get(assignment.rsvpId);
         if (!rsvp) return "";
-        return `<div class="meal-assignment" draggable="true" data-seat-assignment="${esc(assignment.id)}">
+        const assignmentWeight = Math.max(1, Math.min(50, Number(assignment.people) || 1));
+        return `<div class="meal-assignment" style="--meal-assignment-weight:${assignmentWeight}" draggable="true" data-seat-assignment="${esc(assignment.id)}">
           <span><strong>${esc(rsvp.name)}</strong><small>${assignment.people} 人</small></span>
           <button class="text-danger" type="button" data-seat-unassign="${esc(assignment.id)}">移回</button>
         </div>`;
