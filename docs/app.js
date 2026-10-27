@@ -1632,6 +1632,7 @@ function initMealSeating(data, event, managerAuth) {
     error: "",
     autoArrange: Boolean(data.mealSeating?.autoFill),
     autoArrangeMessage: "",
+    fillMessage: "",
   };
   const eventCapacity = Number.isInteger(event.capacity) && event.capacity > 0 ? event.capacity : null;
 
@@ -1661,6 +1662,30 @@ function initMealSeating(data, event, managerAuth) {
     const assignedPeople = assignments.reduce((sum, item) => sum + item.people, 0);
     const unassignedPeople = attending.reduce((sum, item) => sum + item.partySize, 0) - assignedPeople;
     state.autoArrangeMessage = `已依報名順序安排 ${assignedPeople} 人${unassignedPeople ? `；${unassignedPeople} 人因沒有足夠完整空位而保留未安排` : ""}。儲存後，新的完整報名會自動補入空位。`;
+  }
+
+  function planWholePartyFill() {
+    const nextAssignments = state.assignments.map((assignment) => ({ ...assignment }));
+    const additions = [];
+    for (const rsvp of attending) {
+      const alreadyAssigned = nextAssignments.filter((item) => item.rsvpId === rsvp.id)
+        .reduce((sum, item) => sum + item.people, 0);
+      // A partly hand-arranged household remains under the manager's control.
+      if (alreadyAssigned || rsvp.partySize < 1) continue;
+      const table = state.tables.filter((item) => !item.isReserve).find((candidate) => {
+        const used = nextAssignments.filter((item) => item.tableId === candidate.id)
+          .reduce((sum, item) => sum + item.people, 0);
+        return rsvp.partySize <= candidate.capacity - used;
+      });
+      if (!table) continue;
+      nextAssignments.push({ id: mealTableId(), tableId: table.id, rsvpId: rsvp.id, people: rsvp.partySize });
+      additions.push({ rsvp, table });
+    }
+    return {
+      assignments: nextAssignments,
+      additions,
+      people: additions.reduce((sum, item) => sum + item.rsvp.partySize, 0),
+    };
   }
 
   function tableNameErrors() {
@@ -1824,6 +1849,19 @@ function initMealSeating(data, event, managerAuth) {
     const totalCapacity = totalTableCapacity();
     const arrangementLimitReached = eventCapacity !== null && totalCapacity >= eventCapacity;
     const nameErrors = tableNameErrors();
+    const fullyUnassigned = attending.filter((rsvp) => unassignedFor(rsvp.id) === rsvp.partySize);
+    const partlyAssigned = attending.filter((rsvp) => {
+      const remaining = unassignedFor(rsvp.id);
+      return remaining > 0 && remaining < rsvp.partySize;
+    });
+    const fillPlan = planWholePartyFill();
+    const fillSummary = fullyUnassigned.length
+      ? fillPlan.additions.length
+        ? `可立即補入 ${fillPlan.additions.length} 筆、${fillPlan.people} 人；其餘 ${fullyUnassigned.length - fillPlan.additions.length} 筆仍需完整空位。`
+        : `有 ${fullyUnassigned.length} 筆完整報名待安排，但目前沒有足夠完整空位。`
+      : partlyAssigned.length
+        ? `有 ${partlyAssigned.length} 筆已手動部分安排，維持由管理者調整。`
+        : "目前沒有等待安排的完整報名。";
     const unassignedCards = attending.map((rsvp) => ({ rsvp, people: unassignedFor(rsvp.id) }))
       .filter((item) => item.people > 0).map(({ rsvp, people }) => `
         <button class="meal-party-card ${state.selectedRsvpId === rsvp.id ? "selected" : ""}" type="button" draggable="true" data-seat-select="${esc(rsvp.id)}">
@@ -1865,11 +1903,16 @@ function initMealSeating(data, event, managerAuth) {
         <div class="meal-setup-fields"><label>安排區數量<input id="meal-table-count" type="number" min="1" max="${eventCapacity || 24}" value="${state.tables.length || 1}" inputmode="numeric"></label><label>每區預設上限<input id="meal-table-capacity" type="number" min="1" max="${eventCapacity || 50}" value="${eventCapacity || 10}" inputmode="numeric"></label><button class="secondary" type="button" id="meal-build-tables">${state.tables.length ? "重新建立安排區" : "建立安排區"}</button></div>
         <p class="form-hint">${eventCapacity ? `活動人數上限為 ${eventCapacity} 人；所有安排區的容量合計不可超過 ${eventCapacity} 人。` : "重新建立會清除目前尚未儲存的安排；各區也可在下方個別調整人數與備註。"}</p>
       </details>
+      <section class="meal-fill-check" aria-labelledby="meal-fill-check-title">
+        <div class="meal-fill-check-copy"><p class="eyebrow">安排檢查</p><h4 id="meal-fill-check-title">未安排提醒與補位</h4><p>${fillSummary} 只會補入非預備區且完整放得下的報名，不會移動既有安排。</p></div>
+        <div class="meal-fill-check-action"><button class="secondary" type="button" id="meal-fill-unassigned" ${fillPlan.additions.length ? "" : "disabled"}>補入未安排者${fillPlan.additions.length ? `（${fillPlan.people} 人）` : ""}</button></div>
+      </section>
       <section class="meal-auto-arrange" aria-labelledby="meal-auto-arrange-title">
         <div class="meal-auto-arrange-copy"><p class="eyebrow">快速起始安排</p><h4 id="meal-auto-arrange-title">手動安排／自動補入空位</h4><p>預設為手動。啟用時會先按報名先後安排目前名單；儲存後，未來新報名也會自動補入非預備區。每筆同行者必須完整放得下，剩 1 位空間時不會把 2 人報名拆開。</p></div>
         <label class="meal-auto-arrange-toggle"><input id="meal-auto-arrange" type="checkbox" ${state.autoArrange ? "checked" : ""} ${state.tables.length ? "" : "disabled"}><span>自動補入完整報名</span></label>
       </section>
       <div class="meal-seating-actions"><button class="secondary" type="button" id="meal-add-table" ${arrangementLimitReached ? "disabled" : ""}>${arrangementLimitReached ? "已達活動總人數" : "＋ 新增安排區"}</button><button class="primary" type="button" id="meal-save" ${nameErrors.size ? "disabled" : ""}>儲存活動安排</button></div>
+      ${state.fillMessage ? `<p class="meal-fill-message" role="status">${esc(state.fillMessage)}</p>` : ""}
       ${state.autoArrangeMessage ? `<p class="meal-auto-arrange-message" role="status">${esc(state.autoArrangeMessage)}</p>` : ""}
       ${state.error ? `<p class="form-error">${esc(state.error)}</p>` : ""}
       <div class="meal-workspace"><section class="meal-unassigned"><div><p class="eyebrow">選家庭，拖到安排區</p><h4>未安排</h4></div>${unassignedCards}</section><section class="meal-table-grid">${tables}</section></div>
@@ -1939,6 +1982,14 @@ function initMealSeating(data, event, managerAuth) {
       if (eventCapacity && totalTableCapacity() - table.capacity + capacity > eventCapacity) return message(`活動人數上限為 ${eventCapacity} 人，安排區總容量不可超過此人數。\n`);
       table.capacity = capacity; state.error = ""; render();
     }));
+    root.querySelector("#meal-fill-unassigned")?.addEventListener("click", () => {
+      if (!fillPlan.additions.length) return;
+      state.assignments = fillPlan.assignments;
+      state.selectedRsvpId = "";
+      state.error = "";
+      state.fillMessage = `已補入 ${fillPlan.additions.length} 筆、${fillPlan.people} 人；請按「儲存活動安排」完成寫入。`;
+      render();
+    });
     root.querySelector("#meal-auto-arrange")?.addEventListener("change", (changeEvent) => {
       const input = changeEvent.currentTarget;
       if (!input.checked) {
@@ -1963,7 +2014,7 @@ function initMealSeating(data, event, managerAuth) {
       if (!Number.isInteger(count) || count < 1 || count > maxTables || !Number.isInteger(capacity) || capacity < 1 || capacity > maximum) return message(`安排區數量請填 1 到 ${maxTables}；每區上限請填 1 到 ${maximum}。\n`);
       if (eventCapacity && count * capacity > eventCapacity) return message(`活動人數上限為 ${eventCapacity} 人，安排區總容量不可超過此人數。\n`);
       if ((state.tables.length || state.assignments.length) && !confirm("重新建立桌次會清除目前尚未儲存的安排，確定繼續嗎？")) return;
-      state.tables = Array.from({ length: count }, (_, index) => newMealTable(index, capacity)); state.assignments = []; state.selectedRsvpId = ""; state.error = ""; state.autoArrange = false; state.autoArrangeMessage = ""; render();
+      state.tables = Array.from({ length: count }, (_, index) => newMealTable(index, capacity)); state.assignments = []; state.selectedRsvpId = ""; state.error = ""; state.autoArrange = false; state.autoArrangeMessage = ""; state.fillMessage = ""; render();
     });
     root.querySelector("#meal-add-table")?.addEventListener("click", () => {
       if (state.tables.length >= 24) return message("第一版最多可建立 24 桌。\n");

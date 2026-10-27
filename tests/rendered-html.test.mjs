@@ -561,6 +561,11 @@ test("activity arrangements keep allocation private and validate split family as
   assert.match(client, /桌遊、滑雪等活動/);
   assert.match(client, /同一筆報名超過空位時/);
   assert.match(client, /function autoAssignBySignupOrder/);
+  assert.match(client, /function planWholePartyFill/);
+  assert.match(client, /id="meal-fill-unassigned"/);
+  assert.match(client, /未安排提醒與補位/);
+  assert.match(client, /只會補入非預備區且完整放得下的報名/);
+  assert.match(client, /已補入 \$\{fillPlan\.additions\.length\} 筆、\$\{fillPlan\.people\} 人/);
   assert.match(client, /手動安排／自動補入空位/);
   assert.match(client, /剩 1 位空間時不會把 2 人報名拆開/);
   assert.match(client, /id="meal-auto-arrange"/);
@@ -582,6 +587,10 @@ test("activity arrangements keep allocation private and validate split family as
   assert.match(styles, /\.meal-auto-arrange-toggle \{[^}]*justify-content:center/);
   assert.match(styles, /@media \(max-width:780px\) \{ \.meal-auto-arrange \{[^}]*flex-direction:column/);
   assert.match(styles, /\.meal-auto-arrange-toggle \{ inline-size:100%; min-height:48px/);
+  assert.match(styles, /\.meal-fill-check-action \{[^}]*justify-content:center/);
+  assert.match(styles, /\.meal-fill-check-action \.secondary \{[^}]*min-height:46px/);
+  assert.match(styles, /@media \(max-width:780px\) \{ \.meal-fill-check \{[^}]*flex-direction:column/);
+  assert.match(styles, /\.meal-fill-check-action \.secondary \{ width:100%; min-height:48px/);
   assert.match(styles, /\.arrangement-status\.pending/);
   assert.doesNotMatch(await readFile(new URL("../app/api/events/route.ts", import.meta.url), "utf8"), /mealTables/);
 });
@@ -859,7 +868,7 @@ test("visitor count has its own footer row", async () => {
   ]);
   assert.match(page, /class="visitor-count" id="visitor-count"/);
   assert.match(page, /id="visitor-count-value"/);
-  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.169/);
+  assert.match(page, /© 2026 NELSON HSIEH · v1\.2\.170/);
   assert.doesNotMatch(page, /footer-social-link/);
   assert.doesNotMatch(page, /footer-portfolio-link/);
   assert.match(styles, /grid-template-areas:"visitor visitor visitor" "owner tagline top"/);
@@ -888,9 +897,9 @@ test("the service worker replaces cached management assets when a frontend relea
     readFile(new URL("../docs/e/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  assert.match(page, /\/app\.js\?v=1\.2\.169/);
-  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.169/);
-  assert.match(worker, /good-days-github-v169/);
+  assert.match(page, /\/app\.js\?v=1\.2\.170/);
+  assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.170/);
+  assert.match(worker, /good-days-github-v170/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
