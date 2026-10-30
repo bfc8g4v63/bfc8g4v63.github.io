@@ -19,6 +19,7 @@
 - Site version 170：`d102ad573e653aa5c6b169c2191da698c7cff384`
 - 家人入口：`https://bfc8g4v63.github.io/memory-capsule/`。此網址是唯一可分享的入口，會安全地交接到目前承載登入與私有媒體 API 的入口；既有資料、LINE 綁定、提醒與私有 R2 媒體均不重建或刪除。
 - 入口設定：LINE callback 與 R2 CORS 必須依目前承載登入與私有媒體 API 的 HTTPS 入口完成設定，才可進行實機登入與上傳驗收；隔離目的 D1 `good-days-family` 保留給未來完整搬遷使用。
+- LINE Login 發布：2026-10-30 已將「水金呼吸 回憶膠囊」LINE Login channel 由 `Developing` 發布為 `Published`，並連結 `@095abqnu／Nelson｜幸福助理`。一般受邀家人不再需要 LINE Developers 的測試者角色；家族邀請與成員權限仍由本系統驗證。
 
 ## Phase 0 — 外部設定
 
