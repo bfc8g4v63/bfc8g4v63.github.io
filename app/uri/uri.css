@@ -5,3 +5,10 @@
 .feature-card{align-items:center;text-align:center}.card-foot{justify-content:center;gap:20px}.together .outline-button,.settings-card .outline-button{display:flex;width:fit-content;max-width:100%;margin-left:auto;margin-right:auto}.photo-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:2px}.entry-photo{height:190px}.form-error-uri{color:#ffd0c6;background:rgba(180,76,65,.2);padding:10px 12px;border-radius:10px;margin:0;font-size:14px}.place{color:#bde1d4!important}
 
 .uri-app a.primary-button{color:#102725}.uri-footer{background:transparent}
+
+/* A quiet, abstract motif keeps the preference card personal without initials. */
+.together-art{position:relative;width:140px;height:100px;flex:0 0 140px;display:grid;place-items:center;font-size:24px;color:#e2c9b0}
+.together-art::before,.together-art::after{content:"";position:absolute;width:68px;height:68px;border:1px solid rgba(190,232,223,.5);border-radius:50%}
+.together-art::before{transform:translateX(-20px)}
+.together-art::after{transform:translateX(20px)}
+@media(max-width:700px){.together{gap:14px}.together h2{font-size:24px}.together-art{width:72px;height:72px;flex-basis:72px;font-size:17px}.together-art::before,.together-art::after{width:42px;height:42px}.together-art::before{transform:translateX(-12px)}.together-art::after{transform:translateX(12px)}}

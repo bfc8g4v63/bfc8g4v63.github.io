@@ -55,3 +55,11 @@ test("permanent deletion is owner-only and cannot race a restore",async()=>{
   assert.match(source,/state != 'purging'/);
   assert.match(source,/state='purging',version=version\+1/);
 });
+
+test("the couple space uses a neutral motif and keeps its preference action centered",async()=>{
+  const [page,css]=await Promise.all([readFile(new URL("../app/uri/page.tsx",import.meta.url),"utf8"),readFile(new URL("../app/uri/uri.css",import.meta.url),"utf8")]);
+  assert.doesNotMatch(page,/Y\s*(?:&|＆|<i>&<\/i>)\s*N|<span>[YN]<\/span>/);
+  assert.match(page,/className="together-art" aria-hidden="true"><span>✳<\/span>/);
+  assert.match(css,/\.together \.outline-button,\.settings-card \.outline-button\{[^}]*margin-left:auto;margin-right:auto/);
+  assert.match(css,/@media\(max-width:700px\)\{[^@]*\.together-art\{[^}]*flex-basis:72px/);
+});
