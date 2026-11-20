@@ -92,3 +92,10 @@
 .album-dialog::-webkit-scrollbar,.album-filmstrip::-webkit-scrollbar{width:7px;height:6px}
 .album-dialog::-webkit-scrollbar-track,.album-filmstrip::-webkit-scrollbar-track{background:transparent}
 .album-dialog::-webkit-scrollbar-thumb,.album-filmstrip::-webkit-scrollbar-thumb{background:rgba(187,222,213,.5);border-radius:999px}
+
+/* Vector icons share the true geometric center of circular controls. */
+.uri-app .uri-icon{display:block;flex:none;width:20px;height:20px;overflow:visible}
+.uri-app .uri-icon-right{transform:rotate(180deg)}
+.uri-app .viewer-arrow .uri-icon{width:22px;height:22px}
+.uri-app .remove-photo .uri-icon,.uri-app .status button .uri-icon{width:14px;height:14px}
+.uri-app .status button{display:inline-flex;align-items:center;justify-content:center}

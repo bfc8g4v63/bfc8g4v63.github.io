@@ -229,3 +229,14 @@ test("album actions stay centered with responsive thumbnail layouts",async()=>{
  assert.match(css,/\.album-grid\{display:grid;grid-template-columns:repeat\(5,minmax\(0,1fr\)\)/);
  assert.match(css,/\.album-grid\{grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/);
 });
+
+test("navigation and close icons use centered vector paths across responsive controls",async()=>{
+ const [page,album,icons,css]=await Promise.all([readFile(new URL("../app/uri/page.tsx",import.meta.url),"utf8"),readFile(new URL("../app/uri/AlbumDialog.tsx",import.meta.url),"utf8"),readFile(new URL("../app/uri/Icons.tsx",import.meta.url),"utf8"),readFile(new URL("../app/uri/uri.css",import.meta.url),"utf8")]);
+ assert.doesNotMatch(page,/>[‹›←→×]<\/button>/);assert.doesNotMatch(album,/>[‹›×]<\/button>/);
+ assert.match(icons,/viewBox="0 0 24 24"/);assert.match(icons,/M15\.5 5L8\.5 12l7 7/);assert.match(icons,/M19 12H5 M11 6l-6 6 6 6/);assert.match(icons,/aria-hidden="true"/);
+ assert.match(css,/\.uri-app \.uri-icon\{display:block;flex:none;width:20px;height:20px/);
+ assert.match(css,/\.uri-app \.viewer-arrow \.uri-icon\{width:22px;height:22px\}/);
+ assert.match(css,/\.uri-app \.calendar-nav\{display:grid;place-items:center;width:40px;height:40px/);
+ assert.match(css,/\.uri-app \.album-controls button\{display:flex;align-items:center;justify-content:center/);
+ assert.match(css,/\.uri-app \.album-close,\.uri-app \.viewer-arrow\{flex:none;display:flex;align-items:center;justify-content:center/);
+});
