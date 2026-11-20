@@ -428,7 +428,7 @@ test("LINE webhook verifies signatures and reminder workflow uses a secret", asy
   assert.match(scheduler, /Reminder service returned/);
 });
 
-test("Yandy entry contains no private story and uses a centered link", async () => {
+test("Yandy entry redirects straight to the private app with an accessible fallback", async () => {
   const [oldPage, page, sw] = await Promise.all([
     readFile(new URL("../docs/fairy/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/Yandy/index.html", import.meta.url), "utf8"),
@@ -438,8 +438,10 @@ test("Yandy entry contains no private story and uses a centered link", async () 
   assert.match(page, /name="robots" content="noindex,nofollow,noarchive"/);
   assert.match(page, /https:\/\/gooddays\.carewear\.workers\.dev\/uri/);
   assert.doesNotMatch(page, /access-password|fairy\.js|fairy\.css/);
-  assert.match(page, /\.cta\{[^}]*justify-content:center;[^}]*margin:0 auto;[^}]*padding:/);
-  assert.match(page, /\.panel\{[^}]*padding:56px 30px/);
+  assert.match(page, /http-equiv="refresh" content="0;url=https:\/\/gooddays\.carewear\.workers\.dev\/uri"/);
+  assert.match(page, /window\.location\.replace\("https:\/\/gooddays\.carewear\.workers\.dev\/uri"\)/);
+  assert.match(page, /\.cta\{[^}]*justify-content:center;[^}]*margin:22px auto 0;[^}]*padding:/);
+  assert.match(page, /\.fallback\{[^}]*padding:32px 24px/);
   assert.match(sw, /Yandy\|fairy/);
 });
 
