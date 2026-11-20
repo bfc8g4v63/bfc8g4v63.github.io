@@ -3,10 +3,11 @@ import { getMemorySession } from "../../memory/auth";
 import { streamZip, textStream } from "../../memory/zip";
 import { rateLimit } from "../../rate-limit";
 import { entryView, taipeiDate, validDate } from "../../../../lib/uri/core";
+import { readPreference, writePreference, splitPreferenceTitles } from "../../../../lib/uri/preferences";
 
 type Bindings = { DB: D1Database; URI_BUCKET?: R2Bucket; URI_SETUP_CODE?: string; URI_SEED_JSON?: string; MEMORY_PUBLIC_ORIGIN?: string };
 type Member = { id:string; role:string; display_name:string };
-type Row = { id:string; author_id:string; kind:string; category:string; title:string; body:string; start_date:string|null; end_date:string|null; state:string; version:number; deleted_at:string|null; created_at:string; updated_at:string; display_name:string };
+type Row = { id:string; author_id:string; kind:string; category:string; title:string; body:string; start_date:string|null; end_date:string|null; state:string; version:number; deleted_at:string|null; created_at:string; updated_at:string; display_name:string; author_role:string };
 const runtime = env as unknown as Bindings;
 const noStore = { "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" };
 function json(data: unknown, status=200) { return Response.json(data,{status,headers:noStore}); }
@@ -16,14 +17,16 @@ function equal(a:string,b:string) { if(a.length!==b.length) return false; let n=
 function originOK(request:Request) { const origin=request.headers.get("origin"); const configured=runtime.MEMORY_PUBLIC_ORIGIN?.trim(); return Boolean(origin && (origin===configured || (origin==="http://localhost:5173" && new URL(request.url).hostname==="localhost"))); }
 async function identity(request:Request) { return getMemorySession(request); }
 async function member(subject:string):Promise<Member|null> { return runtime.DB.prepare("SELECT id, role, display_name FROM uri_members WHERE subject = ? AND active = 1 LIMIT 1").bind(subject).first<Member>(); }
-function output(row:Row,today:string) { const { author_id, start_date, end_date, deleted_at, created_at, updated_at, display_name, ...rest }=row; return {...rest,authorId:author_id,author:display_name,startDate:start_date,endDate:end_date,deletedAt:deleted_at,createdAt:created_at,updatedAt:updated_at,view:entryView({kind:row.kind,startDate:start_date,endDate:end_date,state:row.state},today)}; }
+function output(row:Row,today:string) { const { author_id, start_date, end_date, deleted_at, created_at, updated_at, display_name, author_role, ...rest }=row; const preference = row.kind === "preference" ? readPreference(row.category,author_role) : null; return {...rest,...(preference?{category:preference.category,preferenceFor:preference.person}:{}),authorId:author_id,author:display_name,startDate:start_date,endDate:end_date,deletedAt:deleted_at,createdAt:created_at,updatedAt:updated_at,view:entryView({kind:row.kind,startDate:start_date,endDate:end_date,state:row.state},today)}; }
 async function readBody(request:Request) { return await request.json() as Record<string,unknown>; }
 function parseInput(body:Record<string,unknown>) {
   const kind=clean(body.kind,20),title=clean(body.title,120),text=clean(body.body,2000),category=clean(body.category,40),state=clean(body.state,20)||"active";
   const startDate=clean(body.startDate,10)||null,endDate=clean(body.endDate,10)||null;
+  const preferenceCategory = kind === "preference" ? writePreference(body.preferenceFor,category) : category;
+  if (preferenceCategory === null) return null;
   if(!["plan","memory","preference","note"].includes(kind)||!title||!["active","completed","cancelled"].includes(state)) return null;
   if((startDate && !validDate(startDate))||(endDate && !validDate(endDate))||(endDate && (!startDate || endDate<startDate))) return null;
-  return {kind,title,body:text,category,state,startDate,endDate};
+  return {kind,title,body:text,category:preferenceCategory,state,startDate,endDate};
 }
 export async function GET(request:Request) {
  try {
@@ -34,7 +37,7 @@ export async function GET(request:Request) {
   const me=await member(session.subject); if(!me) return json({error:"此帳號尚未加入"},403);
   if(path[0]==="entries") {
    const deleted=new URL(request.url).searchParams.get("deleted")==="1";
-   const rows=await runtime.DB.prepare(`SELECT e.*,m.display_name FROM uri_entries e JOIN uri_members m ON m.id=e.author_id WHERE e.deleted_at IS ${deleted?"NOT NULL":"NULL"} ORDER BY e.created_at DESC LIMIT 500`).all<Row>();
+   const rows=await runtime.DB.prepare(`SELECT e.*,m.display_name,m.role AS author_role FROM uri_entries e JOIN uri_members m ON m.id=e.author_id WHERE e.deleted_at IS ${deleted?"NOT NULL":"NULL"} ORDER BY e.created_at DESC LIMIT 500`).all<Row>();
    const photos=await runtime.DB.prepare("SELECT p.id,p.entry_id FROM uri_photos p JOIN uri_entries e ON p.entry_id=e.id WHERE e.deleted_at IS NULL").all<{id:string;entry_id:string}>();
    const today=taipeiDate(); return json({today,entries:(rows.results||[]).map(row=>({...output(row,today),photos:(photos.results||[]).filter(p=>p.entry_id===row.id).map(p=>p.id)}))});
   }
@@ -45,11 +48,11 @@ export async function GET(request:Request) {
    return new Response(object.body,{headers:{...noStore,"Content-Type":photo.mime_type,"Content-Disposition":"inline","Content-Security-Policy":"default-src 'none'; sandbox"}});
   }
   if(path[0]==="export") {
-   const rows=await runtime.DB.prepare("SELECT e.id,e.kind,e.category,e.title,e.body,e.start_date,e.end_date,e.state,e.created_at,e.updated_at,m.display_name FROM uri_entries e JOIN uri_members m ON m.id=e.author_id WHERE e.deleted_at IS NULL ORDER BY e.created_at").all();
+   const rows=await runtime.DB.prepare("SELECT e.id,e.kind,e.category,e.title,e.body,e.start_date,e.end_date,e.state,e.created_at,e.updated_at,m.display_name,m.role AS author_role FROM uri_entries e JOIN uri_members m ON m.id=e.author_id WHERE e.deleted_at IS NULL ORDER BY e.created_at").all();
    const photos=await runtime.DB.prepare("SELECT p.id,p.object_key,p.mime_type,p.byte_size,p.entry_id FROM uri_photos p JOIN uri_entries e ON e.id=p.entry_id WHERE e.deleted_at IS NULL").all<{id:string;object_key:string;mime_type:string;byte_size:number;entry_id:string}>();
    const files=photos.results||[]; if(files.length&&!runtime.URI_BUCKET) return json({error:"照片儲存尚未連線"},503);
    if(files.reduce((n,p)=>n+p.byte_size,0)>2*1024*1024*1024) return json({error:"資料超過單次匯出上限，請聯繫管理者"},413);
-   const archive=[{name:"memories.json",open:async()=>textStream(JSON.stringify({exportedAt:new Date().toISOString(),entries:rows.results||[],photos:files.map(p=>({id:p.id,entryId:p.entry_id,mimeType:p.mime_type}))},null,2))},...files.map(p=>({name:`photos/${p.id}.${p.mime_type==="image/png"?"png":p.mime_type==="image/webp"?"webp":"jpg"}`,open:async()=>{const obj=await runtime.URI_BUCKET!.get(p.object_key);if(!obj)throw new Error("missing photo");return obj.body;}}))];
+   const archive=[{name:"memories.json",open:async()=>textStream(JSON.stringify({exportedAt:new Date().toISOString(),entries:(rows.results||[]).map((row:any)=>{const {author_role,...entry}=row;const pref=entry.kind==="preference"?readPreference(entry.category,author_role):null;return pref?{...entry,category:pref.category,preference_for:pref.person}:entry;}),photos:files.map(p=>({id:p.id,entryId:p.entry_id,mimeType:p.mime_type}))},null,2))},...files.map(p=>({name:`photos/${p.id}.${p.mime_type==="image/png"?"png":p.mime_type==="image/webp"?"webp":"jpg"}`,open:async()=>{const obj=await runtime.URI_BUCKET!.get(p.object_key);if(!obj)throw new Error("missing photo");return obj.body;}}))];
    return new Response(streamZip(archive),{headers:{...noStore,"Content-Type":"application/zip","Content-Disposition":"attachment; filename=uri-memories.zip"}});
   }
   return json({error:"找不到資料"},404);
@@ -88,9 +91,11 @@ export async function POST(request:Request) {
    return json({code,expiresHours:24});
   }
   if(path[0]==="entries") {
-   const input=parseInput(await readBody(request)); if(!input) return json({error:"請檢查標題與日期"},400);
-   const id=crypto.randomUUID(),now=new Date().toISOString();
-   await runtime.DB.prepare("INSERT INTO uri_entries (id,author_id,kind,category,title,body,start_date,end_date,state,version,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,1,?,?)").bind(id,me.id,input.kind,input.category,input.title,input.body,input.startDate,input.endDate,input.state,now,now).run(); return json({id},201);
+   const data=await readBody(request); const input=parseInput(data); if(!input) return json({error:"請檢查標題、對象與分類"},400);
+   const titles=input.kind==="preference" ? splitPreferenceTitles(data.title) : [input.title];
+   if(!titles) return json({error:"請輸入 1 到 30 個喜好，每項最多 120 字"},400);
+   const ids=titles.map(()=>crypto.randomUUID()),now=new Date().toISOString();
+   await runtime.DB.batch(titles.map((title,index)=>runtime.DB.prepare("INSERT INTO uri_entries (id,author_id,kind,category,title,body,start_date,end_date,state,version,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,1,?,?)").bind(ids[index],me.id,input.kind,input.category,title,input.body,input.startDate,input.endDate,input.state,now,now))); return json({id:ids[0],count:ids.length},201);
   }
   if(path[0]==="photos" && path[1]) {
    const entry=await runtime.DB.prepare("SELECT id FROM uri_entries WHERE id=? AND deleted_at IS NULL").bind(path[1]).first(); if(!entry) return json({error:"找不到內容"},404);
@@ -118,8 +123,9 @@ export async function PATCH(request:Request) {
   const now=new Date().toISOString();
   if(data.action==="restore") {const result=await runtime.DB.prepare("UPDATE uri_entries SET deleted_at=NULL,version=version+1,updated_at=? WHERE id=? AND version=? AND deleted_at IS NOT NULL AND state != 'purging'").bind(now,path[1],version).run();return result.meta.changes?json({ok:true}):json({error:"內容已有變更，請重新整理"},409);}
   const input=parseInput(data); if(!input) return json({error:"請檢查標題與日期"},400);
-  const original=await runtime.DB.prepare("SELECT author_id,kind FROM uri_entries WHERE id=? AND deleted_at IS NULL").bind(path[1]).first<{author_id:string;kind:string}>();
-  if(!original) return json({error:"找不到內容"},404); if(original.kind==="preference"&&original.author_id!==me.id) return json({error:"請由本人修改喜好"},403);
+  const original=await runtime.DB.prepare("SELECT e.author_id,e.kind,e.category,m.role AS author_role FROM uri_entries e JOIN uri_members m ON m.id=e.author_id WHERE e.id=? AND e.deleted_at IS NULL").bind(path[1]).first<{author_id:string;kind:string;category:string;author_role:string}>();
+  if(!original) return json({error:"找不到內容"},404); if(original.kind!==input.kind) return json({error:"不能變更內容種類"},400);
+  if(original.kind==="preference" && original.author_id!==me.id && me.role!=="owner" && readPreference(original.category,original.author_role).person!=="yandy") return json({error:"請由本人或記錄者修改喜好"},403);
   const result=await runtime.DB.prepare("UPDATE uri_entries SET kind=?,category=?,title=?,body=?,start_date=?,end_date=?,state=?,version=version+1,updated_at=? WHERE id=? AND version=? AND deleted_at IS NULL").bind(input.kind,input.category,input.title,input.body,input.startDate,input.endDate,input.state,now,path[1],version).run();return result.meta.changes?json({ok:true}):json({error:"內容已有變更，請重新整理"},409);
  }catch{return json({error:"目前無法儲存，請稍後再試"},503);}
 }

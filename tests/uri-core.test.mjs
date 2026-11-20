@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {readFile} from "node:fs/promises";
 import {entryView,taipeiDate,validDate} from "../lib/uri/core.ts";
 import proxy from "../cloudflare/gooddays-proxy-worker.mjs";
+import {readPreference,writePreference,splitPreferenceTitles} from "../lib/uri/preferences.ts";
 
 test("plans move after the final Taipei day without claiming they happened",()=>{
   assert.equal(taipeiDate(new Date("2026-12-13T15:59:59Z")),"2026-12-13");
@@ -62,4 +63,31 @@ test("the couple space uses a neutral motif and keeps its preference action cent
   assert.match(page,/className="together-art" aria-hidden="true"><span>✳<\/span>/);
   assert.match(css,/\.together \.outline-button,\.settings-card \.outline-button\{[^}]*margin-left:auto;margin-right:auto/);
   assert.match(css,/@media\(max-width:700px\)\{[^@]*\.together-art\{[^}]*flex-basis:72px/);
+});
+
+test("preferences preserve their subject, legacy author and individual list entries",()=>{
+  assert.equal(writePreference("yandy","不喜歡"),"pref:yandy:不喜歡");
+  assert.deepEqual(readPreference("pref:yandy:不喜歡","owner"),{person:"yandy",category:"不喜歡"});
+  assert.deepEqual(readPreference("喜歡","owner"),{person:"nelson",category:"喜歡"});
+  assert.deepEqual(readPreference("不太喜歡","member"),{person:"yandy",category:"不太喜歡"});
+  assert.equal(writePreference("unknown","喜歡"),null);
+  assert.deepEqual(splitPreferenceTitles("甲、乙，丙,甲"),["甲","乙","丙"]);
+  assert.equal(splitPreferenceTitles(Array(32).fill("x").map((x,i)=>x+i).join(",")),null);
+});
+test("preference controls stay within padded, responsive cards",async()=>{
+  const css=await readFile(new URL("../app/uri/uri.css",import.meta.url),"utf8");
+  assert.match(css,/\.preference-person\{padding:28px/);
+  assert.match(css,/@media\(max-width:700px\)\{\.preference-people\{grid-template-columns:1fr\}\.preference-person\{padding:23px/);
+  assert.match(css,/\.primary-button,\.outline-button\{[^}]*align-items:center;justify-content:center/);
+});
+
+test("tilted cards retain centered actions and respect reduced motion",async()=>{
+  const [page,css]=await Promise.all([readFile(new URL("../app/uri/page.tsx",import.meta.url),"utf8"),readFile(new URL("../app/uri/uri.css",import.meta.url),"utf8")]);
+  assert.match(page,/className="keepsake" aria-hidden="true"/);
+  assert.doesNotMatch(page,/className="orbit"/);
+  assert.match(css,/@media\(max-width:700px\)\{\.uri-hero\{min-height:650px\}\.keepsake\{width:155px;right:0;top:auto;bottom:52px/);
+  assert.match(css,/\.feature-plan\{transform:rotate\(-1deg\)\}/);
+  assert.match(css,/\.feature-memory\{transform:rotate\(1deg\)\}/);
+  assert.match(css,/\.feature-card\{align-items:center;text-align:center\}/);
+  assert.match(css,/@media\(prefers-reduced-motion:reduce\)\{\.feature-plan[^}]*transform:none/);
 });
