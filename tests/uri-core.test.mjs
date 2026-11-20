@@ -1,8 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {readFile} from "node:fs/promises";
-import {entryView,taipeiDate,validDate,monthDays,changeDatePart,shiftCalendarMonth,firstWeekday,dateWheelIndex} from "../lib/uri/core.ts";
+import {entryView,taipeiDate,validDate,monthDays,changeDatePart,shiftCalendarMonth,firstWeekday,dateWheelIndex,slowDateWheel} from "../lib/uri/core.ts";
 import proxy from "../cloudflare/gooddays-proxy-worker.mjs";
+import {uploadPhoto} from "../lib/uri/photo-upload.ts";
+import {createPendingPhotos} from "../lib/uri/photo-selection.ts";
 import {readPreference,writePreference,splitPreferenceTitles} from "../lib/uri/preferences.ts";
 
 test("plans move after the final Taipei day without claiming they happened",()=>{
@@ -117,7 +119,7 @@ test("photo controls support centered cover selection and binary uploads",async(
   const [page,css,api]=await Promise.all([readFile(new URL("../app/uri/page.tsx",import.meta.url),"utf8"),readFile(new URL("../app/uri/uri.css",import.meta.url),"utf8"),readFile(new URL("../app/api/uri/[...path]/route.ts",import.meta.url),"utf8")]);
   assert.match(page,/type="file" multiple/);
   assert.match(page,/aria-pressed=\{coverChoice/);
-  assert.match(page,/method:"POST",body:blob/);
+  assert.match(page,/uploadPhoto\(id,blob/);
   assert.match(api,/p\.entry_id=e\.id WHERE e\.id=\? AND p\.id=\?/);
   assert.match(css,/\.uri-app \.photo-option\{[^}]*align-items:center;justify-content:center/);
   assert.match(css,/@media\(max-width:700px\)\{\.entry-media\{padding:16px 16px 0\}/);
@@ -149,4 +151,30 @@ test("date wheels are keyboard accessible and keep their contents centered",asyn
  assert.doesNotMatch(page,/<select ref=\{yearRef\}/);assert.match(page,/aria-valuetext=/);assert.match(page,/event\.key==="ArrowDown"/);assert.match(page,/syncTarget/);
  assert.match(css,/\.date-wheel-option\{[^}]*align-items:center;justify-content:center/);
  assert.match(css,/\.date-wheel-frame::after\{[^}]*left:4px;right:4px;top:44px;height:44px/);
+});
+
+test("mouse wheel advances at most one date per notch",()=>{
+ assert.deepEqual(slowDateWheel(0,120,0),{step:1,carry:59});
+ assert.deepEqual(slowDateWheel(0,-120,0),{step:-1,carry:-59});
+ assert.deepEqual(slowDateWheel(0,20,0),{step:0,carry:20});
+ assert.deepEqual(slowDateWheel(20,40,0),{step:1,carry:0});
+});
+
+test("photo uploads report actual bytes and surface rejection",async()=>{
+ const updates=[];let fake;const create=()=>fake={upload:{},open(method,url){this.method=method;this.url=url;},setRequestHeader(k,v){this.header=[k,v];},send(){this.upload.onprogress({loaded:2,total:4,lengthComputable:true});this.upload.onprogress({loaded:4,total:4,lengthComputable:true});this.status=201;this.response={id:"photo-id"};this.onload();}};
+ const result=await uploadPhoto("entry-id",new Blob(["1234"],{type:"image/jpeg"}),n=>updates.push(n),create);
+ assert.deepEqual(updates,[.5,1]);assert.equal(result.id,"photo-id");assert.equal(fake.method,"POST");assert.equal(fake.url,"/api/uri/photos/entry-id");
+ const denied=()=>({upload:{},open(){},setRequestHeader(){},send(){this.status=403;this.response=null;this.onload();}});
+ await assert.rejects(uploadPhoto("entry-id",new Blob(["1"]),()=>{},denied),/請求遭拒/);
+});
+test("photo selection has no fixed item cap and previews are bounded",async()=>{
+ const [page,css,layout,icon]=await Promise.all([readFile(new URL("../app/uri/page.tsx",import.meta.url),"utf8"),readFile(new URL("../app/uri/uri.css",import.meta.url),"utf8"),readFile(new URL("../app/uri/layout.tsx",import.meta.url),"utf8"),readFile(new URL("../public/uri-cats.svg",import.meta.url),"utf8")]);
+ assert.doesNotMatch(page,/photos\.length\s*\+\s*chosen\.length\s*>/);assert.match(page,/photos\.slice\(0,photoPreviewLimit\)/);
+ assert.match(page,/<progress max=\{uploadProgress\.total\}/);assert.match(page,/className="uri-edit-fields" disabled=\{busy\} inert=/);assert.match(layout,/uri-cats\.svg/);assert.match(icon,/<svg/);
+ assert.match(css,/\.uri-app \.show-more-photos\{display:flex;align-items:center;justify-content:center/);
+});
+
+test("more than twenty photos remain independently queued",()=>{
+ let index=0;const files=Array.from({length:73},(_,i)=>({name:`photo-${i}`}));const queued=createPendingPhotos(files,()=>`id-${index++}`);
+ assert.equal(queued.length,73);assert.equal(queued[0].file,files[0]);assert.equal(queued[72].file,files[72]);assert.equal(new Set(queued.map(p=>p.id)).size,73);
 });

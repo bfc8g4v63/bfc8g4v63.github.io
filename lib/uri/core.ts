@@ -55,3 +55,11 @@ export function dateWheelIndex(scrollTop:number, itemCount:number, itemHeight=44
   if(itemCount<1 || !Number.isFinite(scrollTop) || itemHeight<=0) return 0;
   return Math.max(0,Math.min(itemCount-1,Math.round(scrollTop/itemHeight)));
 }
+
+// A mouse wheel notch advances at most one value; small trackpad movements accumulate.
+export function slowDateWheel(carry:number,delta:number,mode:number):{step:number;carry:number} {
+  if(!Number.isFinite(delta)||!Number.isFinite(carry))return {step:0,carry:0};
+  const pixels=delta*(mode===1?16:mode===2?132:1),total=Math.max(-120,Math.min(120,carry+pixels));
+  if(Math.abs(total)<60)return {step:0,carry:total};
+  const step=total>0?1:-1;return {step,carry:Math.max(-59,Math.min(59,total-step*60))};
+}

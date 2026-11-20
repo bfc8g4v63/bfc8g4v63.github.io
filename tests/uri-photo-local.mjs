@@ -11,10 +11,11 @@ try {
  r=await call("entries",{method:"POST",data:{kind:"memory",title:"Local photo test B",startDate:"2026-11-20"}});assert.equal(r.status,201);const second=r.body.id;created.push(second);
  r=await call(`photos/${first}`,{method:"POST",body:png});assert.equal(r.status,201);const p1=r.body.id;
  r=await call(`photos/${first}`,{method:"POST",body:png});assert.equal(r.status,201);const p2=r.body.id;
+ const additional=[];for(let i=0;i<23;i++){r=await call(`photos/${first}`,{method:"POST",body:png});assert.equal(r.status,201);additional.push(r.body.id);}
  r=await call(`photos/${second}`,{method:"POST",body:png});assert.equal(r.status,201);const foreign=r.body.id;
  r=await call(`photos/${first}`,{method:"POST",body:png,origin:"https://outside.example"});assert.equal(r.status,403);
  r=await call(`entries/${first}`,{method:"PATCH",data:{action:"cover",photoId:p2,version:1}});assert.equal(r.status,200);
- r=await call("entries");let firstRow=r.body.entries.find(e=>e.id===first);assert.deepEqual(new Set(firstRow.photos),new Set([p1,p2]));assert.equal(firstRow.coverPhotoId,p2);
+ r=await call("entries");let firstRow=r.body.entries.find(e=>e.id===first);assert.deepEqual(new Set(firstRow.photos),new Set([p1,p2,...additional]));assert.equal(firstRow.coverPhotoId,p2);
  r=await call(`entries/${first}`,{method:"PATCH",data:{action:"cover",photoId:foreign,version:1}});assert.equal(r.status,404);
  r=await call("entries");firstRow=r.body.entries.find(e=>e.id===first);assert.equal(firstRow.coverPhotoId,p2);
  r=await call("export");assert.equal(r.status,200);assert.ok(Buffer.from(r.body).includes(Buffer.from(p2)),"cover ID appears in export");
