@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {readFile} from "node:fs/promises";
 import {entryView,taipeiDate,validDate,monthDays,changeDatePart,shiftCalendarMonth,firstWeekday,dateWheelIndex,slowDateWheel} from "../lib/uri/core.ts";
 import proxy from "../cloudflare/gooddays-proxy-worker.mjs";
+import {albumSwipe,orderAlbumPhotos,stepAlbumIndex} from "../lib/uri/album.ts";
 import {uploadPhoto} from "../lib/uri/photo-upload.ts";
 import {createPendingPhotos} from "../lib/uri/photo-selection.ts";
 import {readPreference,writePreference,splitPreferenceTitles} from "../lib/uri/preferences.ts";
@@ -210,4 +211,21 @@ test("aurora cursor respects touch, motion preferences and text inputs",async()=
 test("Uri share metadata and login error stay specific to Uri",async()=>{
  const [layout,page]=await Promise.all([readFile(new URL("../app/uri/layout.tsx",import.meta.url),"utf8"),readFile(new URL("../app/uri/page.tsx",import.meta.url),"utf8")]);
  assert.match(layout,/applicationName: "우리"/);assert.match(layout,/openGraph: \{ title: "우리"/);assert.match(page,/LINE 登入已中斷或逾時/);
+});
+
+
+test("album navigation orders the cover and distinguishes swipes from vertical scrolls",()=>{
+ assert.deepEqual(orderAlbumPhotos(["a","b","c"],"b"),["b","a","c"]);
+ assert.deepEqual(orderAlbumPhotos(["a","b"],"missing"),["a","b"]);assert.deepEqual(orderAlbumPhotos([],null),[]);
+ assert.equal(stepAlbumIndex(0,-1,3),2);assert.equal(stepAlbumIndex(2,1,3),0);assert.equal(stepAlbumIndex(0,1,0),0);
+ assert.equal(albumSwipe(-90,10),1);assert.equal(albumSwipe(90,10),-1);assert.equal(albumSwipe(20,0),0);assert.equal(albumSwipe(70,80),0);
+});
+test("album actions stay centered with responsive thumbnail layouts",async()=>{
+ const [page,album,css]=await Promise.all([readFile(new URL("../app/uri/page.tsx",import.meta.url),"utf8"),readFile(new URL("../app/uri/AlbumDialog.tsx",import.meta.url),"utf8"),readFile(new URL("../app/uri/uri.css",import.meta.url),"utf8")]);
+ assert.match(page,/className="album-open"/);assert.match(album,/photos\.slice\(0,limit\)/);assert.match(album,/loading=\{large\?"eager":"lazy"\}/);
+ assert.match(album,/ArrowLeft/);assert.match(album,/ArrowRight/);assert.match(album,/onTouchStart/);assert.match(album,/onTouchEnd/);
+ assert.match(css,/\.uri-app \.album-open\{display:flex;align-items:center;justify-content:center;[^}]*margin:14px auto/);
+ assert.match(css,/\.uri-app \.album-more\{display:flex;align-items:center;justify-content:center;[^}]*margin:24px auto/);
+ assert.match(css,/\.album-grid\{display:grid;grid-template-columns:repeat\(5,minmax\(0,1fr\)\)/);
+ assert.match(css,/\.album-grid\{grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/);
 });
