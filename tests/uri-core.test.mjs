@@ -197,3 +197,12 @@ test("Uri cards remain centered and free of decorative sparkle glyphs",async()=>
  assert.match(css,/\.uri-app \.feature-card \.card-foot\{justify-content:center;gap:20px\}/);
  assert.match(css,/@media\(max-width:700px\)\{\.uri-app \.feature-card\{min-height:190px;padding:24px\}\}/);
 });
+
+test("aurora cursor respects touch, motion preferences and text inputs",async()=>{
+ const [page,css,pointer,active]=await Promise.all([readFile(new URL("../app/uri/page.tsx",import.meta.url),"utf8"),readFile(new URL("../app/uri/uri.css",import.meta.url),"utf8"),readFile(new URL("../public/uri-cursor.svg",import.meta.url),"utf8"),readFile(new URL("../public/uri-cursor-active.svg",import.meta.url),"utf8")]);
+ assert.match(page,/\(hover: hover\) and \(pointer: fine\) and \(prefers-reduced-motion: no-preference\)/);
+ assert.match(page,/event\.pointerType!=="mouse"/);assert.match(page,/target\.closest\("input:not/);
+ assert.match(page,/cancelAnimationFrame\(frame\)/);assert.match(page,/window\.removeEventListener\("pointermove",move\)/);
+ assert.match(css,/\.uri-cursor\{display:none\}/);assert.match(css,/\.uri-cursor\{display:block;position:fixed;[^}]*pointer-events:none/);
+ assert.match(css,/\[contenteditable=true\]\{cursor:text\}/);assert.match(pointer,/<svg/);assert.match(active,/<svg/);
+});
