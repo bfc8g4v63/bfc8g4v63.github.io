@@ -1,4 +1,4 @@
-import { clearMemoryCookie, consumeOAuthState, createSessionCookie, exchangeLineCode, MEMORY_STATE_COOKIE, publicUrl } from "../../auth";
+import { clearMemoryCookie, consumeOAuthState, createSessionCookie, exchangeLineCode, MEMORY_STATE_COOKIE, oauthFailurePage, publicUrl } from "../../auth";
 import { acceptMemoryInvite, refreshMemoryMemberProfile } from "../../families";
 
 function finish(request: Request, destination: string, cookies: string[]) {
@@ -11,11 +11,13 @@ function finish(request: Request, destination: string, cookies: string[]) {
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
+  let failurePage = "/memory-capsule";
   try {
+    failurePage = await oauthFailurePage(url.searchParams.get("state"));
     const state = await consumeOAuthState(request, url.searchParams.get("state"));
-    if (!state || url.searchParams.get("error")) return finish(request, "/memory-capsule?login=expired", [clearMemoryCookie(MEMORY_STATE_COOKIE, request)]);
+    if (!state || url.searchParams.get("error")) return finish(request, `${failurePage}?login=expired`, [clearMemoryCookie(MEMORY_STATE_COOKIE, request)]);
     const code = url.searchParams.get("code");
-    if (!code) return finish(request, "/memory-capsule?login=failed", [clearMemoryCookie(MEMORY_STATE_COOKIE, request)]);
+    if (!code) return finish(request, `${failurePage}?login=failed`, [clearMemoryCookie(MEMORY_STATE_COOKIE, request)]);
     const identity = await exchangeLineCode(request, code, state.nonce);
     if (state.inviteCodeHash) await acceptMemoryInvite(identity, state.inviteCodeHash);
     await refreshMemoryMemberProfile(identity);
@@ -29,6 +31,6 @@ export async function GET(request: Request) {
       name: error.name,
       message: error.message,
     } : { message: "Unknown callback error" });
-    return finish(request, "/memory-capsule?login=failed", [clearMemoryCookie(MEMORY_STATE_COOKIE, request)]);
+    return finish(request, `${failurePage}?login=failed`, [clearMemoryCookie(MEMORY_STATE_COOKIE, request)]);
   }
 }

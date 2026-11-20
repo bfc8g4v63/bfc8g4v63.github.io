@@ -206,3 +206,8 @@ test("aurora cursor respects touch, motion preferences and text inputs",async()=
  assert.match(css,/\.uri-cursor\{display:none\}/);assert.match(css,/\.uri-cursor\{display:block;position:fixed;[^}]*pointer-events:none/);
  assert.match(css,/\[contenteditable=true\]\{cursor:text\}/);assert.match(pointer,/<svg/);assert.match(active,/<svg/);
 });
+
+test("Uri share metadata and login error stay specific to Uri",async()=>{
+ const [layout,page]=await Promise.all([readFile(new URL("../app/uri/layout.tsx",import.meta.url),"utf8"),readFile(new URL("../app/uri/page.tsx",import.meta.url),"utf8")]);
+ assert.match(layout,/applicationName: "우리"/);assert.match(layout,/openGraph: \{ title: "우리"/);assert.match(page,/LINE 登入已中斷或逾時/);
+});

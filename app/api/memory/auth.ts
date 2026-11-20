@@ -169,6 +169,14 @@ export async function consumeOAuthState(request: Request, receivedState: string 
   return state && state.expiresAt > Math.floor(Date.now() / 1000) && state.nonce ? state : null;
 }
 
+// This only selects an error page. Login still requires consumeOAuthState's
+// cookie match, expiry, nonce and LINE token validation.
+export async function oauthFailurePage(receivedState: string | null) {
+  if (!receivedState || receivedState.length > 4096) return "/memory-capsule";
+  const state = await readPayload<OAuthState>(receivedState);
+  return state?.returnTo === "/uri" ? "/uri" : "/memory-capsule";
+}
+
 export function lineLoginConfig() {
   return {
     channelId: required("MEMORY_LINE_LOGIN_CHANNEL_ID"),
