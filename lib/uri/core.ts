@@ -49,3 +49,9 @@ export function shiftCalendarMonth(current: string, delta: number): string {
 export function firstWeekday(year: number,month: number):number {
   const date=new Date(0);date.setUTCFullYear(year,month-1,1);date.setUTCHours(0,0,0,0);return date.getUTCDay();
 }
+
+// Each wheel row has a fixed height; clamp out-of-range scroll offsets.
+export function dateWheelIndex(scrollTop:number, itemCount:number, itemHeight=44):number {
+  if(itemCount<1 || !Number.isFinite(scrollTop) || itemHeight<=0) return 0;
+  return Math.max(0,Math.min(itemCount-1,Math.round(scrollTop/itemHeight)));
+}

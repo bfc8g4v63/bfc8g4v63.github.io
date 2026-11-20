@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {readFile} from "node:fs/promises";
-import {entryView,taipeiDate,validDate,monthDays,changeDatePart,shiftCalendarMonth,firstWeekday} from "../lib/uri/core.ts";
+import {entryView,taipeiDate,validDate,monthDays,changeDatePart,shiftCalendarMonth,firstWeekday,dateWheelIndex} from "../lib/uri/core.ts";
 import proxy from "../cloudflare/gooddays-proxy-worker.mjs";
 import {readPreference,writePreference,splitPreferenceTitles} from "../lib/uri/preferences.ts";
 
@@ -108,7 +108,7 @@ test("responsive date selectors replace free-form dates without crowding control
   const [page,css]=await Promise.all([readFile(new URL("../app/uri/page.tsx",import.meta.url),"utf8"),readFile(new URL("../app/uri/uri.css",import.meta.url),"utf8")]);
   assert.doesNotMatch(page,/type="date"/);
   assert.match(page,/startDate:kind==="memory"\?taipeiDate\(\):""/);
-  assert.match(page,/aria-label=\{`\$\{label\} 年`\}/);
+  assert.match(page,/label=\{`\$\{label\} 年`\}/);
   assert.match(css,/\.date-picker-row\{display:grid;grid-template-columns:1\.25fr 1fr 1fr;gap:8px\}/);
   assert.match(css,/\.date-fields\{grid-template-columns:1fr\}/);
 });
@@ -133,9 +133,20 @@ test("calendar navigation handles month boundaries and year rollover",()=>{
 test("calendar buttons remain centered, visible and accessible",async()=>{
  const [page,css]=await Promise.all([readFile(new URL("../app/uri/page.tsx",import.meta.url),"utf8"),readFile(new URL("../app/uri/uri.css",import.meta.url),"utf8")]);
  assert.match(page,/開啟日曆選日期/);assert.match(page,/aria-expanded=\{expanded\}/);
- assert.match(page,/addEventListener\("wheel",wheel,\{passive:false\}\)/);
+ assert.match(page,/role="spinbutton"/);
+ assert.match(css,/scroll-snap-type:y mandatory/);
  assert.match(page,/setCalendarView\(shiftCalendarMonth\(current,-1\)\)/);
  assert.match(css,/\.calendar-toggle-row\{display:flex;justify-content:center/);
  assert.match(css,/\.uri-app \.calendar-toggle\{display:inline-flex;align-items:center;justify-content:center/);
  assert.match(css,/\.calendar-actions\{display:flex;justify-content:center/);
+});
+
+test("wheel selection clamps offsets to available dates",()=>{
+ assert.equal(dateWheelIndex(-50,12),0);assert.equal(dateWheelIndex(44*4+23,12),5);assert.equal(dateWheelIndex(99999,12),11);
+});
+test("date wheels are keyboard accessible and keep their contents centered",async()=>{
+ const [page,css]=await Promise.all([readFile(new URL("../app/uri/page.tsx",import.meta.url),"utf8"),readFile(new URL("../app/uri/uri.css",import.meta.url),"utf8")]);
+ assert.doesNotMatch(page,/<select ref=\{yearRef\}/);assert.match(page,/aria-valuetext=/);assert.match(page,/event\.key==="ArrowDown"/);assert.match(page,/syncTarget/);
+ assert.match(css,/\.date-wheel-option\{[^}]*align-items:center;justify-content:center/);
+ assert.match(css,/\.date-wheel-frame::after\{[^}]*left:4px;right:4px;top:44px;height:44px/);
 });
