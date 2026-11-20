@@ -14,6 +14,11 @@ function ensureCoverTable() {
   if (!coverTableReady) coverTableReady = runtime.DB.prepare("CREATE TABLE IF NOT EXISTS uri_photo_covers (entry_id TEXT PRIMARY KEY NOT NULL REFERENCES uri_entries(id) ON DELETE CASCADE, photo_id TEXT NOT NULL REFERENCES uri_photos(id) ON DELETE CASCADE)").run().catch(error=>{coverTableReady=null;throw error;});
   return coverTableReady;
 }
+let removedPhotoTableReady: Promise<unknown> | null = null;
+function ensureRemovedPhotoTable() {
+  if (!removedPhotoTableReady) removedPhotoTableReady = runtime.DB.prepare("CREATE TABLE IF NOT EXISTS uri_removed_photos (photo_id TEXT PRIMARY KEY NOT NULL REFERENCES uri_photos(id) ON DELETE CASCADE, removed_at TEXT NOT NULL)").run().catch(error=>{removedPhotoTableReady=null;throw error;});
+  return removedPhotoTableReady;
+}
 async function readPhotoBytes(request:Request):Promise<Uint8Array|null> {
   const reader=request.body?.getReader(); if(!reader) return null;
   const chunks:Uint8Array[]=[];let size=0;
@@ -46,14 +51,20 @@ export async function GET(request:Request) {
   if(path[0]==="session") { if(!session) return json({signedIn:false}); const m=await member(session.subject); return json({signedIn:true,member:m ? {id:m.id,role:m.role,name:m.display_name} : null}); }
   if(!session) return json({error:"請先登入"},401);
   const me=await member(session.subject); if(!me) return json({error:"此帳號尚未加入"},403);
+  await ensureRemovedPhotoTable();
   if(path[0]==="entries") {
    const deleted=new URL(request.url).searchParams.get("deleted")==="1"; await ensureCoverTable();
    const rows=await runtime.DB.prepare(`SELECT e.*,m.display_name,m.role AS author_role,c.photo_id AS cover_photo_id FROM uri_entries e JOIN uri_members m ON m.id=e.author_id LEFT JOIN uri_photo_covers c ON c.entry_id=e.id WHERE e.deleted_at IS ${deleted?"NOT NULL":"NULL"} ORDER BY e.created_at DESC LIMIT 500`).all<Row & {cover_photo_id:string|null}>();
-   const photos=await runtime.DB.prepare("SELECT p.id,p.entry_id FROM uri_photos p JOIN uri_entries e ON p.entry_id=e.id WHERE e.deleted_at IS NULL ORDER BY p.created_at,p.id").all<{id:string;entry_id:string}>();
+   const photos=await runtime.DB.prepare("SELECT p.id,p.entry_id FROM uri_photos p JOIN uri_entries e ON p.entry_id=e.id WHERE e.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM uri_removed_photos r WHERE r.photo_id=p.id) ORDER BY p.created_at,p.id").all<{id:string;entry_id:string}>();
    const today=taipeiDate(); return json({today,entries:(rows.results||[]).map(row=>{const {cover_photo_id,...entry}=row;const ids=(photos.results||[]).filter(p=>p.entry_id===row.id).map(p=>p.id);return {...output(entry,today),photos:ids,coverPhotoId:cover_photo_id&&ids.includes(cover_photo_id)?cover_photo_id:ids[0]||null};})});
   }
+  if(path[0]==="photos" && path[1]==="trash") {
+   const rows=await runtime.DB.prepare("SELECT p.id,e.title AS entryTitle,r.removed_at AS removedAt FROM uri_removed_photos r JOIN uri_photos p ON p.id=r.photo_id JOIN uri_entries e ON e.id=p.entry_id WHERE e.deleted_at IS NULL ORDER BY r.removed_at DESC").all();
+   return json({photos:rows.results||[]});
+  }
   if(path[0]==="photos" && path[1]) {
-   const photo=await runtime.DB.prepare("SELECT p.object_key,p.mime_type FROM uri_photos p JOIN uri_entries e ON e.id=p.entry_id WHERE p.id=? AND e.deleted_at IS NULL").bind(path[1]).first<{object_key:string;mime_type:string}>();
+   const inTrash=new URL(request.url).searchParams.get("trash")==="1";
+   const photo=await runtime.DB.prepare(`SELECT p.object_key,p.mime_type FROM uri_photos p JOIN uri_entries e ON e.id=p.entry_id WHERE p.id=? AND e.deleted_at IS NULL AND ${inTrash?"":"NOT "}EXISTS (SELECT 1 FROM uri_removed_photos r WHERE r.photo_id=p.id)`).bind(path[1]).first<{object_key:string;mime_type:string}>();
    if(!photo || !runtime.URI_BUCKET) return json({error:"找不到相片"},404);
    const object=await runtime.URI_BUCKET.get(photo.object_key); if(!object) return json({error:"找不到相片"},404);
    return new Response(object.body,{headers:{...noStore,"Content-Type":photo.mime_type,"Content-Disposition":"inline","Content-Security-Policy":"default-src 'none'; sandbox"}});
@@ -61,7 +72,7 @@ export async function GET(request:Request) {
   if(path[0]==="export") {
    await ensureCoverTable();
    const rows=await runtime.DB.prepare("SELECT e.id,e.kind,e.category,e.title,e.body,e.start_date,e.end_date,e.state,e.created_at,e.updated_at,m.display_name,m.role AS author_role,c.photo_id AS cover_photo_id FROM uri_entries e JOIN uri_members m ON m.id=e.author_id LEFT JOIN uri_photo_covers c ON c.entry_id=e.id WHERE e.deleted_at IS NULL ORDER BY e.created_at").all();
-   const photos=await runtime.DB.prepare("SELECT p.id,p.object_key,p.mime_type,p.byte_size,p.entry_id FROM uri_photos p JOIN uri_entries e ON e.id=p.entry_id WHERE e.deleted_at IS NULL").all<{id:string;object_key:string;mime_type:string;byte_size:number;entry_id:string}>();
+   const photos=await runtime.DB.prepare("SELECT p.id,p.object_key,p.mime_type,p.byte_size,p.entry_id FROM uri_photos p JOIN uri_entries e ON e.id=p.entry_id WHERE e.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM uri_removed_photos r WHERE r.photo_id=p.id)").all<{id:string;object_key:string;mime_type:string;byte_size:number;entry_id:string}>();
    const files=photos.results||[]; if(files.length&&!runtime.URI_BUCKET) return json({error:"照片儲存尚未連線"},503);
    if(files.reduce((n,p)=>n+p.byte_size,0)>2*1024*1024*1024) return json({error:"資料超過單次匯出上限，請聯繫管理者"},413);
    const archive=[{name:"memories.json",open:async()=>textStream(JSON.stringify({exportedAt:new Date().toISOString(),entries:(rows.results||[]).map((row:any)=>{const {author_role,...entry}=row;const pref=entry.kind==="preference"?readPreference(entry.category,author_role):null;return pref?{...entry,category:pref.category,preference_for:pref.person}:entry;}),photos:files.map(p=>({id:p.id,entryId:p.entry_id,mimeType:p.mime_type}))},null,2))},...files.map(p=>({name:`photos/${p.id}.${p.mime_type==="image/png"?"png":p.mime_type==="image/webp"?"webp":"jpg"}`,open:async()=>{const obj=await runtime.URI_BUCKET!.get(p.object_key);if(!obj)throw new Error("missing photo");return obj.body;}}))];
@@ -132,12 +143,18 @@ export async function PATCH(request:Request) {
  try {
   if(!originOK(request)) return json({error:"無法驗證請求來源"},403);
   const session=await identity(request); if(!session) return json({error:"請先登入"},401); const me=await member(session.subject); if(!me) return json({error:"此帳號尚未加入"},403);
-  const path=new URL(request.url).pathname.split("/").filter(Boolean).slice(2); if(path[0]!=="entries"||!path[1]) return json({error:"找不到內容"},404);
+  const path=new URL(request.url).pathname.split("/").filter(Boolean).slice(2);
+  if(path[0]==="photos"&&path[1]) {
+   await ensureRemovedPhotoTable();
+   const restored=await runtime.DB.prepare("DELETE FROM uri_removed_photos WHERE photo_id=? AND EXISTS (SELECT 1 FROM uri_photos p JOIN uri_entries e ON e.id=p.entry_id WHERE p.id=uri_removed_photos.photo_id AND e.deleted_at IS NULL)").bind(path[1]).run();
+   return restored.meta.changes?json({ok:true}):json({error:"找不到可還原的照片"},404);
+  }
+  if(path[0]!=="entries"||!path[1]) return json({error:"找不到內容"},404);
   const data=await readBody(request),version=Number(data.version); if(!Number.isInteger(version)) return json({error:"請重新整理後再試"},400);
   const now=new Date().toISOString();
   if(data.action==="cover") {
-   await ensureCoverTable();const photoId=clean(data.photoId,100);if(!photoId)return json({error:"請選擇封面照片"},400);
-   const selected=await runtime.DB.prepare("INSERT INTO uri_photo_covers (entry_id,photo_id) SELECT e.id,p.id FROM uri_entries e JOIN uri_photos p ON p.entry_id=e.id WHERE e.id=? AND p.id=? AND e.deleted_at IS NULL ON CONFLICT(entry_id) DO UPDATE SET photo_id=excluded.photo_id").bind(path[1],photoId).run();
+   await ensureCoverTable();await ensureRemovedPhotoTable();const photoId=clean(data.photoId,100);if(!photoId)return json({error:"請選擇封面照片"},400);
+   const selected=await runtime.DB.prepare("INSERT INTO uri_photo_covers (entry_id,photo_id) SELECT e.id,p.id FROM uri_entries e JOIN uri_photos p ON p.entry_id=e.id WHERE e.id=? AND p.id=? AND e.deleted_at IS NULL AND NOT EXISTS (SELECT 1 FROM uri_removed_photos r WHERE r.photo_id=p.id) ON CONFLICT(entry_id) DO UPDATE SET photo_id=excluded.photo_id").bind(path[1],photoId).run();
    return selected.meta.changes?json({ok:true}):json({error:"找不到這筆回憶的照片"},404);
   }
   if(data.action==="restore") {const result=await runtime.DB.prepare("UPDATE uri_entries SET deleted_at=NULL,version=version+1,updated_at=? WHERE id=? AND version=? AND deleted_at IS NOT NULL AND state != 'purging'").bind(now,path[1],version).run();return result.meta.changes?json({ok:true}):json({error:"內容已有變更，請重新整理"},409);}
@@ -152,6 +169,11 @@ export async function DELETE(request:Request) {
  try {
   if(!originOK(request)) return json({error:"無法驗證請求來源"},403); const session=await identity(request); if(!session) return json({error:"請先登入"},401); const me=await member(session.subject); if(!me) return json({error:"此帳號尚未加入"},403);
   const path=new URL(request.url).pathname.split("/").filter(Boolean).slice(2), now=new Date().toISOString();
+  if(path[0]==="photos"&&path[1]) {
+   await ensureCoverTable();await ensureRemovedPhotoTable();
+   const results=await runtime.DB.batch([runtime.DB.prepare("INSERT OR IGNORE INTO uri_removed_photos (photo_id,removed_at) SELECT p.id,? FROM uri_photos p JOIN uri_entries e ON e.id=p.entry_id WHERE p.id=? AND e.deleted_at IS NULL").bind(now,path[1]),runtime.DB.prepare("DELETE FROM uri_photo_covers WHERE photo_id=? AND EXISTS (SELECT 1 FROM uri_removed_photos r WHERE r.photo_id=uri_photo_covers.photo_id)").bind(path[1])]);
+   return results[0].meta.changes?json({ok:true}):json({error:"找不到可移除的照片"},404);
+  }
   if(path[0]==="member" && me.role==="owner") {await runtime.DB.batch([runtime.DB.prepare("UPDATE uri_members SET active=0 WHERE role='member' AND active=1"),runtime.DB.prepare("UPDATE uri_invites SET consumed_at=? WHERE consumed_at IS NULL").bind(now)]); return json({ok:true});}
   if(path[0]==="purge" && path[1]) {
    if(me.role!=="owner") return json({error:"需要管理權限"},403);
@@ -165,7 +187,7 @@ export async function DELETE(request:Request) {
    const photos=await runtime.DB.prepare("SELECT object_key FROM uri_photos WHERE entry_id=?").bind(path[1]).all<{object_key:string}>();
    if((photos.results||[]).length&&!runtime.URI_BUCKET) return json({error:"照片儲存尚未連線，請稍後重試永久刪除"},503);
    for(const photo of photos.results||[]) await runtime.URI_BUCKET!.delete(photo.object_key);
-   await ensureCoverTable(); await runtime.DB.batch([runtime.DB.prepare("DELETE FROM uri_photo_covers WHERE entry_id=?").bind(path[1]),runtime.DB.prepare("DELETE FROM uri_photos WHERE entry_id=?").bind(path[1]),runtime.DB.prepare("DELETE FROM uri_entries WHERE id=? AND state='purging' AND deleted_at IS NOT NULL").bind(path[1])]);
+   await ensureCoverTable();await ensureRemovedPhotoTable(); await runtime.DB.batch([runtime.DB.prepare("DELETE FROM uri_photo_covers WHERE entry_id=?").bind(path[1]),runtime.DB.prepare("DELETE FROM uri_removed_photos WHERE photo_id IN (SELECT id FROM uri_photos WHERE entry_id=?)").bind(path[1]),runtime.DB.prepare("DELETE FROM uri_photos WHERE entry_id=?").bind(path[1]),runtime.DB.prepare("DELETE FROM uri_entries WHERE id=? AND state='purging' AND deleted_at IS NOT NULL").bind(path[1])]);
    return json({ok:true});
   }
   if(path[0]!=="entries"||!path[1]) return json({error:"找不到內容"},404);

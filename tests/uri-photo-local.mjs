@@ -19,7 +19,17 @@ try {
  r=await call(`entries/${first}`,{method:"PATCH",data:{action:"cover",photoId:foreign,version:1}});assert.equal(r.status,404);
  r=await call("entries");firstRow=r.body.entries.find(e=>e.id===first);assert.equal(firstRow.coverPhotoId,p2);
  r=await call("export");assert.equal(r.status,200);assert.ok(Buffer.from(r.body).includes(Buffer.from(p2)),"cover ID appears in export");
- console.log("Local photo integration passed: binary PNG, multiple photos, cover ownership, export and origin checks.");
+ r=await call(`photos/${p2}`,{method:"DELETE",origin:"https://outside.example"});assert.equal(r.status,403);
+ r=await call(`photos/${p2}`,{method:"DELETE"});assert.equal(r.status,200);
+ r=await call("entries");firstRow=r.body.entries.find(e=>e.id===first);assert.equal(firstRow.photos.includes(p2),false);assert.notEqual(firstRow.coverPhotoId,p2);assert.equal(firstRow.photos.length,24);
+ r=await call(`photos/${p2}`);assert.equal(r.status,404);r=await call(`photos/${p2}?trash=1`);assert.equal(r.status,200);
+ r=await call("photos/trash");assert.equal(r.status,200);assert.ok(r.body.photos.some(p=>p.id===p2&&p.entryTitle==="Local photo test A"));
+ r=await call("export");assert.equal(r.status,200);assert.equal(Buffer.from(r.body).includes(Buffer.from(`photos/${p2}.`)),false);
+ r=await call(`entries/${first}`,{method:"PATCH",data:{action:"cover",photoId:p2,version:1}});assert.equal(r.status,404);
+ r=await call(`photos/${p2}`,{method:"PATCH"});assert.equal(r.status,200);r=await call(`photos/${p2}`);assert.equal(r.status,200);
+ r=await call("entries");firstRow=r.body.entries.find(e=>e.id===first);assert.equal(firstRow.photos.length,25);assert.ok(firstRow.photos.includes(p2));
+ r=await call(`photos/${p1}`,{method:"DELETE"});assert.equal(r.status,200);
+ console.log("Local photo integration passed: uploads, cover, photo trash, restore, export and origin checks.");
 } finally {
  for(const id of created){let r=await call("entries");let row=r.body.entries.find(e=>e.id===id);if(row){await call(`entries/${id}?version=${row.version}`,{method:"DELETE"});r=await call("entries?deleted=1");row=r.body.entries.find(e=>e.id===id);if(row)await call(`purge/${id}?version=${row.version}`,{method:"DELETE"});}}
 }

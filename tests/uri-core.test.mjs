@@ -178,3 +178,13 @@ test("more than twenty photos remain independently queued",()=>{
  let index=0;const files=Array.from({length:73},(_,i)=>({name:`photo-${i}`}));const queued=createPendingPhotos(files,()=>`id-${index++}`);
  assert.equal(queued.length,73);assert.equal(queued[0].file,files[0]);assert.equal(queued[72].file,files[72]);assert.equal(new Set(queued.map(p=>p.id)).size,73);
 });
+
+test("album captions lead the fixed photo area and navigation stays centered",async()=>{
+ const [page,css]=await Promise.all([readFile(new URL("../app/uri/page.tsx",import.meta.url),"utf8"),readFile(new URL("../app/uri/uri.css",import.meta.url),"utf8")]);
+ const card=page.slice(page.indexOf("function EntryCard("));
+ assert.ok(card.indexOf('className="entry-body"')<card.indexOf('className="entry-media"'));
+ assert.match(card,/aria-label="上一張照片"/);assert.match(card,/aria-label="下一張照片"/);
+ assert.match(css,/\.album-controls\{display:flex;align-items:center;justify-content:center;gap:18px;margin:13px auto 0/);
+ assert.match(css,/\.uri-app \.album-controls button\{display:flex;align-items:center;justify-content:center;width:40px;height:40px/);
+ assert.match(css,/@media\(max-width:700px\)\{\.uri-app \.entry-media\{padding:0 16px 16px\}\.album-controls\{gap:16px;margin-top:12px\}/);
+});
