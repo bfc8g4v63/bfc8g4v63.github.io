@@ -43,6 +43,10 @@ function isMemoryApiRequest(request) {
   return new URL(request.url).pathname.startsWith("/api/memory/");
 }
 
+function isUriApiRequest(request) {
+  return new URL(request.url).pathname.startsWith("/api/uri/");
+}
+
 function isMemoryAuthRequest(request) {
   return new URL(request.url).pathname.startsWith("/api/memory/auth/");
 }
@@ -62,7 +66,9 @@ function upstreamHeaders(request) {
   // The public Worker is intentionally stateless for the existing activity
   // APIs. 回憶膠囊 is the sole exception: its signed HttpOnly session is
   // required for every private family API call after LINE returns here.
-  if (!isMemoryApiRequest(request)) headers.delete("cookie");
+  if (!isMemoryApiRequest(request) && !isUriApiRequest(request)) headers.delete("cookie");
+  // URI writes validate the browser origin at the application boundary.
+  if (isUriApiRequest(request) && request.headers.has("origin")) headers.set("origin", request.headers.get("origin"));
   return headers;
 }
 
@@ -104,6 +110,11 @@ export default {
     // them at the public gateway so browser clients can receive the real
     // validation or server error instead of an opaque "Failed to fetch".
     addApiCorsHeaders(request, responseHeaders);
+    const publicPath = new URL(request.url).pathname;
+    if (publicPath === "/uri" || publicPath.startsWith("/uri/") || isUriApiRequest(request)) {
+      responseHeaders.set("Cache-Control", "private, no-store");
+      responseHeaders.set("X-Robots-Tag", "noindex, nofollow");
+    }
     responseHeaders.set("x-gooddays-entry", "cloudflare-worker");
     return new Response(response.body, { status: response.status, statusText: response.statusText, headers: responseHeaders });
   },

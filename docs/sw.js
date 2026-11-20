@@ -1,4 +1,4 @@
-const CACHE = "good-days-github-v172";
+const CACHE = "good-days-github-v174";
 self.addEventListener("install", (event) => event.waitUntil(
   caches.open(CACHE)
     .then((cache) => cache.addAll(["/", "/styles.css?v=1.2.172", "/app.js?v=1.2.172", "/e/app.js?v=1.2.172"]))
@@ -9,7 +9,8 @@ self.addEventListener("activate", (event) => event.waitUntil(
     .then(() => self.clients.claim())
 ));
 self.addEventListener("fetch", (event) => {
-  if (event.request.method !== "GET" || new URL(event.request.url).origin !== self.location.origin) return;
+  const url = new URL(event.request.url);
+  if (event.request.method !== "GET" || url.origin !== self.location.origin || /^\/(?:Yandy|fairy)(?:\/|$)/i.test(url.pathname)) return;
   event.respondWith(fetch(event.request).then((response) => {
     const copy = response.clone();
     caches.open(CACHE).then((cache) => cache.put(event.request, copy));

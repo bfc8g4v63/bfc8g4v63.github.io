@@ -409,3 +409,36 @@ export const memoryAuditLogs = sqliteTable("memory_audit_logs", {
   metadata: text("metadata").notNull().default("{}"),
   createdAt: text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`),
 }, (table) => [index("memory_audit_logs_family_created").on(table.familyId, table.createdAt)]);
+
+
+// Independent two-person space; no family membership grants access.
+export const uriMembers = sqliteTable("uri_members", {
+  id: text("id").primaryKey(),
+  subject: text("subject").notNull(),
+  displayName: text("display_name").notNull(),
+  role: text("role").notNull(),
+  active: integer("active", { mode: "boolean" }).notNull().default(true),
+  createdAt: text("created_at").notNull(),
+}, (t) => [uniqueIndex("uri_active_subject").on(t.subject).where(sql`${t.active} = 1`), uniqueIndex("uri_active_role").on(t.role).where(sql`${t.active} = 1`)]);
+
+export const uriInvites = sqliteTable("uri_invites", {
+  id: text("id").primaryKey(), tokenHash: text("token_hash").notNull(),
+  expiresAt: text("expires_at").notNull(), consumedAt: text("consumed_at"),
+  createdAt: text("created_at").notNull(),
+}, (t) => [uniqueIndex("uri_invite_hash_unique").on(t.tokenHash)]);
+
+export const uriEntries = sqliteTable("uri_entries", {
+  id: text("id").primaryKey(), authorId: text("author_id").notNull().references(() => uriMembers.id),
+  kind: text("kind").notNull(), category: text("category").notNull().default(""),
+  title: text("title").notNull(), body: text("body").notNull().default(""),
+  startDate: text("start_date"), endDate: text("end_date"),
+  state: text("state").notNull().default("active"),
+  version: integer("version").notNull().default(1),
+  deletedAt: text("deleted_at"), createdAt: text("created_at").notNull(), updatedAt: text("updated_at").notNull(),
+}, (t) => [index("uri_entries_visible_created").on(t.deletedAt, t.createdAt)]);
+
+export const uriPhotos = sqliteTable("uri_photos", {
+  id: text("id").primaryKey(), entryId: text("entry_id").notNull().references(() => uriEntries.id),
+  objectKey: text("object_key").notNull(), mimeType: text("mime_type").notNull(),
+  byteSize: integer("byte_size").notNull(), createdAt: text("created_at").notNull(),
+}, (t) => [index("uri_photos_entry").on(t.entryId)]);

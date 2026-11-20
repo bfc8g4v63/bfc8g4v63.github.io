@@ -44,3 +44,6 @@ next-env.d.ts
 /work/
 /.sites-release-*.tar
 .codex-dev.log
+
+# Local Worker secrets
+.dev.vars*

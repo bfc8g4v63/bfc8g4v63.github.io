@@ -115,7 +115,7 @@ test("free Cloudflare entry stays fixed while activity clients retain the Brave-
   assert.match(proxy, /function upstreamHeaders/);
   assert.match(proxy, /"sec-ch-ua"/);
   assert.match(proxy, /function isMemoryApiRequest/);
-  assert.match(proxy, /if \(!isMemoryApiRequest\(request\)\) headers\.delete\("cookie"\)/);
+  assert.match(proxy, /if \(!isMemoryApiRequest\(request\) && !isUriApiRequest\(request\)\) headers\.delete\("cookie"\)/);
   assert.match(proxy, /function isMemoryAuthRequest/);
   assert.match(proxy, /function apiGatewayError/);
   assert.match(proxy, /if \(!isMemoryAuthRequest\(request\)\) responseHeaders\.delete\("set-cookie"\)/);
@@ -428,31 +428,19 @@ test("LINE webhook verifies signatures and reminder workflow uses a secret", asy
   assert.match(scheduler, /Reminder service returned/);
 });
 
-test("restored Yandy station keeps the former URL retired and restores notifications", async () => {
-  const [fairyRoute, reactionRoute, schemaInit, oldPage, page, script, css] = await Promise.all([
-    readFile(new URL("../app/api/fairy/route.ts", import.meta.url), "utf8"),
-    readFile(new URL("../app/api/fairy/reaction/route.ts", import.meta.url), "utf8"),
-    readFile(new URL("../db/init.ts", import.meta.url), "utf8"),
+test("Yandy entry contains no private story and uses a centered link", async () => {
+  const [oldPage, page, sw] = await Promise.all([
     readFile(new URL("../docs/fairy/index.html", import.meta.url), "utf8"),
     readFile(new URL("../docs/Yandy/index.html", import.meta.url), "utf8"),
-    readFile(new URL("../docs/Yandy/fairy.js", import.meta.url), "utf8"),
-    readFile(new URL("../docs/Yandy/fairy.css", import.meta.url), "utf8"),
+    readFile(new URL("../docs/sw.js", import.meta.url), "utf8"),
   ]);
-  for (const route of [fairyRoute, reactionRoute]) {
-    assert.match(route, /fairyNotificationTargets/);
-    assert.match(route, /rateLimit/);
-    assert.match(route, /pushText\(target\.lineUserId/);
-  }
-  assert.match(schemaInit, /CREATE TABLE IF NOT EXISTS fairy_notification_targets/);
   assert.match(oldPage, /仙女已回歸仙界/);
-  assert.match(page, /https:\/\/bfc8g4v63\.github\.io\/Yandy\//);
   assert.match(page, /name="robots" content="noindex,nofollow,noarchive"/);
-  assert.match(page, /maxlength="6" pattern="\[0-9\]\{6\}"/);
-  assert.match(script, /\/\^\\d\{6\}\$\//);
-  assert.match(script, /yandy_access_v2_0/);
-  assert.match(css, /\.access-panel button, \.send-request \{[^}]*justify-content:center;[^}]*text-align:center;/);
-  assert.match(css, /\.access-panel \{[^}]*padding:29px 24px 23px;/);
-  assert.match(css, /\.card \{[^}]*padding:/);
+  assert.match(page, /https:\/\/gooddays\.carewear\.workers\.dev\/uri/);
+  assert.doesNotMatch(page, /access-password|fairy\.js|fairy\.css/);
+  assert.match(page, /\.cta\{[^}]*justify-content:center;[^}]*margin:0 auto;[^}]*padding:/);
+  assert.match(page, /\.panel\{[^}]*padding:56px 30px/);
+  assert.match(sw, /Yandy\|fairy/);
 });
 
 test("privacy controls protect group broadcasts and expire operational data", async () => {
@@ -934,7 +922,7 @@ test("the service worker replaces cached management assets when a frontend relea
   ]);
   assert.match(page, /\/app\.js\?v=1\.2\.172/);
   assert.match(eventPage, /\/e\/app\.js\?v=1\.2\.172/);
-  assert.match(worker, /good-days-github-v172/);
+  assert.match(worker, /good-days-github-v174/);
   assert.match(worker, /self\.skipWaiting\(\)/);
 });
 
