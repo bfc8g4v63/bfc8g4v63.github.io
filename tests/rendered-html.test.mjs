@@ -428,28 +428,31 @@ test("LINE webhook verifies signatures and reminder workflow uses a secret", asy
   assert.match(scheduler, /Reminder service returned/);
 });
 
-test("fairy station is retired without deleting its legacy notification data", async () => {
-  const [fairyRoute, fairyReactionRoute, webhook, lineLib, schemaInit, page] = await Promise.all([
+test("restored Yandy station keeps the former URL retired and restores notifications", async () => {
+  const [fairyRoute, reactionRoute, schemaInit, oldPage, page, script, css] = await Promise.all([
     readFile(new URL("../app/api/fairy/route.ts", import.meta.url), "utf8"),
     readFile(new URL("../app/api/fairy/reaction/route.ts", import.meta.url), "utf8"),
-    readFile(new URL("../app/api/line/webhook/route.ts", import.meta.url), "utf8"),
-    readFile(new URL("../app/api/line/lib.ts", import.meta.url), "utf8"),
     readFile(new URL("../db/init.ts", import.meta.url), "utf8"),
     readFile(new URL("../docs/fairy/index.html", import.meta.url), "utf8"),
+    readFile(new URL("../docs/Yandy/index.html", import.meta.url), "utf8"),
+    readFile(new URL("../docs/Yandy/fairy.js", import.meta.url), "utf8"),
+    readFile(new URL("../docs/Yandy/fairy.css", import.meta.url), "utf8"),
   ]);
-  assert.match(fairyRoute, /仙女補給站已結束服務/);
-  assert.match(fairyRoute, /}, 410\)/);
-  assert.match(fairyReactionRoute, /仙女補給站已結束服務/);
-  assert.match(fairyReactionRoute, /}, 410\)/);
-  assert.doesNotMatch(fairyRoute, /pushText|fairyNotificationTargets|rateLimit/);
-  assert.doesNotMatch(fairyReactionRoute, /pushText|fairyNotificationTargets|rateLimit/);
-  assert.doesNotMatch(lineLib, /FAIRY_PAIRING_CODE|fairyPairingCode/);
-  assert.doesNotMatch(webhook, /仙女綁定|fairyNotificationTargets|fairyPairingCode/);
+  for (const route of [fairyRoute, reactionRoute]) {
+    assert.match(route, /fairyNotificationTargets/);
+    assert.match(route, /rateLimit/);
+    assert.match(route, /pushText\(target\.lineUserId/);
+  }
   assert.match(schemaInit, /CREATE TABLE IF NOT EXISTS fairy_notification_targets/);
+  assert.match(oldPage, /仙女已回歸仙界/);
+  assert.match(page, /https:\/\/bfc8g4v63\.github\.io\/Yandy\//);
   assert.match(page, /name="robots" content="noindex,nofollow,noarchive"/);
-  assert.match(page, /仙女已回歸仙界/);
-  assert.match(page, /href="\/"/);
-  assert.doesNotMatch(page, /fairy\.js|fairy\.css|name="coffee"|access-password/);
+  assert.match(page, /maxlength="6" pattern="\[0-9\]\{6\}"/);
+  assert.match(script, /\/\^\\d\{6\}\$\//);
+  assert.match(script, /yandy_access_v2_0/);
+  assert.match(css, /\.access-panel button, \.send-request \{[^}]*justify-content:center;[^}]*text-align:center;/);
+  assert.match(css, /\.access-panel \{[^}]*padding:29px 24px 23px;/);
+  assert.match(css, /\.card \{[^}]*padding:/);
 });
 
 test("privacy controls protect group broadcasts and expire operational data", async () => {
