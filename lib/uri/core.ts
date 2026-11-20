@@ -17,3 +17,35 @@ export function validDate(value: string): boolean {
   const d = new Date(`${value}T00:00:00.000Z`);
   return Number.isFinite(d.valueOf()) && d.toISOString().slice(0, 10) === value;
 }
+
+export type DatePart = "year" | "month" | "day";
+export function monthDays(year: number, month: number): number {
+  if (month === 2) return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0) ? 29 : 28;
+  return [4, 6, 9, 11].includes(month) ? 30 : 31;
+}
+export function changeDatePart(current: string, part: DatePart, next: string, today: string): string {
+  if (!next) return "";
+  const baseline = validDate(current) ? current : today;
+  if (!validDate(baseline)) return "";
+  const pieces = baseline.split("-").map(Number);
+  const value = Number(next);
+  if (!Number.isInteger(value)) return current;
+  if (part === "year") { if (value < 1 || value > 9999) return current; pieces[0] = value; }
+  if (part === "month") { if (value < 1 || value > 12) return current; pieces[1] = value; }
+  if (part === "day") { if (value < 1 || value > monthDays(pieces[0], pieces[1])) return current; pieces[2] = value; }
+  pieces[2] = Math.min(pieces[2], monthDays(pieces[0], pieces[1]));
+  return `${String(pieces[0]).padStart(4,"0")}-${String(pieces[1]).padStart(2,"0")}-${String(pieces[2]).padStart(2,"0")}`;
+}
+
+export function shiftCalendarMonth(current: string, delta: number): string {
+  if (!validDate(current) || !Number.isInteger(delta)) return current;
+  const [year,month]=current.split("-").map(Number);
+  const shifted=(year-1)*12+(month-1)+delta;
+  if(shifted<0 || shifted>=9999*12) return current;
+  const targetYear=Math.floor(shifted/12)+1,targetMonth=shifted%12+1;
+  const day=Math.min(Number(current.slice(8,10)),monthDays(targetYear,targetMonth));
+  return `${String(targetYear).padStart(4,"0")}-${String(targetMonth).padStart(2,"0")}-${String(day).padStart(2,"0")}`;
+}
+export function firstWeekday(year: number,month: number):number {
+  const date=new Date(0);date.setUTCFullYear(year,month-1,1);date.setUTCHours(0,0,0,0);return date.getUTCDay();
+}

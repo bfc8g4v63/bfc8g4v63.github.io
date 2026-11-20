@@ -442,3 +442,8 @@ export const uriPhotos = sqliteTable("uri_photos", {
   objectKey: text("object_key").notNull(), mimeType: text("mime_type").notNull(),
   byteSize: integer("byte_size").notNull(), createdAt: text("created_at").notNull(),
 }, (t) => [index("uri_photos_entry").on(t.entryId)]);
+
+export const uriPhotoCovers = sqliteTable("uri_photo_covers", {
+  entryId: text("entry_id").primaryKey().notNull().references(() => uriEntries.id, { onDelete: "cascade" }),
+  photoId: text("photo_id").notNull().references(() => uriPhotos.id, { onDelete: "cascade" }),
+});

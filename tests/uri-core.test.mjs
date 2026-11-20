@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {readFile} from "node:fs/promises";
-import {entryView,taipeiDate,validDate} from "../lib/uri/core.ts";
+import {entryView,taipeiDate,validDate,monthDays,changeDatePart,shiftCalendarMonth,firstWeekday} from "../lib/uri/core.ts";
 import proxy from "../cloudflare/gooddays-proxy-worker.mjs";
 import {readPreference,writePreference,splitPreferenceTitles} from "../lib/uri/preferences.ts";
 
@@ -60,9 +60,9 @@ test("permanent deletion is owner-only and cannot race a restore",async()=>{
 test("the couple space uses a neutral motif and keeps its preference action centered",async()=>{
   const [page,css]=await Promise.all([readFile(new URL("../app/uri/page.tsx",import.meta.url),"utf8"),readFile(new URL("../app/uri/uri.css",import.meta.url),"utf8")]);
   assert.doesNotMatch(page,/Y\s*(?:&|＆|<i>&<\/i>)\s*N|<span>[YN]<\/span>/);
-  assert.match(page,/className="together-art" aria-hidden="true"><span>✳<\/span>/);
+  assert.doesNotMatch(page,/className="together-art"/);
   assert.match(css,/\.together \.outline-button,\.settings-card \.outline-button\{[^}]*margin-left:auto;margin-right:auto/);
-  assert.match(css,/@media\(max-width:700px\)\{[^@]*\.together-art\{[^}]*flex-basis:72px/);
+  assert.match(css,/\.together>div\{width:100%\}/);
 });
 
 test("preferences preserve their subject, legacy author and individual list entries",()=>{
@@ -83,11 +83,59 @@ test("preference controls stay within padded, responsive cards",async()=>{
 
 test("tilted cards retain centered actions and respect reduced motion",async()=>{
   const [page,css]=await Promise.all([readFile(new URL("../app/uri/page.tsx",import.meta.url),"utf8"),readFile(new URL("../app/uri/uri.css",import.meta.url),"utf8")]);
-  assert.match(page,/className="keepsake" aria-hidden="true"/);
+  assert.match(page,/className="keepsake"/);
+  assert.match(page,/coverEntries\.map/);
+  assert.match(page,/\/api\/uri\/photos\/\$\{entry\.coverPhotoId/);
+  assert.match(css,/\.keepsake-stack:focus-visible\{/);
   assert.doesNotMatch(page,/className="orbit"/);
   assert.match(css,/@media\(max-width:700px\)\{\.uri-hero\{min-height:650px\}\.keepsake\{width:155px;right:0;top:auto;bottom:52px/);
   assert.match(css,/\.feature-plan\{transform:rotate\(-1deg\)\}/);
   assert.match(css,/\.feature-memory\{transform:rotate\(1deg\)\}/);
   assert.match(css,/\.feature-card\{align-items:center;text-align:center\}/);
   assert.match(css,/@media\(prefers-reduced-motion:reduce\)\{\.feature-plan[^}]*transform:none/);
+});
+
+test("date selection uses real four-digit dates and handles leap years",()=>{
+  assert.equal(validDate("202613-10-31"),false);
+  assert.equal(monthDays(2028,2),29); assert.equal(monthDays(2100,2),28);
+  assert.equal(changeDatePart("2028-01-31","month","02","2026-11-20"),"2028-02-29");
+  assert.equal(changeDatePart("2028-02-29","year","2027","2026-11-20"),"2027-02-28");
+  assert.equal(changeDatePart("","month","03","2026-11-20"),"2026-03-20");
+  assert.equal(changeDatePart("2026-11-20","year","202613","2026-11-20"),"2026-11-20");
+  assert.equal(changeDatePart("2026-11-20","year","","2026-11-20"),"");
+});
+test("responsive date selectors replace free-form dates without crowding controls",async()=>{
+  const [page,css]=await Promise.all([readFile(new URL("../app/uri/page.tsx",import.meta.url),"utf8"),readFile(new URL("../app/uri/uri.css",import.meta.url),"utf8")]);
+  assert.doesNotMatch(page,/type="date"/);
+  assert.match(page,/startDate:kind==="memory"\?taipeiDate\(\):""/);
+  assert.match(page,/aria-label=\{`\$\{label\} 年`\}/);
+  assert.match(css,/\.date-picker-row\{display:grid;grid-template-columns:1\.25fr 1fr 1fr;gap:8px\}/);
+  assert.match(css,/\.date-fields\{grid-template-columns:1fr\}/);
+});
+
+test("photo controls support centered cover selection and binary uploads",async()=>{
+  const [page,css,api]=await Promise.all([readFile(new URL("../app/uri/page.tsx",import.meta.url),"utf8"),readFile(new URL("../app/uri/uri.css",import.meta.url),"utf8"),readFile(new URL("../app/api/uri/[...path]/route.ts",import.meta.url),"utf8")]);
+  assert.match(page,/type="file" multiple/);
+  assert.match(page,/aria-pressed=\{coverChoice/);
+  assert.match(page,/method:"POST",body:blob/);
+  assert.match(api,/p\.entry_id=e\.id WHERE e\.id=\? AND p\.id=\?/);
+  assert.match(css,/\.uri-app \.photo-option\{[^}]*align-items:center;justify-content:center/);
+  assert.match(css,/@media\(max-width:700px\)\{\.entry-media\{padding:16px 16px 0\}/);
+});
+
+test("calendar navigation handles month boundaries and year rollover",()=>{
+ assert.equal(shiftCalendarMonth("2028-01-31",1),"2028-02-29");
+ assert.equal(shiftCalendarMonth("2026-12-31",1),"2027-01-31");
+ assert.equal(shiftCalendarMonth("2027-01-31",-1),"2026-12-31");
+ assert.equal(shiftCalendarMonth("2024-02-29",-2),"2023-12-29");
+ assert.equal(firstWeekday(2026,11),0);
+});
+test("calendar buttons remain centered, visible and accessible",async()=>{
+ const [page,css]=await Promise.all([readFile(new URL("../app/uri/page.tsx",import.meta.url),"utf8"),readFile(new URL("../app/uri/uri.css",import.meta.url),"utf8")]);
+ assert.match(page,/開啟日曆選日期/);assert.match(page,/aria-expanded=\{expanded\}/);
+ assert.match(page,/addEventListener\("wheel",wheel,\{passive:false\}\)/);
+ assert.match(page,/setCalendarView\(shiftCalendarMonth\(current,-1\)\)/);
+ assert.match(css,/\.calendar-toggle-row\{display:flex;justify-content:center/);
+ assert.match(css,/\.uri-app \.calendar-toggle\{display:inline-flex;align-items:center;justify-content:center/);
+ assert.match(css,/\.calendar-actions\{display:flex;justify-content:center/);
 });
