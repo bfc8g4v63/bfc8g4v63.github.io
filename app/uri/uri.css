@@ -50,3 +50,9 @@
 .uri-app .album-controls button:focus-visible,.uri-app .photo-trash-row button:focus-visible{outline:3px solid #a6e7e3;outline-offset:3px}
 .photo-trash-row{gap:14px;padding:12px 0}.photo-trash-row img{width:64px;height:64px;flex:none;border-radius:7px;object-fit:cover}.photo-trash-row span{flex:1;min-width:0;overflow-wrap:anywhere}.uri-app .photo-trash-row button{display:flex;align-items:center;justify-content:center;min-height:40px;padding:8px 12px;border:1px solid rgba(191,229,221,.45);border-radius:999px;background:transparent;color:#effff9}
 @media(max-width:700px){.uri-app .entry-media{padding:0 16px 16px}.album-controls{gap:16px;margin-top:12px}.photo-trash-row{gap:10px}.photo-trash-row img{width:56px;height:56px}}
+
+/* Calm, text-led cards across phone, tablet and desktop. */
+.uri-app .feature-card{min-height:220px;padding:28px 30px;align-items:center;text-align:center}
+.uri-app .feature-card::before{content:"";display:block;flex:none;width:32px;height:1px;margin:0 auto 18px;background:rgba(213,247,234,.68)}
+.uri-app .feature-card .card-foot{justify-content:center;gap:20px}
+@media(max-width:700px){.uri-app .feature-card{min-height:190px;padding:24px}}

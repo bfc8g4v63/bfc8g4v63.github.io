@@ -188,3 +188,12 @@ test("album captions lead the fixed photo area and navigation stays centered",as
  assert.match(css,/\.uri-app \.album-controls button\{display:flex;align-items:center;justify-content:center;width:40px;height:40px/);
  assert.match(css,/@media\(max-width:700px\)\{\.uri-app \.entry-media\{padding:0 16px 16px\}\.album-controls\{gap:16px;margin-top:12px\}/);
 });
+
+test("Uri cards remain centered and free of decorative sparkle glyphs",async()=>{
+ const [page,css]=await Promise.all([readFile(new URL("../app/uri/page.tsx",import.meta.url),"utf8"),readFile(new URL("../app/uri/uri.css",import.meta.url),"utf8")]);
+ assert.doesNotMatch(page,/[✳✦✧✴❇✨🌟💫⭐★☆❋✵✶✷✸✹]/u);
+ assert.doesNotMatch(page,/className="card-icon"/);
+ assert.match(css,/\.uri-app \.feature-card\{min-height:220px;padding:28px 30px;align-items:center;text-align:center\}/);
+ assert.match(css,/\.uri-app \.feature-card \.card-foot\{justify-content:center;gap:20px\}/);
+ assert.match(css,/@media\(max-width:700px\)\{\.uri-app \.feature-card\{min-height:190px;padding:24px\}\}/);
+});
