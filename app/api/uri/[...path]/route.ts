@@ -120,6 +120,18 @@ export async function POST(request:Request) {
    const ids=titles.map(()=>crypto.randomUUID()),now=new Date().toISOString();
    await runtime.DB.batch(titles.map((title,index)=>runtime.DB.prepare("INSERT INTO uri_entries (id,author_id,kind,category,title,body,start_date,end_date,state,version,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,1,?,?)").bind(ids[index],me.id,input.kind,input.category,title,input.body,input.startDate,input.endDate,input.state,now,now))); return json({id:ids[0],count:ids.length},201);
   }
+  if(path[0]==="photos" && path[1]==="batch-trash") {
+   const data=await readBody(request),entryId=clean(data.entryId,100),ids=data.photoIds;
+   if(!entryId||!Array.isArray(ids)||ids.length<1||ids.length>80||!ids.every(id=>typeof id==="string"&&id.length>0&&id.length<=100)||new Set(ids).size!==ids.length) return json({error:"請重新選擇照片"},400);
+   const entry=await runtime.DB.prepare("SELECT id FROM uri_entries WHERE id=? AND deleted_at IS NULL").bind(entryId).first();if(!entry)return json({error:"找不到這筆回憶"},404);
+   await ensureCoverTable();await ensureRemovedPhotoTable();
+   const placeholders=ids.map(()=>"?").join(","),now=new Date().toISOString();
+   const results=await runtime.DB.batch([
+    runtime.DB.prepare(`INSERT OR IGNORE INTO uri_removed_photos (photo_id,removed_at) SELECT p.id,? FROM uri_photos p JOIN uri_entries e ON e.id=p.entry_id WHERE p.entry_id=? AND e.deleted_at IS NULL AND p.id IN (${placeholders})`).bind(now,entryId,...ids),
+    runtime.DB.prepare("DELETE FROM uri_photo_covers WHERE entry_id=? AND EXISTS (SELECT 1 FROM uri_removed_photos r WHERE r.photo_id=uri_photo_covers.photo_id)").bind(entryId),
+   ]);
+   return json({removed:results[0].meta.changes,requested:ids.length});
+  }
   if(path[0]==="photos" && path[1]) {
    const entry=await runtime.DB.prepare("SELECT id FROM uri_entries WHERE id=? AND deleted_at IS NULL").bind(path[1]).first(); if(!entry) return json({error:"找不到內容"},404);
    if(!runtime.URI_BUCKET) return json({error:"照片儲存尚未設定"},503);

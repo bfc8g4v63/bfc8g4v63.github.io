@@ -28,7 +28,27 @@ try {
  r=await call(`entries/${first}`,{method:"PATCH",data:{action:"cover",photoId:p2,version:1}});assert.equal(r.status,404);
  r=await call(`photos/${p2}`,{method:"PATCH"});assert.equal(r.status,200);r=await call(`photos/${p2}`);assert.equal(r.status,200);
  r=await call("entries");firstRow=r.body.entries.find(e=>e.id===first);assert.equal(firstRow.photos.length,25);assert.ok(firstRow.photos.includes(p2));
+ r=await call(`entries/${first}`,{method:"PATCH",data:{action:"cover",photoId:p2,version:1}});assert.equal(r.status,200);
+ const bulk={entryId:first,photoIds:[p2,additional[0],foreign]};
+ r=await call("photos/batch-trash",{method:"POST",data:bulk,origin:"https://outside.example"});assert.equal(r.status,403);
+ let anonymous=await fetch(`${base}/api/uri/photos/batch-trash`,{method:"POST",headers:{origin:base,"content-type":"application/json"},body:JSON.stringify(bulk)});assert.equal(anonymous.status,401);
+ r=await call("photos/batch-trash",{method:"POST",data:{entryId:first,photoIds:[p2,p2]}});assert.equal(r.status,400);
+ r=await call("photos/batch-trash",{method:"POST",data:{entryId:first,photoIds:Array.from({length:81},(_,i)=>`photo-${i}`)}});assert.equal(r.status,400);
+ r=await call("photos/batch-trash",{method:"POST",data:bulk});assert.equal(r.status,200);assert.equal(r.body.removed,2);
+ r=await call("entries");firstRow=r.body.entries.find(e=>e.id===first);assert.equal(firstRow.photos.length,23);assert.notEqual(firstRow.coverPhotoId,p2);assert.ok(r.body.entries.find(e=>e.id===second).photos.includes(foreign));
+ r=await call("photos/batch-trash",{method:"POST",data:bulk});assert.equal(r.status,200);assert.equal(r.body.removed,0);
+ r=await call("photos/trash");assert.ok(r.body.photos.some(p=>p.id===p2));assert.ok(r.body.photos.some(p=>p.id===additional[0]));assert.ok(!r.body.photos.some(p=>p.id===foreign));
+ r=await call(`photos/${p2}`,{method:"PATCH"});assert.equal(r.status,200);r=await call(`photos/${additional[0]}`,{method:"PATCH"});assert.equal(r.status,200);
+ r=await call("entries");firstRow=r.body.entries.find(e=>e.id===first);assert.equal(firstRow.photos.length,25);
  r=await call(`photos/${p1}`,{method:"DELETE"});assert.equal(r.status,200);
+ const extra=[];for(let i=0;i<57;i++){r=await call(`photos/${first}`,{method:"POST",body:png});assert.equal(r.status,201);extra.push(r.body.id);}
+ r=await call("entries");firstRow=r.body.entries.find(e=>e.id===first);assert.equal(firstRow.photos.length,81);
+ const all=firstRow.photos;
+ r=await call("photos/batch-trash",{method:"POST",data:{entryId:first,photoIds:all.slice(0,80)}});assert.equal(r.status,200);assert.equal(r.body.removed,80);
+ r=await call("photos/batch-trash",{method:"POST",data:{entryId:first,photoIds:all.slice(80)}});assert.equal(r.status,200);assert.equal(r.body.removed,1);
+ r=await call("entries");firstRow=r.body.entries.find(e=>e.id===first);assert.equal(firstRow.photos.length,0);
+ r=await call(`photos/${p2}`,{method:"PATCH"});assert.equal(r.status,200);
+ r=await call("entries");firstRow=r.body.entries.find(e=>e.id===first);assert.deepEqual(firstRow.photos,[p2]);
  console.log("Local photo integration passed: uploads, cover, photo trash, restore, export and origin checks.");
 } finally {
  for(const id of created){let r=await call("entries");let row=r.body.entries.find(e=>e.id===id);if(row){await call(`entries/${id}?version=${row.version}`,{method:"DELETE"});r=await call("entries?deleted=1");row=r.body.entries.find(e=>e.id===id);if(row)await call(`purge/${id}?version=${row.version}`,{method:"DELETE"});}}

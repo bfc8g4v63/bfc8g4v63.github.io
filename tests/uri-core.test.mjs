@@ -4,6 +4,7 @@ import {readFile} from "node:fs/promises";
 import {entryView,taipeiDate,validDate,monthDays,changeDatePart,shiftCalendarMonth,firstWeekday,dateWheelIndex,slowDateWheel} from "../lib/uri/core.ts";
 import proxy from "../cloudflare/gooddays-proxy-worker.mjs";
 import {albumSwipe,orderAlbumPhotos,stepAlbumIndex} from "../lib/uri/album.ts";
+import {splitPhotoBatches} from "../lib/uri/photo-batches.ts";
 import {uploadPhoto} from "../lib/uri/photo-upload.ts";
 import {createPendingPhotos} from "../lib/uri/photo-selection.ts";
 import {readPreference,writePreference,splitPreferenceTitles} from "../lib/uri/preferences.ts";
@@ -239,4 +240,17 @@ test("navigation and close icons use centered vector paths across responsive con
  assert.match(css,/\.uri-app \.calendar-nav\{display:grid;place-items:center;width:40px;height:40px/);
  assert.match(css,/\.uri-app \.album-controls button\{display:flex;align-items:center;justify-content:center/);
  assert.match(css,/\.uri-app \.album-close,\.uri-app \.viewer-arrow\{flex:none;display:flex;align-items:center;justify-content:center/);
+});
+
+
+test("large photo selections are split without dropping or duplicating items",()=>{
+ const ids=Array.from({length:183},(_,i)=>`photo-${i}`);const batches=splitPhotoBatches(ids);
+ assert.deepEqual(batches.map(batch=>batch.length),[80,80,23]);assert.deepEqual(batches.flat(),ids);assert.deepEqual(splitPhotoBatches([]),[]);
+});
+test("album bulk controls remain centered and explicitly select the whole album",async()=>{
+ const [album,css]=await Promise.all([readFile(new URL("../app/uri/AlbumDialog.tsx",import.meta.url),"utf8"),readFile(new URL("../app/uri/uri.css",import.meta.url),"utf8")]);
+ assert.match(album,/new Set\(photos\)/);assert.match(album,/aria-pressed=\{selectMode\?picked\.has\(id\):undefined\}/);assert.match(album,/disabled=\{busy\|\|picked\.size===0\}/);
+ assert.match(css,/\.album-selection-bar>div\{display:flex;align-items:center;justify-content:center;gap:9px/);
+ assert.match(css,/\.uri-app \.album-select-toggle,\.uri-app \.album-selection-bar button\{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:9px 16px/);
+ assert.match(css,/@media\(max-width:700px\)\{\.album-selection-bar\{bottom:-22px;flex-direction:column;align-items:stretch;text-align:center/);
 });
